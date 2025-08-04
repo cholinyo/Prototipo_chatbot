@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+
+{% block title %}Página no encontrada - {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-6 col-md-8">
+        <div class="text-center">
+            <!-- Error Icon -->
+            <div class="error-icon mb-4">
+                <i class="fas fa-robot" style="font-size: 6rem; color: #6c757d; opacity: 0.5;"></i>
+                <div class="error-code" style="font-size: 4rem; font-weight: bold; color: #dc3545; margin-top: -1rem;">
+                    404
+                </div>
+            </div>
+            
+            <!-- Error Message -->
+            <h2 class="mb-3">¡Oops! Página no encontrada</h2>
+            <p class="lead text-muted mb-4">
+                La página que buscas no existe o ha sido movida. 
+                Nuestro robot explorador no pudo encontrar nada aquí.
+            </p>
+            
+            <!-- Suggestions -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-body">
+                    <h5 class="card-title">
+                        <i class="fas fa-lightbulb text-warning me-2"></i>
+                        ¿Qué puedes hacer?
+                    </h5>
+                    <div class="row text-start">
+                        <div class="col-md-6">
+                            <ul class="list-unstyled">
+                                <li class="mb-2">
+                                    <i class="fas fa-home text-primary me-2"></i>
+                                    <a href="{{ url_for('index') }}">Ir a la página principal</a>
+                                </li>
+                                <li class="mb-2">
+                                    <i class="fas fa-comments text-success me-2"></i>
+                                    <a href="#" onclick="navigateToChat()">Probar el Chat RAG</a>
+                                </li>
+                            </ul>
+                        </div>
+                        <div class="col-md-6">
+                            <ul class="list-unstyled">
+                                <li class="mb-2">
+                                    <i class="fas fa-cog text-info me-2"></i>
+                                    <a href="#" onclick="navigateToConfig()">Configurar fuentes</a>
+                                </li>
+                                <li class="mb-2">
+                                    <i class="fas fa-arrow-left text-secondary me-2"></i>
+                                    <a href="javascript:history.back()">Volver atrás</a>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Quick Actions -->
+            <div class="d-flex justify-content-center gap-3">
+                <a href="{{ url_for('index') }}" class="btn btn-primary">
+                    <i class="fas fa-home me-2"></i>
+                    Página Principal
+                </a>
+                <button class="btn btn-outline-secondary" onclick="history.back()">
+                    <i class="fas fa-arrow-left me-2"></i>
+                    Volver
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.error-icon {
+    position: relative;
+}
+
+.error-code {
+    position: relative;
+    z-index: 2;
+}
+
+.error-icon .fas.fa-robot {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 1;
+}
+</style>
+
+<script>
+function navigateToChat() {
+    // Placeholder hasta que implementemos las rutas reales
+    if (window.prototipoApp) {
+        window.prototipoApp.navigateToChat();
+    } else {
+        alert('Chat no disponible todavía');
+    }
+}
+
+function navigateToConfig() {
+    // Placeholder hasta que implementemos las rutas reales  
+    if (window.prototipoApp) {
+        window.prototipoApp.navigateToConfig();
+    } else {
+        alert('Configuración no disponible todavía');
+    }
+}
+</script>
+{% endblock %}

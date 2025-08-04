@@ -1,0 +1,91 @@
+# Prototipo_chatbot - Configuración Principal
+
+app:
+  name: "Prototipo_chatbot"
+  version: "1.0.0"
+  description: "Chatbot RAG para Administraciones Locales"
+  debug: true
+  host: "127.0.0.1"
+  port: 5000
+
+models:
+  embedding:
+    name: "all-MiniLM-L6-v2"
+    dimension: 384
+    device: "cpu"
+  
+  local:
+    default: "ollama:llama3.1:8b"
+    available:
+      - "ollama:llama3.1:8b"
+      - "ollama:mistral:7b"
+      - "ollama:gemma2:2b"
+    
+  openai:
+    default: "gpt-4"
+    available:
+      - "gpt-4"
+      - "gpt-4-turbo"
+      - "gpt-3.5-turbo"
+
+vector_stores:
+  default: "faiss"
+  
+  faiss:
+    enabled: true
+    path: "data/vectorstore/faiss"
+    index_type: "IndexFlatL2"
+    
+  chromadb:
+    enabled: true 
+    path: "data/vectorstore/chromadb"
+    collection_name: "prototipo_documents"
+
+rag:
+  enabled: true
+  k_default: 5
+  chunk_size: 500
+  chunk_overlap: 50
+  similarity_threshold: 0.7
+  local_models_require_rag: true
+  cloud_models_require_rag: false
+
+ingestion:
+  batch_size: 100
+  max_file_size_mb: 50
+  supported_formats:
+    documents: [".pdf", ".docx", ".txt", ".rtf"]
+    web: [".html", ".htm"]
+    spreadsheets: [".xlsx", ".xls", ".csv"]
+
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: "logs/prototipo_chatbot.log"
+  max_bytes: 10485760
+  backup_count: 5
+
+security:
+  max_query_length: 1000
+  rate_limit_per_minute: 60
+  allowed_file_types: [".pdf", ".docx", ".txt", ".xlsx", ".csv"]
+  
+development:
+  reload_on_change: true
+  show_sql_queries: false
+  enable_debug_toolbar: true
+
+
+2. Crear archivo .env básico
+
+# Prototipo_chatbot - Variables de Entorno
+FLASK_ENV=development
+FLASK_DEBUG=True
+SECRET_KEY=prototipo-chatbot-dev-secret-key
+DEFAULT_LOCAL_MODEL=ollama:llama3.1:8b
+DEFAULT_OPENAI_MODEL=gpt-4
+EMBEDDING_MODEL=all-MiniLM-L6-v2
+DEFAULT_VECTOR_STORE=faiss
+RAG_K_DEFAULT=5
+LOG_LEVEL=INFO
+DEVELOPMENT_MODE=True

@@ -1,0 +1,142 @@
+# Crear .gitignore
+@"
+# Prototipo_chatbot - .gitignore
+
+# ===== PYTHON =====
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# ===== ENVIRONMENTS =====
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# ===== AI/ML MODELS =====
+models/
+*.gguf
+*.bin
+*.safetensors
+checkpoints/
+*.ckpt
+*.pth
+*.pt
+.cache/
+transformers_cache/
+sentence_transformers_cache/
+
+# ===== VECTOR STORES =====
+data/vectorstore/
+vectorstore/
+*.faiss
+*.index
+*.pkl
+*.pickle
+*.db
+*.sqlite
+*.sqlite3
+
+# ===== DOCUMENTOS Y DATOS =====
+data/documents/
+docs/private/
+documentos/
+*.pdf
+*.docx
+*.xlsx
+*.csv
+data/temp/
+temp/
+tmp/
+*.tmp
+
+# ===== LOGS =====
+logs/
+*.log
+*.log.*
+
+# ===== CONFIGURACIÓN SENSIBLE =====
+.env
+.env.local
+.env.production
+config/local/
+config/production/
+secrets/
+*.key
+*.pem
+api_keys.txt
+
+# ===== DESARROLLO =====
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+*.sublime-project
+*.sublime-workspace
+
+# ===== SISTEMA OPERATIVO =====
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# ===== WEB SCRAPING =====
+selenium_profile/
+geckodriver.log
+chromedriver.log
+downloads/
+scraped_data/
+
+# ===== TESTING =====
+htmlcov/
+.coverage
+coverage.xml
+*.cover
+.pytest_cache/
+test.db
+
+# ===== TFM ESPECÍFICO =====
+experimentos/
+resultados/
+benchmarks/
+metricas/
+tfm_private/
+notas_personales/
+borradores/
+backup/
+*.backup
+*.bak
+
+# ===== SEGURIDAD =====
+*.cert
+*.crt
+*.p12
+*.pfx
+credentials.json
+service-account.json
+auth.json
+
+# ===== OTROS =====
+*.zip
+*.tar.gz
+*.rar
+*.7z
+node_modules/
+npm-debug.log*
+"@ | Out-File -FilePath ".gitignore" -Encoding UTF8

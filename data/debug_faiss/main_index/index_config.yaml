@@ -1,0 +1,9 @@
+index_info:
+  dimension: 384
+  metric: L2
+  normalize_vectors: true
+  type: IndexFlatL2
+store_info:
+  created_at: '2025-08-04T13:45:09.184864'
+  embedding_model: all-MiniLM-L6-v2
+  version: 1.0.0

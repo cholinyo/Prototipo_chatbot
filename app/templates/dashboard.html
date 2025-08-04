@@ -1,0 +1,836 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - {{ app_name }}{% endblock %}
+
+{% block meta_description %}Panel de control y métricas del sistema de chatbot RAG{% endblock %}
+
+{% block extra_head %}
+<style>
+.metric-card {
+    transition: all 0.3s ease;
+    border: none;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+}
+
+.metric-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+}
+
+.metric-icon {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    color: white;
+}
+
+.metric-number {
+    font-size: 2rem;
+    font-weight: 700;
+    margin: 0.5rem 0;
+    color: #495057;
+}
+
+.metric-label {
+    color: #6c757d;
+    font-size: 0.875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.metric-change {
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.status-badge {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 1rem;
+}
+
+.chart-container {
+    position: relative;
+    height: 300px;
+}
+
+.provider-status {
+    padding: 1rem;
+    border-radius: 0.5rem;
+    border-left: 4px solid;
+}
+
+.provider-status.healthy {
+    border-left-color: #198754;
+    background: rgba(25, 135, 84, 0.1);
+}
+
+.provider-status.warning {
+    border-left-color: #ffc107;
+    background: rgba(255, 193, 7, 0.1);
+}
+
+.provider-status.error {
+    border-left-color: #dc3545;
+    background: rgba(220, 53, 69, 0.1);
+}
+
+.activity-item {
+    padding: 0.75rem 0;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.activity-item:last-child {
+    border-bottom: none;
+}
+
+.activity-time {
+    color: #6c757d;
+    font-size: 0.75rem;
+}
+
+@media (max-width: 768px) {
+    .metric-number {
+        font-size: 1.5rem;
+    }
+    
+    .chart-container {
+        height: 250px;
+    }
+}
+</style>
+{% endblock %}
+
+{% block breadcrumb %}
+<nav aria-label="breadcrumb" class="mb-3">
+    <div class="container-fluid">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{{ url_for('main.index') }}">Inicio</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Dashboard</li>
+        </ol>
+    </div>
+</nav>
+{% endblock %}
+
+{% block content %}
+<!-- Header -->
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="h3 mb-1">
+            <i class="fas fa-chart-line me-2 text-primary"></i>
+            Dashboard del Sistema
+        </h1>
+        <p class="text-muted mb-0">Métricas y estado del Prototipo_chatbot en tiempo real</p>
+    </div>
+    <div class="d-flex gap-2">
+        <button class="btn btn-outline-primary" id="refresh-dashboard" type="button">
+            <i class="fas fa-sync-alt me-1"></i>Actualizar
+        </button>
+        <button class="btn btn-outline-secondary" id="export-metrics" type="button">
+            <i class="fas fa-download me-1"></i>Exportar
+        </button>
+    </div>
+</div>
+
+<!-- System Status Alert -->
+<div class="alert alert-success border-0 shadow-sm mb-4" role="alert" id="system-status-alert">
+    <div class="d-flex align-items-center">
+        <i class="fas fa-check-circle fa-lg me-3"></i>
+        <div>
+            <h6 class="alert-heading mb-1">Sistema Operativo</h6>
+            <p class="mb-0">Todos los servicios funcionan correctamente. Última verificación: <span id="last-check-time">cargando...</span></p>
+        </div>
+    </div>
+</div>
+
+<!-- Metrics Cards -->
+<div class="row g-3 mb-4">
+    <div class="col-xl-3 col-md-6">
+        <div class="card metric-card h-100">
+            <div class="card-body text-center">
+                <div class="metric-icon bg-primary mx-auto mb-3">
+                    <i class="fas fa-comments"></i>
+                </div>
+                <div class="metric-number" id="total-queries">{{ usage_stats.queries_today or 0 }}</div>
+                <div class="metric-label">Consultas Totales</div>
+                <div class="metric-change text-success">
+                    <i class="fas fa-arrow-up me-1"></i>+12% vs ayer
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-xl-3 col-md-6">
+        <div class="card metric-card h-100">
+            <div class="card-body text-center">
+                <div class="metric-icon bg-success mx-auto mb-3">
+                    <i class="fas fa-tachometer-alt"></i>
+                </div>
+                <div class="metric-number" id="avg-response-time">{{ "%.2f"|format(usage_stats.response_time_avg or 0) }}s</div>
+                <div class="metric-label">Tiempo Respuesta Promedio</div>
+                <div class="metric-change text-success">
+                    <i class="fas fa-arrow-down me-1"></i>-5% mejora
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-xl-3 col-md-6">
+        <div class="card metric-card h-100">
+            <div class="card-body text-center">
+                <div class="metric-icon bg-info mx-auto mb-3">
+                    <i class="fas fa-database"></i>
+                </div>
+                <div class="metric-number" id="total-documents">{{ performance_metrics.total_documents or 0 }}</div>
+                <div class="metric-label">Documentos Indexados</div>
+                <div class="metric-change text-info">
+                    <i class="fas fa-plus me-1"></i>{{ performance_metrics.vector_store_size|round(1) or 0 }}MB
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-xl-3 col-md-6">
+        <div class="card metric-card h-100">
+            <div class="card-body text-center">
+                <div class="metric-icon bg-warning mx-auto mb-3">
+                    <i class="fas fa-percentage"></i>
+                </div>
+                <div class="metric-number" id="success-rate">{{ "%.1f"|format(usage_stats.success_rate or 0) }}%</div>
+                <div class="metric-label">Tasa de Éxito</div>
+                <div class="metric-change text-success">
+                    <i class="fas fa-check me-1"></i>Excelente
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Charts Row -->
+<div class="row g-3 mb-4">
+    <div class="col-lg-8">
+        <div class="card shadow-sm">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h6 class="mb-0">
+                    <i class="fas fa-chart-line me-2"></i>
+                    Uso del Sistema (Últimos 7 días)
+                </h6>
+                <div class="btn-group btn-group-sm" role="group">
+                    <button type="button" class="btn btn-outline-primary active" data-chart-period="7d">7d</button>
+                    <button type="button" class="btn btn-outline-primary" data-chart-period="30d">30d</button>
+                    <button type="button" class="btn btn-outline-primary" data-chart-period="90d">90d</button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="usage-chart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-header">
+                <h6 class="mb-0">
+                    <i class="fas fa-brain me-2"></i>
+                    Uso de Modelos
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="models-chart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Providers Status Row -->
+<div class="row g-3 mb-4">
+    <div class="col-lg-8">
+        <div class="card shadow-sm">
+            <div class="card-header">
+                <h6 class="mb-0">
+                    <i class="fas fa-server me-2"></i>
+                    Estado de Proveedores de IA
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    {% for provider, status in providers_status.items() %}
+                    <div class="col-md-6">
+                        <div class="provider-status {{ status.status }}">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <h6 class="mb-0">
+                                    {% if provider == 'ollama' %}
+                                        <i class="fas fa-robot me-2"></i>Ollama (Local)
+                                    {% elif provider == 'openai' %}
+                                        <i class="fas fa-cloud me-2"></i>OpenAI (API)
+                                    {% endif %}
+                                </h6>
+                                <span class="status-badge bg-{{ 'success' if status.available else 'danger' }}">
+                                    {{ 'Disponible' if status.available else 'No disponible' }}
+                                </span>
+                            </div>
+                            <div class="row">
+                                <div class="col-6">
+                                    <small class="text-muted">Modelos:</small>
+                                    <div class="fw-bold">{{ status.model_count }}</div>
+                                </div>
+                                <div class="col-6">
+                                    <small class="text-muted">Estado:</small>
+                                    <div class="fw-bold">
+                                        {% if status.status == 'healthy' %}
+                                            <i class="fas fa-check-circle text-success me-1"></i>Saludable
+                                        {% elif status.status == 'warning' %}
+                                            <i class="fas fa-exclamation-triangle text-warning me-1"></i>Advertencia
+                                        {% else %}
+                                            <i class="fas fa-times-circle text-danger me-1"></i>Error
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                            {% if status.models %}
+                            <div class="mt-2">
+                                <small class="text-muted">Modelos disponibles:</small>
+                                <div class="mt-1">
+                                    {% for model in status.models[:3] %}
+                                        <span class="badge bg-light text-dark me-1">{{ model }}</span>
+                                    {% endfor %}
+                                    {% if status.models|length > 3 %}
+                                        <span class="badge bg-secondary">+{{ status.models|length - 3 }} más</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4">
+        <div class="card shadow-sm">
+            <div class="card-header">
+                <h6 class="mb-0">
+                    <i class="fas fa-clock me-2"></i>
+                    Tiempos de Respuesta
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="response-times-chart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- System Information Row -->
+<div class="row g-3 mb-4">
+    <div class="col-lg-6">
+        <div class="card shadow-sm">
+            <div class="card-header">
+                <h6 class="mb-0">
+                    <i class="fas fa-info-circle me-2"></i>
+                    Información del Sistema
+                </h6>
+            </div>
+            <div class="card-body">
+                <table class="table table-sm">
+                    <tbody>
+                        <tr>
+                            <td><strong>Tiempo de actividad:</strong></td>
+                            <td id="system-uptime">{{ "%.1f"|format(usage_stats.uptime_hours or 0) }} horas</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Modelo de embeddings:</strong></td>
+                            <td><code>{{ performance_metrics.embedding_model or 'No configurado' }}</code></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Tamaño de chunk:</strong></td>
+                            <td>{{ performance_metrics.chunk_size or 500 }} caracteres</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Vector store:</strong></td>
+                            <td>
+                                <span class="badge bg-primary">{{ rag_stats.vector_store_type or 'FAISS' }}</span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><strong>Trabajos de ingesta:</strong></td>
+                            <td>
+                                <span class="badge bg-success">{{ ingestion_stats.jobs_completed or 0 }} completados</span>
+                                <span class="badge bg-warning">{{ ingestion_stats.jobs_active or 0 }} activos</span>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-6">
+        <div class="card shadow-sm">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h6 class="mb-0">
+                    <i class="fas fa-history me-2"></i>
+                    Actividad Reciente
+                </h6>
+                <button class="btn btn-sm btn-outline-primary" id="view-all-activity">
+                    Ver todo
+                </button>
+            </div>
+            <div class="card-body">
+                <div id="recent-activity">
+                    <div class="activity-item">
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-check-circle text-success me-3"></i>
+                            <div class="flex-grow-1">
+                                <div>Sistema iniciado correctamente</div>
+                                <div class="activity-time">Hace 2 horas</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="activity-item">
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-upload text-info me-3"></i>
+                            <div class="flex-grow-1">
+                                <div>{{ performance_metrics.total_documents or 0 }} documentos procesados</div>
+                                <div class="activity-time">Hace 3 horas</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="activity-item">
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-comments text-primary me-3"></i>
+                            <div class="flex-grow-1">
+                                <div>{{ usage_stats.queries_today or 0 }} consultas procesadas hoy</div>
+                                <div class="activity-time">Continuo</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Actions -->
+<div class="row g-3">
+    <div class="col-12">
+        <div class="card shadow-sm">
+            <div class="card-header">
+                <h6 class="mb-0">
+                    <i class="fas fa-bolt me-2"></i>
+                    Acciones Rápidas
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-lg-3 col-md-6">
+                        <div class="d-grid">
+                            <a href="{{ url_for('chat.chat_index') }}" class="btn btn-primary">
+                                <i class="fas fa-comments me-2"></i>
+                                Abrir Chat
+                            </a>
+                        </div>
+                    </div>
+                    <div class="col-lg-3 col-md-6">
+                        <div class="d-grid">
+                            <button class="btn btn-success" id="start-ingestion">
+                                <i class="fas fa-upload me-2"></i>
+                                Ingestar Datos
+                            </button>
+                        </div>
+                    </div>
+                    <div class="col-lg-3 col-md-6">
+                        <div class="d-grid">
+                            <a href="{{ url_for('main.settings') }}" class="btn btn-info">
+                                <i class="fas fa-cog me-2"></i>
+                                Configuración
+                            </a>
+                        </div>
+                    </div>
+                    <div class="col-lg-3 col-md-6">
+                        <div class="d-grid">
+                            <button class="btn btn-warning" id="run-diagnostics">
+                                <i class="fas fa-stethoscope me-2"></i>
+                                Diagnósticos
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+class DashboardManager {
+    constructor() {
+        this.charts = {};
+        this.refreshInterval = null;
+        this.init();
+    }
+    
+    init() {
+        this.setupEventListeners();
+        this.initializeCharts();
+        this.startAutoRefresh();
+        this.updateLastCheckTime();
+    }
+    
+    setupEventListeners() {
+        // Refresh button
+        document.getElementById('refresh-dashboard').addEventListener('click', () => {
+            this.refreshDashboard();
+        });
+        
+        // Export metrics
+        document.getElementById('export-metrics').addEventListener('click', () => {
+            this.exportMetrics();
+        });
+        
+        // Chart period buttons
+        document.querySelectorAll('[data-chart-period]').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                // Update active state
+                document.querySelectorAll('[data-chart-period]').forEach(b => b.classList.remove('active'));
+                e.target.classList.add('active');
+                
+                // Update chart
+                this.updateUsageChart(e.target.dataset.chartPeriod);
+            });
+        });
+        
+        // Quick actions
+        document.getElementById('start-ingestion').addEventListener('click', () => {
+            this.showNotification('Funcionalidad de ingesta en desarrollo', 'info');
+        });
+        
+        document.getElementById('run-diagnostics').addEventListener('click', () => {
+            this.runDiagnostics();
+        });
+        
+        document.getElementById('view-all-activity').addEventListener('click', () => {
+            this.showActivityModal();
+        });
+    }
+    
+    initializeCharts() {
+        this.initUsageChart();
+        this.initModelsChart();
+        this.initResponseTimesChart();
+    }
+    
+    initUsageChart() {
+        const ctx = document.getElementById('usage-chart').getContext('2d');
+        
+        this.charts.usage = new Chart(ctx, {
+            type: 'line',
+            data: {{ charts_data.usage_over_time | tojson | safe }},
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    title: {
+                        display: false
+                    },
+                    legend: {
+                        position: 'bottom'
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        grid: {
+                            color: 'rgba(0,0,0,0.1)'
+                        }
+                    },
+                    x: {
+                        grid: {
+                            color: 'rgba(0,0,0,0.1)'
+                        }
+                    }
+                },
+                elements: {
+                    line: {
+                        tension: 0.4
+                    },
+                    point: {
+                        radius: 4,
+                        hoverRadius: 6
+                    }
+                }
+            }
+        });
+    }
+    
+    initModelsChart() {
+        const ctx = document.getElementById('models-chart').getContext('2d');
+        
+        this.charts.models = new Chart(ctx, {
+            type: 'doughnut',
+            data: {{ charts_data.model_usage | tojson | safe }},
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom'
+                    }
+                }
+            }
+        });
+    }
+    
+    initResponseTimesChart() {
+        const ctx = document.getElementById('response-times-chart').getContext('2d');
+        
+        this.charts.responseTimes = new Chart(ctx, {
+            type: 'doughnut',
+            data: {{ charts_data.response_times | tojson | safe }},
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom'
+                    }
+                }
+            }
+        });
+    }
+    
+    async refreshDashboard() {
+        const button = document.getElementById('refresh-dashboard');
+        const originalText = button.innerHTML;
+        
+        button.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Actualizando...';
+        button.disabled = true;
+        
+        try {
+            // Actualizar métricas rápidas
+            const response = await fetch('/ajax/quick-stats');
+            const data = await response.json();
+            
+            if (data) {
+                this.updateMetrics(data);
+                this.showNotification('Dashboard actualizado', 'success');
+            }
+            
+            this.updateLastCheckTime();
+            
+        } catch (error) {
+            console.error('Error actualizando dashboard:', error);
+            this.showNotification('Error actualizando dashboard', 'error');
+        } finally {
+            button.innerHTML = originalText;
+            button.disabled = false;
+        }
+    }
+    
+    updateMetrics(data) {
+        // Actualizar números principales
+        document.getElementById('total-queries').textContent = data.queries || 0;
+        document.getElementById('avg-response-time').textContent = (data.avg_response_time || 0).toFixed(2) + 's';
+        document.getElementById('total-documents').textContent = data.documents || 0;
+        
+        // Actualizar uptime
+        document.getElementById('system-uptime').textContent = (data.uptime || 0).toFixed(1) + ' horas';
+    }
+    
+    updateUsageChart(period) {
+        // En producción, esto haría una llamada AJAX para obtener datos del período
+        this.showNotification(`Mostrando datos de ${period}`, 'info');
+    }
+    
+    async runDiagnostics() {
+        const button = document.getElementById('run-diagnostics');
+        const originalText = button.innerHTML;
+        
+        button.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Ejecutando...';
+        button.disabled = true;
+        
+        try {
+            // Simular diagnósticos
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            
+            // Verificar estado del sistema
+            const response = await fetch('/api/status');
+            const data = await response.json();
+            
+            let diagnosticsHtml = '<h6>Resultados del Diagnóstico:</h6><ul>';
+            
+            // Verificar servicios
+            Object.entries(data.services).forEach(([service, info]) => {
+                const status = info.status;
+                const icon = status === 'healthy' ? 'fa-check-circle text-success' : 
+                           status === 'warning' ? 'fa-exclamation-triangle text-warning' : 
+                           'fa-times-circle text-danger';
+                
+                diagnosticsHtml += `<li><i class="fas ${icon} me-1"></i>${service}: ${status}</li>`;
+            });
+            
+            diagnosticsHtml += '</ul>';
+            
+            this.showNotification(diagnosticsHtml, 'info', 8000);
+            
+        } catch (error) {
+            console.error('Error ejecutando diagnósticos:', error);
+            this.showNotification('Error ejecutando diagnósticos', 'error');
+        } finally {
+            button.innerHTML = originalText;
+            button.disabled = false;
+        }
+    }
+    
+    async exportMetrics() {
+        try {
+            const response = await fetch('/api/stats');
+            const data = await response.json();
+            
+            const exportData = {
+                timestamp: new Date().toISOString(),
+                system_stats: data,
+                usage_metrics: {
+                    queries: document.getElementById('total-queries').textContent,
+                    response_time: document.getElementById('avg-response-time').textContent,
+                    documents: document.getElementById('total-documents').textContent,
+                    success_rate: document.getElementById('success-rate').textContent
+                }
+            };
+            
+            const blob = new Blob([JSON.stringify(exportData, null, 2)], { 
+                type: 'application/json' 
+            });
+            
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `dashboard-metrics-${new Date().toISOString().split('T')[0]}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            this.showNotification('Métricas exportadas exitosamente', 'success');
+            
+        } catch (error) {
+            console.error('Error exportando métricas:', error);
+            this.showNotification('Error exportando métricas', 'error');
+        }
+    }
+    
+    showActivityModal() {
+        // En producción, esto abriría un modal con actividad detallada
+        this.showNotification('Modal de actividad detallada en desarrollo', 'info');
+    }
+    
+    startAutoRefresh() {
+        // Actualizar cada 30 segundos
+        this.refreshInterval = setInterval(() => {
+            this.refreshQuickStats();
+        }, 30000);
+    }
+    
+    async refreshQuickStats() {
+        try {
+            const response = await fetch('/ajax/quick-stats');
+            const data = await response.json();
+            
+            if (data) {
+                this.updateMetrics(data);
+                this.updateLastCheckTime();
+            }
+        } catch (error) {
+            console.log('Error en actualización automática:', error);
+        }
+    }
+    
+    updateLastCheckTime() {
+        const now = new Date();
+        const timeString = now.toLocaleTimeString('es-ES');
+        document.getElementById('last-check-time').textContent = timeString;
+    }
+    
+    showNotification(message, type = 'info', duration = 5000) {
+        // Crear toast
+        const toastContainer = document.querySelector('.toast-container');
+        const toastId = 'toast-' + Date.now();
+        
+        const bgClass = {
+            'success': 'bg-success',
+            'error': 'bg-danger', 
+            'warning': 'bg-warning',
+            'info': 'bg-info'
+        }[type] || 'bg-info';
+        
+        const iconClass = {
+            'success': 'fa-check-circle',
+            'error': 'fa-exclamation-triangle',
+            'warning': 'fa-exclamation-circle',
+            'info': 'fa-info-circle'
+        }[type] || 'fa-info-circle';
+        
+        const toastHtml = `
+            <div class="toast align-items-center text-white ${bgClass} border-0" id="${toastId}" role="alert">
+                <div class="d-flex">
+                    <div class="toast-body">
+                        <i class="fas ${iconClass} me-2"></i>
+                        ${message}
+                    </div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+                </div>
+            </div>
+        `;
+        
+        toastContainer.insertAdjacentHTML('beforeend', toastHtml);
+        
+        const toast = new bootstrap.Toast(document.getElementById(toastId), {
+            delay: duration
+        });
+        toast.show();
+        
+        // Limpiar del DOM
+        document.getElementById(toastId).addEventListener('hidden.bs.toast', () => {
+            document.getElementById(toastId).remove();
+        });
+    }
+    
+    destroy() {
+        if (this.refreshInterval) {
+            clearInterval(this.refreshInterval);
+        }
+        
+        Object.values(this.charts).forEach(chart => {
+            chart.destroy();
+        });
+    }
+}
+
+// Inicializar dashboard
+let dashboardManager;
+
+document.addEventListener('DOMContentLoaded', function() {
+    dashboardManager = new DashboardManager();
+});
+
+// Limpiar al salir
+window.addEventListener('beforeunload', function() {
+    if (dashboardManager) {
+        dashboardManager.destroy();
+    }
+});
+</script>
+{% endblock %}
