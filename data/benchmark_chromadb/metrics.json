@@ -1,0 +1,18 @@
+{
+  "total_documents": 20,
+  "collection_size": 0,
+  "database_path": "data\\benchmark_chromadb",
+  "last_add_time": 0.1455228328704834,
+  "last_search_time": 0.0,
+  "total_add_operations": 1,
+  "total_search_operations": 0,
+  "avg_add_time": 0.0727614164352417,
+  "avg_search_time": 0.0,
+  "memory_usage_mb": 0.0,
+  "disk_usage_mb": 64.36114597320557,
+  "source_distribution": {
+    "benchmark_documents.pdf": 20
+  },
+  "distance_function": "cosine",
+  "embedding_function": "custom"
+}

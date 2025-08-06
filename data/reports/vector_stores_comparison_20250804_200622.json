@@ -1,0 +1,260 @@
+{
+  "metadata": {
+    "title": "Comparación Empírica FAISS vs ChromaDB",
+    "subtitle": "Análisis de Rendimiento para Sistemas RAG",
+    "author": "Vicente Caruncho Ramos",
+    "tfm": "Prototipo de Chatbot Interno para Administraciones Locales",
+    "university": "Universitat Jaume I",
+    "date": "2025-08-04T20:06:22.976898",
+    "version": "1.0"
+  },
+  "methodology": {
+    "dataset_size": 20,
+    "query_count": 10,
+    "embedding_model": "all-MiniLM-L6-v2",
+    "embedding_dimension": 384,
+    "test_categories": [
+      "Inserción de documentos",
+      "Búsquedas por similitud",
+      "Filtrado por metadatos",
+      "Uso de recursos"
+    ]
+  },
+  "results": {
+    "faiss": {
+      "store_type": "FAISS",
+      "timestamp": "2025-08-04T20:06:21.616354",
+      "dataset_size": 20,
+      "query_count": 10,
+      "insertion_performance": [
+        {
+          "batch_size": 5,
+          "time": 0.009834527969360352,
+          "throughput": 508.41281000751536
+        },
+        {
+          "batch_size": 10,
+          "time": 0.007167339324951172,
+          "throughput": 1395.2178830417138
+        },
+        {
+          "batch_size": 20,
+          "time": 0.006282806396484375,
+          "throughput": 3183.290831815422
+        }
+      ],
+      "full_insertion_time": 0.0069887638092041016,
+      "full_insertion_throughput": 2861.73643093508,
+      "search_performance": [
+        {
+          "k": 1,
+          "avg_search_time": 0.002169489860534668,
+          "avg_results_returned": 1.0,
+          "queries_per_second": 460.9378537282268
+        },
+        {
+          "k": 3,
+          "avg_search_time": 4.453659057617188e-05,
+          "avg_results_returned": 3.0,
+          "queries_per_second": 22453.447537473232
+        },
+        {
+          "k": 5,
+          "avg_search_time": 6.380081176757813e-05,
+          "avg_results_returned": 5.0,
+          "queries_per_second": 15673.781763826606
+        },
+        {
+          "k": 10,
+          "avg_search_time": 6.084442138671875e-05,
+          "avg_results_returned": 10.0,
+          "queries_per_second": 16435.3605015674
+        }
+      ],
+      "filter_performance": [
+        {
+          "filter": {
+            "source_type": "document"
+          },
+          "avg_time": 7.448196411132812e-05,
+          "queries_per_second": 13426.069142125481
+        },
+        {
+          "filter": {
+            "file_type": ".pdf"
+          },
+          "avg_time": 8.1634521484375e-05,
+          "queries_per_second": 12249.719626168226
+        }
+      ],
+      "system_metrics": {
+        "available": true,
+        "type": "FAISS",
+        "index_type": "IndexFlatL2",
+        "total_vectors": 20,
+        "dimension": 384,
+        "normalize_vectors": true,
+        "metrics": {
+          "total_vectors": 20,
+          "index_size_bytes": 0,
+          "index_type": "IndexFlatL2",
+          "dimension": 384,
+          "last_add_time": 0.00026154518127441406,
+          "last_search_time": 5.2928924560546875e-05,
+          "total_add_operations": 1,
+          "total_search_operations": 50,
+          "avg_add_time": 0.00026154518127441406,
+          "avg_search_time": 0.00047091960906982407,
+          "memory_usage_mb": 0.029296875,
+          "index_build_time": 0.0,
+          "source_distribution": {
+            "document": 20
+          }
+        },
+        "store_path": "data\\benchmark_faiss",
+        "index_size_mb": 0.029296875
+      },
+      "memory_usage": 0.029296875,
+      "storage_type": "In-memory + Files"
+    },
+    "chromadb": {
+      "store_type": "ChromaDB",
+      "timestamp": "2025-08-04T20:06:22.088418",
+      "dataset_size": 20,
+      "query_count": 10,
+      "insertion_performance": [
+        {
+          "batch_size": 5,
+          "time": 0.12284088134765625,
+          "throughput": 40.70306192161978
+        },
+        {
+          "batch_size": 10,
+          "time": 0.11128687858581543,
+          "throughput": 89.85785320853266
+        },
+        {
+          "batch_size": 20,
+          "time": 0.12059736251831055,
+          "throughput": 165.8411061598744
+        }
+      ],
+      "full_insertion_time": 0.15584492683410645,
+      "full_insertion_throughput": 128.3326984476663,
+      "search_performance": [
+        {
+          "k": 1,
+          "avg_search_time": 0.005234718322753906,
+          "avg_results_returned": 1.0,
+          "queries_per_second": 191.03224631080343
+        },
+        {
+          "k": 3,
+          "avg_search_time": 0.002632403373718262,
+          "avg_results_returned": 3.0,
+          "queries_per_second": 379.88099011873817
+        },
+        {
+          "k": 5,
+          "avg_search_time": 0.0027055263519287108,
+          "avg_results_returned": 5.0,
+          "queries_per_second": 369.6138458555844
+        },
+        {
+          "k": 10,
+          "avg_search_time": 0.002534174919128418,
+          "avg_results_returned": 10.0,
+          "queries_per_second": 394.60575213329446
+        }
+      ],
+      "filter_performance": [
+        {
+          "filter": {
+            "source_type": "document"
+          },
+          "avg_time": 0.0032745838165283204,
+          "queries_per_second": 305.3823191064902
+        },
+        {
+          "filter": {
+            "file_type": ".pdf"
+          },
+          "avg_time": 0.0026047229766845703,
+          "queries_per_second": 383.9179862700229
+        }
+      ],
+      "system_metrics": {
+        "type": "ChromaDB",
+        "available": true,
+        "total_documents": 20,
+        "collection_name": "benchmark_collection",
+        "store_path": "data\\benchmark_chromadb",
+        "distance_function": "cosine",
+        "performance": {
+          "avg_add_time_ms": 109.14,
+          "avg_search_time_ms": 0.04,
+          "total_operations": {
+            "add": 1,
+            "search": 50
+          }
+        },
+        "storage": {
+          "disk_usage_mb": 64.36,
+          "memory_usage_mb": 0.0
+        },
+        "source_distribution": {
+          "benchmark_documents.pdf": 20
+        },
+        "config": {
+          "collection_name": "benchmark_collection",
+          "distance_function": "cosine",
+          "store_path": "data\\benchmark_chromadb"
+        }
+      },
+      "disk_usage": 0,
+      "storage_type": "Persistent Database"
+    }
+  },
+  "analysis": {
+    "comparison_timestamp": "2025-08-04T20:06:22.974622",
+    "dataset_info": {
+      "documents": 20,
+      "queries": 10,
+      "embedding_dimension": 384
+    },
+    "insertion_comparison": {
+      "faiss_throughput": 2861.73643093508,
+      "chromadb_throughput": 128.3326984476663,
+      "winner": "FAISS",
+      "improvement_factor": 22.29935523487872
+    },
+    "search_comparison": {
+      "faiss_avg_time": 6.380081176757813e-05,
+      "chromadb_avg_time": 0.0027055263519287108,
+      "winner": "FAISS",
+      "speedup_factor": 42.40582959641255
+    },
+    "storage_comparison": {
+      "faiss_mb": 0.029296875,
+      "chromadb_mb": 0,
+      "faiss_type": "Memory + Files",
+      "chromadb_type": "Persistent DB"
+    },
+    "recommendations": [
+      "FAISS superior para inserción masiva de datos",
+      "FAISS superior para búsquedas de alta velocidad",
+      "FAISS ideal para aplicaciones que priorizan velocidad",
+      "ChromaDB ideal para aplicaciones que requieren persistencia"
+    ]
+  },
+  "conclusions": {
+    "performance_winner": "FAISS",
+    "throughput_winner": "FAISS",
+    "use_case_recommendations": [
+      "FAISS superior para inserción masiva de datos",
+      "FAISS superior para búsquedas de alta velocidad",
+      "FAISS ideal para aplicaciones que priorizan velocidad",
+      "ChromaDB ideal para aplicaciones que requieren persistencia"
+    ]
+  }
+}

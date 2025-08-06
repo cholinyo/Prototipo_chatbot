@@ -13,6 +13,8 @@ import numpy as np
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, List, Any, Tuple
+from app.models import DocumentChunk, DocumentMetadata
+
 
 # Añadir el directorio raíz al path
 project_root = Path(__file__).parent

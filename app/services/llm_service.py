@@ -7,6 +7,7 @@ TFM Vicente Caruncho - Sistemas Inteligentes
 import os
 import time
 import requests
+import openai
 from typing import Dict, Any, List, Optional, Union
 from dataclasses import dataclass
 import json
@@ -61,35 +62,41 @@ class OllamaProvider(LLMProvider):
         try:
             response = requests.get(f"{self.endpoint}/api/tags", timeout=5)
             return response.status_code == 200
-        except Exception:
+        except Exception as e:
+            self.logger.warning("Ollama no disponible", error=str(e))
             return False
     
     def get_available_models(self) -> List[str]:
         """Obtener modelos disponibles en Ollama"""
         try:
-            response = requests.get(f"{self.endpoint}/api/tags", timeout=5)
+            response = requests.get(f"{self.endpoint}/api/tags", timeout=10)
             if response.status_code == 200:
                 data = response.json()
-                return [model['name'] for model in data.get('models', [])]
+                models = [model['name'] for model in data.get('models', [])]
+                self.logger.info("Modelos Ollama obtenidos", count=len(models), models=models)
+                return models
             return []
         except Exception as e:
-            self.logger.warning("Error obteniendo modelos Ollama", error=str(e))
+            self.logger.error("Error obteniendo modelos Ollama", error=str(e))
             return []
     
     def generate_response(self, request: LLMRequest, model_name: str = None) -> ModelResponse:
         """Generar respuesta usando Ollama"""
         start_time = time.time()
-        model = model_name or self.config.local_default
+        
+        # Usar modelo por defecto si no se especifica
+        if not model_name:
+            model_name = self.config.default_local_model
         
         try:
-            # Construir prompt con contexto RAG si está disponible
-            prompt = self._build_prompt_with_context(request.query, request.context)
+            # Construir prompt con contexto RAG
+            prompt = self._build_rag_prompt(request.query, request.context)
             
-            # Preparar payload para Ollama
+            # Configurar parámetros del modelo
             payload = {
-                "model": model,
+                "model": model_name,
                 "prompt": prompt,
-                "stream": False,
+                "stream": request.stream,
                 "options": {
                     "temperature": request.temperature,
                     "num_predict": request.max_tokens,
@@ -102,100 +109,101 @@ class OllamaProvider(LLMProvider):
             if request.top_k is not None:
                 payload["options"]["top_k"] = request.top_k
             
-            # Realizar request a Ollama
+            self.logger.info("Enviando request a Ollama", 
+                           model=model_name, 
+                           prompt_length=len(prompt))
+            
+            # Realizar request
             response = requests.post(
                 f"{self.endpoint}/api/generate",
                 json=payload,
                 timeout=self.timeout
             )
             
+            if response.status_code != 200:
+                raise Exception(f"Error HTTP {response.status_code}: {response.text}")
+            
+            # Procesar respuesta
+            result = response.json()
             response_time = time.time() - start_time
             
-            if response.status_code == 200:
-                data = response.json()
-                content = data.get('response', '')
-                
-                # Log éxito
-                self.logger.info("Respuesta Ollama generada exitosamente",
-                               model=model,
-                               prompt_length=len(prompt),
-                               response_length=len(content),
-                               response_time=response_time)
-                
-                return ModelResponse(
-                    model_name=model,
-                    model_type='local',
-                    content=content,
-                    response_time=response_time,
-                    rag_sources_used=request.context or [],
-                    rag_query=request.query if request.context else None,
-                    temperature=request.temperature,
-                    max_tokens=request.max_tokens,
-                    top_p=request.top_p,
-                    top_k=request.top_k,
-                    success=True
-                )
-            else:
-                error_msg = f"Ollama error: {response.status_code} - {response.text}"
-                self.logger.error("Error en respuesta Ollama",
-                                model=model,
-                                status_code=response.status_code,
-                                error=response.text)
-                
-                return ModelResponse(
-                    model_name=model,
-                    model_type='local',
-                    content="",
-                    response_time=response_time,
-                    error=error_msg,
-                    success=False
-                )
-                
-        except requests.exceptions.Timeout:
-            error_msg = f"Timeout conectando con Ollama (>{self.timeout}s)"
-            self.logger.error("Timeout Ollama", model=model, timeout=self.timeout)
+            # Extraer métricas
+            total_tokens = result.get('total_duration', 0)  # En nanosegundos
+            prompt_tokens = result.get('prompt_eval_count', 0)
+            completion_tokens = result.get('eval_count', 0)
+            
+            self.logger.info("Respuesta Ollama recibida",
+                           model=model_name,
+                           response_time=response_time,
+                           prompt_tokens=prompt_tokens,
+                           completion_tokens=completion_tokens)
             
             return ModelResponse(
-                model_name=model,
-                model_type='local',
-                content="",
-                response_time=time.time() - start_time,
-                error=error_msg,
-                success=False
+                response=result.get('response', ''),
+                model_name=f"ollama/{model_name}",
+                provider="ollama",
+                response_time=response_time,
+                total_tokens=total_tokens,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+                temperature=request.temperature,
+                max_tokens=request.max_tokens,
+                sources=self._extract_sources(request.context) if request.context else []
             )
             
         except Exception as e:
-            error_msg = f"Error inesperado con Ollama: {str(e)}"
-            self.logger.error("Error inesperado Ollama", model=model, error=str(e))
+            error_time = time.time() - start_time
+            self.logger.error("Error en Ollama generation",
+                            model=model_name,
+                            error=str(e),
+                            response_time=error_time)
             
             return ModelResponse(
-                model_name=model,
-                model_type='local',
-                content="",
-                response_time=time.time() - start_time,
-                error=error_msg,
-                success=False
+                response=f"Error generando respuesta: {str(e)}",
+                model_name=f"ollama/{model_name}",
+                provider="ollama",
+                response_time=error_time,
+                error=str(e),
+                sources=[]
             )
     
-    def _build_prompt_with_context(self, query: str, context: List[DocumentChunk] = None) -> str:
-        """Construir prompt incluyendo contexto RAG"""
+    def _build_rag_prompt(self, query: str, context: List[DocumentChunk] = None) -> str:
+        """Construir prompt enriquecido con contexto RAG"""
+        base_prompt = """Eres un asistente especializado en administración local española. 
+Tu tarea es ayudar a técnicos municipales respondiendo preguntas basándote en la información oficial proporcionada.
+
+INSTRUCCIONES:
+- Responde únicamente basándote en el contexto proporcionado
+- Si no tienes información suficiente, indica claramente esta limitación
+- Mantén un tono profesional y técnico
+- Incluye referencias a las fuentes cuando sea relevante
+- Si la pregunta no está relacionada con administración local, indícalo educadamente
+
+"""
+        
+        if context and len(context) > 0:
+            context_text = "\n\nCONTEXTO OFICIAL:\n"
+            for i, chunk in enumerate(context[:5], 1):  # Limitar a 5 chunks
+                source = chunk.metadata.source_path if chunk.metadata else "Fuente desconocida"
+                context_text += f"\n[Documento {i}: {source}]\n{chunk.content}\n"
+            
+            base_prompt += context_text
+        
+        base_prompt += f"\n\nPREGUNTA: {query}\n\nRESPUESTA:"
+        
+        return base_prompt
+    
+    def _extract_sources(self, context: List[DocumentChunk]) -> List[str]:
+        """Extraer fuentes del contexto"""
         if not context:
-            return query
+            return []
         
-        # Crear prompt con contexto
-        context_text = "\n\n".join([
-            f"[Fuente: {chunk.metadata.source_path}]\n{chunk.content}"
-            for chunk in context
-        ])
+        sources = set()
+        for chunk in context:
+            if chunk.metadata and chunk.metadata.source_path:
+                sources.add(chunk.metadata.source_path)
         
-        prompt = f"""Contexto de información relevante:
-{context_text}
-
-Pregunta: {query}
-
-Por favor responde basándote en el contexto proporcionado. Si la información del contexto no es suficiente, indícalo claramente."""
-        
-        return prompt
+        return list(sources)
 
 class OpenAIProvider(LLMProvider):
     """Proveedor para modelos OpenAI"""
@@ -204,157 +212,158 @@ class OpenAIProvider(LLMProvider):
         self.config = get_model_config()
         self.logger = get_logger("openai_provider")
         self.api_key = get_openai_api_key()
-        self.timeout = self.config.openai_timeout
         
+        # Configurar cliente OpenAI
+        if self.api_key:
+            openai.api_key = self.api_key
+            self.client = openai.OpenAI(api_key=self.api_key)
+        else:
+            self.client = None
+            self.logger.warning("OpenAI API key no configurada")
+    
     def is_available(self) -> bool:
         """Verificar si OpenAI está disponible"""
-        if not self.api_key:
+        if not self.client or not self.api_key:
             return False
         
         try:
-            import openai
-            client = openai.OpenAI(api_key=self.api_key)
-            # Verificar con un request simple
-            models = client.models.list()
+            # Test simple de conectividad
+            response = self.client.models.list()
             return True
-        except Exception:
+        except Exception as e:
+            self.logger.warning("OpenAI no disponible", error=str(e))
             return False
     
     def get_available_models(self) -> List[str]:
-        """Obtener modelos disponibles de OpenAI"""
-        if not self.api_key:
+        """Obtener modelos disponibles en OpenAI"""
+        if not self.client:
             return []
         
         try:
-            import openai
-            client = openai.OpenAI(api_key=self.api_key)
-            models = client.models.list()
-            
+            models = self.client.models.list()
             # Filtrar solo modelos de chat relevantes
             chat_models = [
                 model.id for model in models.data 
-                if any(prefix in model.id for prefix in ['gpt-3.5', 'gpt-4'])
+                if any(prefix in model.id for prefix in ['gpt-4', 'gpt-3.5'])
             ]
+            
+            self.logger.info("Modelos OpenAI obtenidos", count=len(chat_models))
             return sorted(chat_models)
             
         except Exception as e:
-            self.logger.warning("Error obteniendo modelos OpenAI", error=str(e))
-            return self.config.openai_available  # Fallback a configuración
+            self.logger.error("Error obteniendo modelos OpenAI", error=str(e))
+            return []
     
     def generate_response(self, request: LLMRequest, model_name: str = None) -> ModelResponse:
         """Generar respuesta usando OpenAI"""
-        if not self.api_key:
+        start_time = time.time()
+        
+        if not self.client:
             return ModelResponse(
-                model_name=model_name or "unknown",
-                model_type='openai',
-                content="",
+                response="Error: OpenAI no configurado correctamente",
+                model_name="openai/error",
+                provider="openai",
                 response_time=0,
-                error="API key de OpenAI no configurada",
-                success=False
+                error="API key no configurada",
+                sources=[]
             )
         
-        start_time = time.time()
-        model = model_name or self.config.openai_default
+        # Usar modelo por defecto si no se especifica
+        if not model_name:
+            model_name = self.config.default_openai_model
         
         try:
-            import openai
-            client = openai.OpenAI(api_key=self.api_key)
-            
             # Construir mensajes con contexto RAG
-            messages = self._build_messages_with_context(request.query, request.context)
+            messages = self._build_chat_messages(request.query, request.context)
             
-            # Preparar parámetros para OpenAI
-            params = {
-                "model": model,
-                "messages": messages,
-                "temperature": request.temperature,
-                "max_tokens": request.max_tokens,
-            }
+            self.logger.info("Enviando request a OpenAI",
+                           model=model_name,
+                           messages_count=len(messages))
             
-            # Añadir parámetros opcionales
-            if request.top_p is not None:
-                params["top_p"] = request.top_p
-            
-            # Realizar request a OpenAI
-            response = client.chat.completions.create(**params)
-            
-            response_time = time.time() - start_time
-            
-            # Extraer información de la respuesta
-            content = response.choices[0].message.content
-            prompt_tokens = response.usage.prompt_tokens
-            completion_tokens = response.usage.completion_tokens
-            total_tokens = response.usage.total_tokens
-            
-            # Log éxito
-            self.logger.info("Respuesta OpenAI generada exitosamente",
-                           model=model,
-                           prompt_tokens=prompt_tokens,
-                           completion_tokens=completion_tokens,
-                           total_tokens=total_tokens,
-                           response_time=response_time)
-            
-            return ModelResponse(
-                model_name=model,
-                model_type='openai',
-                content=content,
-                response_time=response_time,
-                tokens_used=total_tokens,
-                prompt_tokens=prompt_tokens,
-                completion_tokens=completion_tokens,
-                rag_sources_used=request.context or [],
-                rag_query=request.query if request.context else None,
+            # Realizar request
+            completion = self.client.chat.completions.create(
+                model=model_name,
+                messages=messages,
                 temperature=request.temperature,
                 max_tokens=request.max_tokens,
                 top_p=request.top_p,
-                success=True
+                stream=request.stream
             )
             
-        except ImportError:
-            error_msg = "Librería openai no instalada. Instala con: pip install openai"
-            self.logger.error("Librería OpenAI faltante")
+            response_time = time.time() - start_time
+            
+            # Extraer datos de la respuesta
+            response_text = completion.choices[0].message.content
+            total_tokens = completion.usage.total_tokens
+            prompt_tokens = completion.usage.prompt_tokens
+            completion_tokens = completion.usage.completion_tokens
+            
+            # Calcular coste estimado (precios aproximados)
+            estimated_cost = self._calculate_cost(model_name, prompt_tokens, completion_tokens)
+            
+            self.logger.info("Respuesta OpenAI recibida",
+                           model=model_name,
+                           response_time=response_time,
+                           total_tokens=total_tokens,
+                           estimated_cost=estimated_cost)
             
             return ModelResponse(
-                model_name=model,
-                model_type='openai',
-                content="",
-                response_time=time.time() - start_time,
-                error=error_msg,
-                success=False
+                response=response_text,
+                model_name=f"openai/{model_name}",
+                provider="openai",
+                response_time=response_time,
+                total_tokens=total_tokens,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+                temperature=request.temperature,
+                max_tokens=request.max_tokens,
+                estimated_cost=estimated_cost,
+                sources=self._extract_sources(request.context) if request.context else []
             )
             
         except Exception as e:
-            error_msg = f"Error con OpenAI: {str(e)}"
-            self.logger.error("Error OpenAI", model=model, error=str(e))
+            error_time = time.time() - start_time
+            self.logger.error("Error en OpenAI generation",
+                            model=model_name,
+                            error=str(e),
+                            response_time=error_time)
             
             return ModelResponse(
-                model_name=model,
-                model_type='openai',
-                content="",
-                response_time=time.time() - start_time,
-                error=error_msg,
-                success=False
+                response=f"Error generando respuesta: {str(e)}",
+                model_name=f"openai/{model_name}",
+                provider="openai",
+                response_time=error_time,
+                error=str(e),
+                sources=[]
             )
     
-    def _build_messages_with_context(self, query: str, context: List[DocumentChunk] = None) -> List[Dict[str, str]]:
-        """Construir mensajes incluyendo contexto RAG"""
+    def _build_chat_messages(self, query: str, context: List[DocumentChunk] = None) -> List[Dict[str, str]]:
+        """Construir mensajes de chat con contexto RAG"""
         messages = [
             {
                 "role": "system",
-                "content": "Eres un asistente especializado en administración pública local. Responde de forma precisa y útil basándote en el contexto proporcionado."
+                "content": """Eres un asistente especializado en administración local española. 
+Tu tarea es ayudar a técnicos municipales respondiendo preguntas basándote en la información oficial proporcionada.
+
+INSTRUCCIONES:
+- Responde únicamente basándote en el contexto proporcionado
+- Si no tienes información suficiente, indica claramente esta limitación
+- Mantén un tono profesional y técnico
+- Incluye referencias a las fuentes cuando sea relevante
+- Si la pregunta no está relacionada con administración local, indícalo educadamente"""
             }
         ]
         
-        if context:
+        if context and len(context) > 0:
             # Añadir contexto como mensaje del sistema
-            context_text = "\n\n".join([
-                f"[Fuente: {chunk.metadata.source_path}]\n{chunk.content}"
-                for chunk in context
-            ])
+            context_text = "CONTEXTO OFICIAL:\n\n"
+            for i, chunk in enumerate(context[:5], 1):  # Limitar a 5 chunks
+                source = chunk.metadata.source_path if chunk.metadata else "Fuente desconocida"
+                context_text += f"[Documento {i}: {source}]\n{chunk.content}\n\n"
             
             messages.append({
                 "role": "system",
-                "content": f"Contexto relevante:\n{context_text}"
+                "content": context_text
             })
         
         # Añadir pregunta del usuario
@@ -364,6 +373,43 @@ class OpenAIProvider(LLMProvider):
         })
         
         return messages
+    
+    def _calculate_cost(self, model_name: str, prompt_tokens: int, completion_tokens: int) -> float:
+        """Calcular coste estimado basado en precios OpenAI"""
+        # Precios aproximados por 1K tokens (actualizar según precios actuales)
+        pricing = {
+            "gpt-4o": {"input": 0.005, "output": 0.015},
+            "gpt-4o-mini": {"input": 0.00015, "output": 0.0006},
+            "gpt-4": {"input": 0.03, "output": 0.06},
+            "gpt-3.5-turbo": {"input": 0.001, "output": 0.002},
+        }
+        
+        # Buscar precio para el modelo
+        model_pricing = None
+        for key, price in pricing.items():
+            if key in model_name:
+                model_pricing = price
+                break
+        
+        if not model_pricing:
+            return 0.0
+        
+        input_cost = (prompt_tokens / 1000) * model_pricing["input"]
+        output_cost = (completion_tokens / 1000) * model_pricing["output"]
+        
+        return input_cost + output_cost
+    
+    def _extract_sources(self, context: List[DocumentChunk]) -> List[str]:
+        """Extraer fuentes del contexto"""
+        if not context:
+            return []
+        
+        sources = set()
+        for chunk in context:
+            if chunk.metadata and chunk.metadata.source_path:
+                sources.add(chunk.metadata.source_path)
+        
+        return list(sources)
 
 class LLMService:
     """Servicio principal que maneja múltiples proveedores de LLM"""
@@ -416,99 +462,84 @@ class LLMService:
         
         return models
     
-    def generate_response(self, query: str, provider: str = 'ollama',
-                         model_name: str = None, context: List[DocumentChunk] = None,
-                         **generation_params) -> ModelResponse:
+    def generate_response(self, 
+                         request: LLMRequest, 
+                         provider_name: str = "ollama", 
+                         model_name: str = None) -> ModelResponse:
         """Generar respuesta usando un proveedor específico"""
         
-        if provider not in self.providers:
+        if provider_name not in self.providers:
             return ModelResponse(
-                model_name=model_name or 'unknown',
-                model_type=provider,
-                content="",
+                response=f"Error: Proveedor '{provider_name}' no disponible",
+                model_name=f"{provider_name}/error",
+                provider=provider_name,
                 response_time=0,
-                error=f"Proveedor desconocido: {provider}",
-                success=False
+                error=f"Proveedor no encontrado: {provider_name}",
+                sources=[]
             )
         
-        provider_instance = self.providers[provider]
+        provider = self.providers[provider_name]
         
-        # Verificar disponibilidad
-        if not provider_instance.is_available():
+        if not provider.is_available():
             return ModelResponse(
-                model_name=model_name or 'unknown',
-                model_type=provider,
-                content="",
+                response=f"Error: Proveedor '{provider_name}' no está disponible",
+                model_name=f"{provider_name}/unavailable",
+                provider=provider_name,
                 response_time=0,
-                error=f"Proveedor {provider} no disponible",
-                success=False
+                error=f"Proveedor no disponible: {provider_name}",
+                sources=[]
             )
         
-        # Crear request
-        request = LLMRequest(
-            query=query,
-            context=context,
-            **generation_params
-        )
-        
-        # Generar respuesta
-        self.logger.info("Generando respuesta LLM",
-                        provider=provider,
-                        model=model_name,
-                        query_length=len(query),
-                        context_chunks=len(context) if context else 0)
-        
-        return provider_instance.generate_response(request, model_name)
+        return provider.generate_response(request, model_name)
     
-    def compare_responses(self, query: str, context: List[DocumentChunk] = None,
-                         **generation_params) -> Dict[str, ModelResponse]:
-        """Comparar respuestas de múltiples proveedores"""
+    def compare_models(self, 
+                      request: LLMRequest,
+                      local_model: str = None,
+                      openai_model: str = None) -> Dict[str, ModelResponse]:
+        """Comparar respuestas entre modelo local y OpenAI"""
+        self.logger.info("Iniciando comparación de modelos",
+                        local_model=local_model,
+                        openai_model=openai_model)
         
-        available_providers = self.get_available_providers()
-        active_providers = [name for name, available in available_providers.items() if available]
+        results = {}
         
-        if not active_providers:
-            self.logger.warning("No hay proveedores disponibles para comparación")
-            return {}
-        
-        responses = {}
-        
-        # Generar respuestas en paralelo
-        with concurrent.futures.ThreadPoolExecutor(max_workers=len(active_providers)) as executor:
-            future_to_provider = {
-                executor.submit(
-                    self.generate_response,
-                    query=query,
-                    provider=provider,
-                    context=context,
-                    **generation_params
-                ): provider
-                for provider in active_providers
-            }
+        # Ejecutar en paralelo para mejor rendimiento
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+            futures = {}
             
-            for future in concurrent.futures.as_completed(future_to_provider):
-                provider = future_to_provider[future]
+            # Ollama (local)
+            if self.providers['ollama'].is_available():
+                futures['ollama'] = executor.submit(
+                    self.generate_response, request, 'ollama', local_model
+                )
+            
+            # OpenAI
+            if self.providers['openai'].is_available():
+                futures['openai'] = executor.submit(
+                    self.generate_response, request, 'openai', openai_model
+                )
+            
+            # Recoger resultados
+            for provider_name, future in futures.items():
                 try:
-                    response = future.result()
-                    responses[provider] = response
+                    results[provider_name] = future.result(timeout=120)
                 except Exception as e:
                     self.logger.error("Error en comparación",
-                                    provider=provider,
+                                    provider=provider_name,
                                     error=str(e))
-                    responses[provider] = ModelResponse(
-                        model_name='unknown',
-                        model_type=provider,
-                        content="",
+                    results[provider_name] = ModelResponse(
+                        response=f"Error en {provider_name}: {str(e)}",
+                        model_name=f"{provider_name}/error",
+                        provider=provider_name,
                         response_time=0,
-                        error=f"Error ejecutando {provider}: {str(e)}",
-                        success=False
+                        error=str(e),
+                        sources=[]
                     )
         
         self.logger.info("Comparación completada",
-                        providers=list(responses.keys()),
-                        successful=len([r for r in responses.values() if r.success]))
+                        providers_executed=list(results.keys()))
         
-        return responses
+        return results
     
     def get_service_stats(self) -> Dict[str, Any]:
         """Obtener estadísticas del servicio"""
@@ -516,32 +547,68 @@ class LLMService:
         models = self.get_available_models()
         
         return {
-            'providers_available': availability,
-            'total_providers': len(self.providers),
-            'available_providers': len([p for p in availability.values() if p]),
-            'models_by_provider': models,
-            'total_models': sum(len(model_list) for model_list in models.values())
+            "providers": {
+                "available": [name for name, avail in availability.items() if avail],
+                "unavailable": [name for name, avail in availability.items() if not avail],
+                "total": len(self.providers)
+            },
+            "models": {
+                "total_count": sum(len(model_list) for model_list in models.values()),
+                "by_provider": models
+            },
+            "service_status": "healthy" if any(availability.values()) else "degraded"
         }
 
-# Instancia global del servicio LLM
-llm_service = LLMService()
+# Instancia global del servicio
+llm_service = None
 
-# Funciones de conveniencia
-def generate_llm_response(query: str, provider: str = 'ollama',
-                         model_name: str = None, context: List[DocumentChunk] = None,
-                         **kwargs) -> ModelResponse:
-    """Función de conveniencia para generar respuesta"""
-    return llm_service.generate_response(query, provider, model_name, context, **kwargs)
+def get_llm_service() -> LLMService:
+    """Obtener instancia singleton del LLM Service"""
+    global llm_service
+    if llm_service is None:
+        llm_service = LLMService()
+    return llm_service
 
-def compare_llm_responses(query: str, context: List[DocumentChunk] = None,
-                         **kwargs) -> Dict[str, ModelResponse]:
-    """Función de conveniencia para comparar respuestas"""
-    return llm_service.compare_responses(query, context, **kwargs)
-
-def get_available_models() -> Dict[str, List[str]]:
-    """Función de conveniencia para obtener modelos"""
-    return llm_service.get_available_models()
-
-def get_available_providers() -> Dict[str, bool]:
-    """Función de conveniencia para obtener proveedores"""
-    return llm_service.get_available_providers()
+# Testing y debugging
+if __name__ == "__main__":
+    import asyncio
+    
+    def test_llm_service():
+        """Función de prueba del LLM Service"""
+        service = get_llm_service()
+        
+        print("🧪 Testing LLM Service...")
+        
+        # Verificar disponibilidad
+        availability = service.get_available_providers()
+        print(f"📊 Providers disponibles: {availability}")
+        
+        # Obtener modelos
+        models = service.get_available_models()
+        print(f"🤖 Modelos disponibles: {models}")
+        
+        # Estadísticas
+        stats = service.get_service_stats()
+        print(f"📈 Estadísticas: {json.dumps(stats, indent=2)}")
+        
+        # Test de generación simple
+        request = LLMRequest(
+            query="¿Qué es una licencia de obras?",
+            temperature=0.7,
+            max_tokens=200
+        )
+        
+        if availability.get('ollama', False):
+            print("\n🦙 Testing Ollama...")
+            result = service.generate_response(request, 'ollama')
+            print(f"Response: {result.response[:100]}...")
+            print(f"Time: {result.response_time:.2f}s")
+        
+        if availability.get('openai', False):
+            print("\n🤖 Testing OpenAI...")
+            result = service.generate_response(request, 'openai')
+            print(f"Response: {result.response[:100]}...")
+            print(f"Time: {result.response_time:.2f}s")
+            print(f"Cost: ${result.estimated_cost:.4f}")
+    
+    test_llm_service()
