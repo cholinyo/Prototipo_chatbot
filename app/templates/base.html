@@ -24,7 +24,7 @@
     <link href="{{ url_for('static', filename='css/custom.css') }}" rel="stylesheet">
     
     <!-- Chart.js (si se necesita) -->
-    {% if 'dashboard' in request.endpoint or 'charts' in request.endpoint %}
+    {% if request.endpoint and ('dashboard' in request.endpoint or 'charts' in request.endpoint) %}
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js" 
             integrity="sha384-6zzs0l5+yGnBzWIPGSZCgdOW1yN6RL6owbJq0/xCH76d5Qc5P+9YBRwqmq+MfLWa" crossorigin="anonymous"></script>
     {% endif %}

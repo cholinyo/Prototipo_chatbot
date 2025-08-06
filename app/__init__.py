@@ -11,6 +11,7 @@ from typing import Optional
 from app.core.config import get_app_config, get_openai_api_key, is_development
 from app.core.logger import get_logger
 
+
 def create_app(config_override: Optional[dict] = None) -> Flask:
     """Factory de aplicación Flask mejorado
     
@@ -61,8 +62,13 @@ def create_app(config_override: Optional[dict] = None) -> Flask:
     
     # Registrar context processors
     _register_context_processors(app, app_config)
+
+    from app.routes.api import api_bp
+    app.register_blueprint(api_bp, url_prefix='/api')
     
     logger.info("Aplicación Flask configurada completamente")
+    from app.routes.rag_pipeline_api import rag_pipeline_bp  
+    app.register_blueprint(rag_pipeline_bp)
     
     return app
 

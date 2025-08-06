@@ -14,7 +14,7 @@ from app.core.logger import get_logger
 from app.core.config import get_security_config, get_model_config, get_rag_config
 from app.services.llm_service import get_llm_service, LLMRequest
 from app.models import ChatMessage, create_chat_message, ModelEncoder, DocumentChunk, DocumentMetadata
-
+from app.services.rag_pipeline import *
 # Crear blueprint
 api_bp = Blueprint('api', __name__)
 logger = get_logger("api")
@@ -1116,6 +1116,7 @@ def log_api_response(response):
                    response_time=response_time)
     
     return response
+
 
 # =============================================================================
 # FIN DEL ARCHIVO - API COMPLETA

@@ -86,7 +86,7 @@ class OllamaProvider(LLMProvider):
         
         # Usar modelo por defecto si no se especifica
         if not model_name:
-            model_name = self.config.default_local_model
+            model_name = self.config.local_default
         
         try:
             # Construir prompt con contexto RAG

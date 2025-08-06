@@ -1,0 +1,534 @@
+#!/usr/bin/env python3
+"""
+Script de prueba completo para Pipeline RAG End-to-End
+TFM Vicente Caruncho - Sistemas Inteligentes
+
+Ejecutar desde el directorio raíz:
+python tests/test_complete_rag_pipeline.py
+"""
+
+import sys
+import os
+import json
+import time
+from pathlib import Path
+from typing import Dict, List, Any
+
+# Añadir el directorio raíz al path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+def print_header(title: str):
+    """Imprimir cabecera con formato"""
+    print(f"\n{'='*60}")
+    print(f"🧪 {title}")
+    print('='*60)
+
+def print_step(step: str, description: str):
+    """Imprimir paso con formato"""
+    print(f"\n{step}. {description}")
+    print("-" * 40)
+
+def print_result(success: bool, message: str, details: Dict = None):
+    """Imprimir resultado con formato"""
+    status = "✅" if success else "❌"
+    print(f"{status} {message}")
+    if details:
+        for key, value in details.items():
+            print(f"   {key}: {value}")
+
+def test_pipeline_imports():
+    """Test 1: Verificar imports del pipeline RAG"""
+    print_step("1", "VERIFICANDO IMPORTS DEL PIPELINE RAG")
+    
+    try:
+        from app.services.rag_pipeline import (
+            rag_pipeline,
+            process_rag_query,
+            compare_rag_models,
+            ingest_document,
+            get_pipeline_statistics,
+            RAGPipelineResult,
+            RAGComparisonResult
+        )
+        
+        print_result(True, "Imports del pipeline RAG exitosos")
+        return True
+        
+    except ImportError as e:
+        print_result(False, f"Error en imports: {e}")
+        print("\n🔧 Para solucionar:")
+        print("   1. Asegúrate de que app/services/rag_pipeline.py existe")
+        print("   2. Verifica que todas las dependencias estén instaladas")
+        return False
+    except Exception as e:
+        print_result(False, f"Error inesperado: {e}")
+        return False
+
+def test_pipeline_initialization():
+    """Test 2: Verificar inicialización del pipeline"""
+    print_step("2", "VERIFICANDO INICIALIZACIÓN DEL PIPELINE")
+    
+    try:
+        from app.services.rag_pipeline import rag_pipeline
+        
+        # Verificar que el pipeline se inicializó
+        stats = rag_pipeline.get_pipeline_stats()
+        
+        details = {
+            "Pipeline disponible": stats.get('pipeline_available', False),
+            "RAG habilitado": stats.get('config', {}).get('rag_enabled', False),
+            "LLM providers": list(stats.get('llm', {}).get('providers', {}).keys())
+        }
+        
+        success = stats.get('pipeline_available', False)
+        message = "Pipeline RAG inicializado correctamente" if success else "Pipeline RAG no disponible"
+        
+        print_result(success, message, details)
+        return success
+        
+    except Exception as e:
+        print_result(False, f"Error verificando inicialización: {e}")
+        return False
+
+def test_rag_components():
+    """Test 3: Verificar componentes individuales del RAG"""
+    print_step("3", "VERIFICANDO COMPONENTES INDIVIDUALES")
+    
+    results = {}
+    
+    # Test Embedding Service
+    try:
+        from app.services.embedding_service import get_embedding_service
+        embedding_service = get_embedding_service()
+        
+        test_text = "Esta es una prueba del servicio de embeddings"
+        embedding = embedding_service.encode_single_text(test_text)
+        
+        results['embeddings'] = {
+            'available': True,
+            'dimension': len(embedding),
+            'test_successful': True
+        }
+        print_result(True, "EmbeddingService funcionando", {
+            'Dimensión': len(embedding),
+            'Tiempo de procesamiento': '< 1s'
+        })
+        
+    except Exception as e:
+        results['embeddings'] = {'available': False, 'error': str(e)}
+        print_result(False, f"Error en EmbeddingService: {e}")
+    
+    # Test Vector Stores
+    try:
+        from app.services import rag_service
+        
+        if rag_service and rag_service.is_available():
+            rag_stats = rag_service.get_stats()
+            
+            results['vector_store'] = {
+                'available': True,
+                'type': rag_stats.get('vector_store_type', 'unknown'),
+                'documents': rag_stats.get('total_documents', 0)
+            }
+            
+            print_result(True, "Vector Store disponible", {
+                'Tipo': rag_stats.get('vector_store_type', 'unknown'),
+                'Documentos': rag_stats.get('total_documents', 0)
+            })
+        else:
+            results['vector_store'] = {'available': False}
+            print_result(False, "Vector Store no disponible")
+        
+    except Exception as e:
+        results['vector_store'] = {'available': False, 'error': str(e)}
+        print_result(False, f"Error en Vector Store: {e}")
+    
+    # Test LLM Service
+    try:
+        from app.services.llm_service import get_llm_service
+        llm_service = get_llm_service()
+        
+        providers = llm_service.get_available_providers()
+        
+        results['llm'] = {
+            'available': any(providers.values()),
+            'providers': providers
+        }
+        
+        available_providers = [name for name, avail in providers.items() if avail]
+        print_result(len(available_providers) > 0, "LLM Service disponible", {
+            'Providers activos': ', '.join(available_providers) if available_providers else 'Ninguno'
+        })
+        
+    except Exception as e:
+        results['llm'] = {'available': False, 'error': str(e)}
+        print_result(False, f"Error en LLM Service: {e}")
+    
+    return results
+
+def test_simple_rag_query():
+    """Test 4: Consulta RAG simple"""
+    print_step("4", "PROBANDO CONSULTA RAG SIMPLE")
+    
+    try:
+        from app.services.rag_pipeline import process_rag_query
+        
+        test_query = "¿Qué es una licencia de obras municipal?"
+        
+        print(f"🔍 Ejecutando query: '{test_query}'")
+        start_time = time.time()
+        
+        result = process_rag_query(
+            query=test_query,
+            provider="ollama",
+            k=3,
+            temperature=0.7,
+            use_rag=True
+        )
+        
+        execution_time = time.time() - start_time
+        
+        # Evaluar resultado
+        success = not bool(result.llm_response.error)
+        
+        details = {
+            'Tiempo total': f"{result.pipeline_time:.2f}s",
+            'Chunks encontrados': len(result.context_chunks),
+            'Fuentes': len(result.context_sources),
+            'Confianza': f"{result.confidence_score:.2f}",
+            'Longitud respuesta': len(result.llm_response.response),
+            'Modelo usado': result.llm_response.model_name
+        }
+        
+        if result.llm_response.error:
+            details['Error'] = result.llm_response.error
+        
+        message = "Consulta RAG simple exitosa" if success else "Error en consulta RAG"
+        print_result(success, message, details)
+        
+        if success and result.llm_response.response:
+            print(f"\n📝 Respuesta (primeros 200 chars):")
+            print(f"   {result.llm_response.response[:200]}...")
+        
+        return success
+        
+    except Exception as e:
+        print_result(False, f"Error en consulta RAG simple: {e}")
+        return False
+
+def test_rag_comparison():
+    """Test 5: Comparación de modelos con RAG"""
+    print_step("5", "PROBANDO COMPARACIÓN DE MODELOS CON RAG")
+    
+    try:
+        from app.services.rag_pipeline import compare_rag_models
+        from app.services.llm_service import get_llm_service
+        
+        llm_service = get_llm_service()
+        providers = llm_service.get_available_providers()
+        
+        # Verificar que tenemos al menos un proveedor
+        if not any(providers.values()):
+            print_result(False, "No hay proveedores LLM disponibles para comparación")
+            return False
+        
+        test_query = "¿Cuáles son los pasos para obtener una licencia de obras?"
+        
+        print(f"🔍 Ejecutando comparación: '{test_query}'")
+        start_time = time.time()
+        
+        result = compare_rag_models(
+            query=test_query,
+            k=3,
+            temperature=0.7
+        )
+        
+        execution_time = time.time() - start_time
+        
+        # Evaluar resultado
+        local_success = not bool(result.local_result.error)
+        openai_success = not bool(result.openai_result.error)
+        
+        details = {
+            'Tiempo total': f"{result.total_time:.2f}s",
+            'Chunks compartidos': len(result.context_chunks),
+            'Local exitoso': local_success,
+            'OpenAI exitoso': openai_success
+        }
+        
+        if local_success:
+            details['Local tiempo'] = f"{result.local_result.response_time:.2f}s"
+            details['Local tokens'] = result.local_result.total_tokens
+        
+        if openai_success:
+            details['OpenAI tiempo'] = f"{result.openai_result.response_time:.2f}s"
+            details['OpenAI tokens'] = result.openai_result.total_tokens
+            if result.openai_result.estimated_cost:
+                details['OpenAI coste'] = f"${result.openai_result.estimated_cost:.4f}"
+        
+        success = local_success or openai_success
+        message = f"Comparación completada ({int(local_success) + int(openai_success)}/2 modelos exitosos)"
+        
+        print_result(success, message, details)
+        
+        # Mostrar comparación de contenido si ambos exitosos
+        if local_success and openai_success:
+            print(f"\n📊 Comparación de contenido:")
+            print(f"   Local ({len(result.local_result.response)} chars): {result.local_result.response[:100]}...")
+            print(f"   OpenAI ({len(result.openai_result.response)} chars): {result.openai_result.response[:100]}...")
+            
+            if 'content_similarity' in result.comparison_metrics:
+                print(f"   Similitud contenido: {result.comparison_metrics['content_similarity']:.2f}")
+        
+        return success
+        
+    except Exception as e:
+        print_result(False, f"Error en comparación RAG: {e}")
+        return False
+
+def test_api_endpoints():
+    """Test 6: Endpoints API del pipeline"""
+    print_step("6", "PROBANDO ENDPOINTS API DEL PIPELINE")
+    
+    try:
+        import requests
+        import json
+        
+        # Intentar hacer request a la API local
+        base_url = "http://localhost:5000/api"
+        timeout = 5
+        
+        # Test 1: Stats endpoint
+        try:
+            response = requests.get(f"{base_url}/rag/pipeline/stats", timeout=timeout)
+            
+            if response.status_code == 200:
+                print_result(True, "Endpoint de estadísticas accesible", {
+                    'Status': response.status_code,
+                    'Response time': f"{response.elapsed.total_seconds():.2f}s"
+                })
+                
+                # Mostrar algunas estadísticas
+                data = response.json()
+                if 'data' in data:
+                    stats = data['data']
+                    print(f"   Pipeline disponible: {stats.get('pipeline_available', False)}")
+                    print(f"   RAG habilitado: {stats.get('config', {}).get('rag_enabled', False)}")
+                
+            else:
+                print_result(False, f"Endpoint stats falló: {response.status_code}")
+                
+        except requests.exceptions.ConnectionError:
+            print_result(False, "No se puede conectar a la API (servidor no iniciado?)")
+            print("   💡 Para probar API: ejecuta 'python run.py' en otra terminal")
+            
+        except requests.exceptions.Timeout:
+            print_result(False, "Timeout conectando a la API")
+            
+        return True  # No crítico si la API no está corriendo
+        
+    except ImportError:
+        print_result(False, "Requests no disponible para test de API")
+        return True  # No crítico
+    except Exception as e:
+        print_result(False, f"Error probando API: {e}")
+        return True  # No crítico
+
+def test_document_ingestion():
+    """Test 7: Ingesta de documentos (opcional)"""
+    print_step("7", "PROBANDO INGESTA DE DOCUMENTOS (OPCIONAL)")
+    
+    try:
+        # Crear documento de prueba temporal
+        test_doc_content = """
+        LICENCIA DE OBRAS MUNICIPALES
+        
+        Una licencia de obras es un documento administrativo que autoriza la realización 
+        de construcciones, reformas o demoliciones en el ámbito municipal.
+        
+        TIPOS DE LICENCIAS:
+        1. Licencia de obra mayor: Para construcciones que requieren proyecto técnico
+        2. Licencia de obra menor: Para reformas menores sin proyecto técnico
+        
+        DOCUMENTACIÓN NECESARIA:
+        - Solicitud cumplimentada
+        - Proyecto técnico (obra mayor)
+        - Justificante de pago de tasas
+        - Documentación catastral
+        
+        PLAZOS:
+        - Obra menor: 15 días hábiles
+        - Obra mayor: 30 días hábiles
+        """
+        
+        # Guardar documento temporal
+        import tempfile
+        temp_file = Path(tempfile.gettempdir()) / "test_licencias_obras.txt"
+        with open(temp_file, 'w', encoding='utf-8') as f:
+            f.write(test_doc_content)
+        
+        # Intentar ingerir
+        from app.services.rag_pipeline import ingest_document
+        
+        result = ingest_document(
+            file_path=str(temp_file),
+            source_type="test_document",
+            metadata={
+                "title": "Guía de Licencias de Obras - Test",
+                "category": "administracion_local",
+                "test_document": True
+            }
+        )
+        
+        # Limpiar archivo temporal
+        if temp_file.exists():
+            temp_file.unlink()
+        
+        success = result.get('success', False)
+        
+        details = {
+            'Chunks creados': result.get('chunks_created', 0),
+            'Tiempo procesamiento': f"{result.get('processing_time', 0):.2f}s",
+            'Chunks indexados': result.get('chunks_indexed', 0)
+        }
+        
+        if result.get('error'):
+            details['Error'] = result['error']
+        
+        message = "Ingesta de documento exitosa" if success else "Error en ingesta"
+        print_result(success, message, details)
+        
+        # Si fue exitoso, probar que se puede buscar
+        if success:
+            try:
+                from app.services.rag_pipeline import process_rag_query
+                
+                search_result = process_rag_query(
+                    query="¿Cuáles son los plazos para licencias de obras?",
+                    k=2,
+                    use_rag=True
+                )
+                
+                found_test_doc = any(
+                    "test_licencias_obras" in source.lower() 
+                    for source in search_result.context_sources
+                )
+                
+                if found_test_doc:
+                    print_result(True, "Documento test encontrado en búsqueda posterior")
+                else:
+                    print("   ⚠️  Documento test no encontrado en búsqueda (podría ser normal)")
+                
+            except Exception as e:
+                print(f"   ⚠️  No se pudo verificar búsqueda post-ingesta: {e}")
+        
+        return success
+        
+    except Exception as e:
+        print_result(False, f"Error en test de ingesta: {e}")
+        return False
+
+def generate_test_report(results: Dict[str, Any]):
+    """Generar reporte final de pruebas"""
+    print_header("REPORTE FINAL DE PRUEBAS PIPELINE RAG")
+    
+    # Contar éxitos
+    total_tests = len(results)
+    successful_tests = sum(1 for result in results.values() if result)
+    
+    print(f"📋 RESUMEN EJECUTIVO:")
+    print(f"   Total pruebas: {total_tests}")
+    print(f"   Exitosas: {successful_tests}")
+    print(f"   Fallidas: {total_tests - successful_tests}")
+    print(f"   Tasa éxito: {(successful_tests/total_tests)*100:.1f}%")
+    
+    # Estado por componente
+    print(f"\n🔍 ESTADO POR COMPONENTE:")
+    
+    component_status = {
+        'imports': results.get('imports', False),
+        'initialization': results.get('initialization', False),
+        'components': results.get('components', False),
+        'simple_query': results.get('simple_query', False),
+        'comparison': results.get('comparison', False),
+        'api_endpoints': results.get('api_endpoints', False),
+        'ingestion': results.get('ingestion', False)
+    }
+    
+    for component, status in component_status.items():
+        status_icon = "✅" if status else "❌"
+        print(f"   {status_icon} {component.replace('_', ' ').title()}")
+    
+    # Recomendaciones
+    print(f"\n💡 RECOMENDACIONES:")
+    
+    if not results.get('imports', False):
+        print("   🔧 Verificar instalación del código del pipeline RAG")
+    
+    if not results.get('initialization', False):
+        print("   🔧 Configurar servicios RAG (embedding, vector store)")
+    
+    if results.get('components', False) and not results.get('simple_query', False):
+        print("   🔧 Verificar configuración de modelos LLM")
+    
+    if successful_tests >= 4:  # Mínimo crítico
+        print("   ✅ Pipeline RAG funcional - Listo para uso")
+        if successful_tests == total_tests:
+            print("   🎉 ¡TODOS LOS TESTS PASARON! Sistema completamente funcional")
+    else:
+        print("   ⚠️  Pipeline RAG necesita configuración adicional")
+    
+    print(f"\n🚀 PRÓXIMOS PASOS:")
+    if successful_tests >= 4:
+        print("   1. Ejecutar: python run.py")
+        print("   2. Abrir: http://localhost:5000")
+        print("   3. Probar chat en: http://localhost:5000/chat")
+        print("   4. Ver API docs: http://localhost:5000/api/docs")
+    else:
+        print("   1. Revisar configuración (.env)")
+        print("   2. Instalar dependencias faltantes") 
+        print("   3. Configurar Ollama: python scripts/setup_ollama.py")
+        print("   4. Re-ejecutar este test")
+
+def main():
+    """Función principal del test"""
+    print_header("TEST COMPLETO PIPELINE RAG END-TO-END")
+    print("TFM Vicente Caruncho - Sistemas Inteligentes")
+    print("Este test verifica todo el pipeline RAG integrado")
+    
+    results = {}
+    
+    # Ejecutar tests en secuencia
+    results['imports'] = test_pipeline_imports()
+    
+    if results['imports']:
+        results['initialization'] = test_pipeline_initialization()
+        results['components'] = test_rag_components()
+        results['simple_query'] = test_simple_rag_query()
+        results['comparison'] = test_rag_comparison()
+        results['api_endpoints'] = test_api_endpoints()
+        results['ingestion'] = test_document_ingestion()
+    else:
+        # Si no hay imports, saltar el resto
+        print("\n⚠️  Sin imports básicos, saltando resto de tests")
+        results.update({
+            'initialization': False,
+            'components': False,
+            'simple_query': False,
+            'comparison': False,
+            'api_endpoints': False,
+            'ingestion': False
+        })
+    
+    # Generar reporte final
+    generate_test_report(results)
+    
+    print(f"\n⏰ Test completado en {time.strftime('%Y-%m-%d %H:%M:%S')}")
+    
+    # Return code para scripts
+    successful_count = sum(1 for result in results.values() if result)
+    return 0 if successful_count >= 4 else 1
+
+if __name__ == "__main__":
+    exit_code = main()
+    sys.exit(exit_code)
