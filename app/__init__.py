@@ -10,7 +10,7 @@ from typing import Optional
 
 from app.core.config import get_app_config, get_openai_api_key, is_development
 from app.core.logger import get_logger
-
+from app.routes.llm_api import llm_bp
 
 def create_app(config_override: Optional[dict] = None) -> Flask:
     """Factory de aplicación Flask mejorado
@@ -53,6 +53,7 @@ def create_app(config_override: Optional[dict] = None) -> Flask:
     
     # Registrar blueprints
     _register_blueprints(app, logger)
+    app.register_blueprint(llm_bp)
     
     # Registrar handlers de error
     _register_error_handlers(app, logger)

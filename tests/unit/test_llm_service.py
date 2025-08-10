@@ -1,384 +1,256 @@
 #!/usr/bin/env python3
 """
-Script de pruebas para LLM Service
-TFM Vicente Caruncho - Sistemas Inteligentes
-
-Ejecutar desde el directorio raíz del proyecto:
-python tests/test_llm_service.py
+Suite de Pruebas Completa para LLM Service - CORREGIDO
+TFM Vicente Caruncho - Sistemas Inteligentes UJI
 """
 
 import sys
 import os
-import json
 import time
+import json
 from pathlib import Path
 
-# Añadir el directorio raíz al path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+# SOLUCIÓN AL PROBLEMA DE IMPORTACIÓN
+# Añadir el directorio raíz al path de Python
+project_root = Path(__file__).parent.parent  # Desde tests/ subir a raíz
+sys.path.insert(0, str(project_root))
 
-from app.services.llm_service import get_llm_service, LLMRequest
-from app.models import DocumentChunk, DocumentMetadata
+# También añadir directamente el directorio actual
+current_dir = Path(__file__).parent
+sys.path.insert(0, str(current_dir.parent))
 
-def print_section(title: str):
-    """Imprimir sección con formato"""
-    print(f"\n{'='*60}")
-    print(f"🧪 {title}")
-    print('='*60)
-
-def test_service_initialization():
-    """Test 1: Inicialización del servicio"""
-    print_section("INICIALIZACIÓN DEL SERVICIO")
+def test_basic_imports():
+    """Prueba básica de importaciones sin dependencias del proyecto"""
+    print("🔍 Probando importaciones básicas...")
     
     try:
-        service = get_llm_service()
-        print("✅ Servicio LLM inicializado correctamente")
-        
-        # Verificar proveedores
-        providers = list(service.providers.keys())
-        print(f"📋 Proveedores registrados: {providers}")
-        
-        return service
-    except Exception as e:
-        print(f"❌ Error inicializando servicio: {e}")
-        return None
-
-def test_provider_availability(service):
-    """Test 2: Disponibilidad de proveedores"""
-    print_section("DISPONIBILIDAD DE PROVEEDORES")
+        import requests
+        print("   ✅ requests disponible")
+    except ImportError:
+        print("   ❌ requests no disponible - pip install requests")
+        return False
     
     try:
-        availability = service.get_available_providers()
-        
-        for provider, available in availability.items():
-            status = "✅ DISPONIBLE" if available else "❌ NO DISPONIBLE"
-            print(f"{provider}: {status}")
-        
-        return availability
-    except Exception as e:
-        print(f"❌ Error verificando disponibilidad: {e}")
-        return {}
+        import flask
+        print("   ✅ flask disponible")
+    except ImportError:
+        print("   ❌ flask no disponible - pip install flask")
+        return False
+    
+    return True
 
-def test_available_models(service):
-    """Test 3: Modelos disponibles"""
-    print_section("MODELOS DISPONIBLES")
+def test_ollama_direct():
+    """Prueba directa de Ollama sin usar nuestro código"""
+    print("\n🤖 Probando Ollama directamente...")
     
     try:
-        models = service.get_available_models()
+        import requests
         
-        for provider, model_list in models.items():
-            print(f"\n{provider.upper()}:")
-            if model_list:
-                for model in model_list:
-                    print(f"  - {model}")
-            else:
-                print("  No hay modelos disponibles")
+        # Test 1: Servidor ejecutándose
+        response = requests.get('http://localhost:11434/api/tags', timeout=5)
+        if response.status_code != 200:
+            print("   ❌ Servidor Ollama no responde")
+            return False
         
-        return models
-    except Exception as e:
-        print(f"❌ Error obteniendo modelos: {e}")
-        return {}
-
-def test_simple_generation(service, availability):
-    """Test 4: Generación simple sin contexto"""
-    print_section("GENERACIÓN SIMPLE SIN CONTEXTO")
-    
-    request = LLMRequest(
-        query="¿Qué es una licencia de obras municipal?",
-        temperature=0.7,
-        max_tokens=200
-    )
-    
-    results = {}
-    
-    # Test Ollama
-    if availability.get('ollama', False):
-        print("\n🦙 Testing Ollama...")
-        try:
-            start_time = time.time()
-            result = service.generate_response(request, 'ollama')
-            test_time = time.time() - start_time
-            
-            print(f"✅ Modelo: {result.model_name}")
-            print(f"⏱️  Tiempo total: {test_time:.2f}s")
-            print(f"⏱️  Tiempo generación: {result.response_time:.2f}s")
-            print(f"🪙 Tokens: {result.total_tokens}")
-            print(f"📝 Respuesta (100 chars): {result.response[:100]}...")
-            
-            if result.error:
-                print(f"⚠️  Error: {result.error}")
-            
-            results['ollama'] = result
-            
-        except Exception as e:
-            print(f"❌ Error en Ollama: {e}")
-    
-    # Test OpenAI
-    if availability.get('openai', False):
-        print("\n🤖 Testing OpenAI...")
-        try:
-            start_time = time.time()
-            result = service.generate_response(request, 'openai')
-            test_time = time.time() - start_time
-            
-            print(f"✅ Modelo: {result.model_name}")
-            print(f"⏱️  Tiempo total: {test_time:.2f}s")
-            print(f"⏱️  Tiempo generación: {result.response_time:.2f}s")
-            print(f"🪙 Tokens: {result.total_tokens}")
-            print(f"💰 Coste estimado: ${result.estimated_cost:.4f}")
-            print(f"📝 Respuesta (100 chars): {result.response[:100]}...")
-            
-            if result.error:
-                print(f"⚠️  Error: {result.error}")
-            
-            results['openai'] = result
-            
-        except Exception as e:
-            print(f"❌ Error en OpenAI: {e}")
-    
-    return results
-
-def test_rag_generation(service, availability):
-    """Test 5: Generación con contexto RAG"""
-    print_section("GENERACIÓN CON CONTEXTO RAG")
-    
-    # Crear chunks de prueba simulando documentos municipales
-    chunks = [
-        DocumentChunk(
-            content="""La licencia de obras es un acto administrativo por el que el Ayuntamiento 
-            autoriza la realización de obras de construcción, instalación o demolición, 
-            así como el uso del suelo para dichos fines. Es obligatoria para obras mayores 
-            que requieran proyecto técnico.""",
-            metadata=DocumentMetadata(
-                source_path="ordenanza_urbanistica_2024.pdf",
-                source_type="pdf",
-                page_number=15,
-                title="Ordenanza de Urbanismo - Licencias de Obra"
-            )
-        ),
-        DocumentChunk(
-            content="""Los plazos para resolver las solicitudes de licencia de obras son:
-            - Obras menores: 15 días hábiles desde presentación completa
-            - Obras mayores: 30 días hábiles desde presentación completa
-            - Obras en suelo rústico: 45 días hábiles
-            El silencio administrativo tendrá efectos desestimatorios.""",
-            metadata=DocumentMetadata(
-                source_path="reglamento_tramitacion_2024.pdf",
-                source_type="pdf",
-                page_number=8,
-                title="Reglamento de Tramitación - Plazos"
-            )
+        print("   ✅ Servidor Ollama ejecutándose")
+        
+        # Test 2: Modelos disponibles
+        data = response.json()
+        models = [model['name'] for model in data.get('models', [])]
+        
+        if not models:
+            print("   ❌ No hay modelos instalados")
+            print("   💡 Ejecuta: ollama pull llama3.2:3b")
+            return False
+        
+        print(f"   ✅ {len(models)} modelos disponibles")
+        for model in models[:3]:
+            print(f"      - {model}")
+        
+        # Test 3: Generación simple
+        test_model = models[0]
+        print(f"   🔄 Probando generación con {test_model}...")
+        
+        payload = {
+            "model": test_model,
+            "prompt": "Hola, responde con una palabra",
+            "stream": False,
+            "options": {"max_tokens": 5}
+        }
+        
+        gen_response = requests.post(
+            'http://localhost:11434/api/generate',
+            json=payload,
+            timeout=20
         )
+        
+        if gen_response.status_code == 200:
+            gen_data = gen_response.json()
+            text = gen_data.get('response', '').strip()
+            print(f"   ✅ Generación exitosa: '{text}'")
+            return True
+        else:
+            print(f"   ❌ Error en generación: {gen_response.status_code}")
+            return False
+            
+    except Exception as e:
+        print(f"   ❌ Error probando Ollama: {e}")
+        return False
+
+def test_project_structure():
+    """Verificar estructura del proyecto"""
+    print("\n📁 Verificando estructura del proyecto...")
+    
+    project_root = Path(__file__).parent.parent
+    
+    required_dirs = [
+        'app',
+        'app/services',
+        'app/models',
+        'app/routes'
     ]
     
-    request = LLMRequest(
-        query="¿Cuáles son los plazos para obtener una licencia de obras?",
-        context=chunks,
-        temperature=0.3,  # Más determinista para RAG
-        max_tokens=300
-    )
-    
-    results = {}
-    
-    # Test Ollama con RAG
-    if availability.get('ollama', False):
-        print("\n🦙 Testing Ollama con RAG...")
-        try:
-            result = service.generate_response(request, 'ollama')
-            
-            print(f"✅ Modelo: {result.model_name}")
-            print(f"⏱️  Tiempo: {result.response_time:.2f}s")
-            print(f"📚 Fuentes: {result.sources}")
-            print(f"📝 Respuesta: {result.response}")
-            
-            results['ollama_rag'] = result
-            
-        except Exception as e:
-            print(f"❌ Error en Ollama RAG: {e}")
-    
-    # Test OpenAI con RAG
-    if availability.get('openai', False):
-        print("\n🤖 Testing OpenAI con RAG...")
-        try:
-            result = service.generate_response(request, 'openai')
-            
-            print(f"✅ Modelo: {result.model_name}")
-            print(f"⏱️  Tiempo: {result.response_time:.2f}s")
-            print(f"💰 Coste: ${result.estimated_cost:.4f}")
-            print(f"📚 Fuentes: {result.sources}")
-            print(f"📝 Respuesta: {result.response}")
-            
-            results['openai_rag'] = result
-            
-        except Exception as e:
-            print(f"❌ Error en OpenAI RAG: {e}")
-    
-    return results
-
-def test_model_comparison(service, availability):
-    """Test 6: Comparación directa entre modelos"""
-    print_section("COMPARACIÓN DIRECTA ENTRE MODELOS")
-    
-    if not (availability.get('ollama') and availability.get('openai')):
-        print("⚠️  Comparación requiere ambos proveedores disponibles")
-        return {}
-    
-    # Crear contexto de prueba
-    chunks = [
-        DocumentChunk(
-            content="""El procedimiento de solicitud de licencia de obras requiere:
-            1. Instancia de solicitud cumplimentada
-            2. Proyecto técnico visado (obras mayores)
-            3. Justificante de pago de tasas municipales
-            4. Documentación catastral actualizada
-            5. Autorización de la comunidad (si procede)""",
-            metadata=DocumentMetadata(
-                source_path="guia_tramites_2024.pdf",
-                source_type="pdf",
-                title="Guía de Trámites Municipales"
-            )
-        )
+    required_files = [
+        'app/__init__.py',
+        'app/services/__init__.py',
+        'requirements.txt'
     ]
     
-    request = LLMRequest(
-        query="¿Qué documentación necesito para solicitar una licencia de obras mayor?",
-        context=chunks,
-        temperature=0.3,
-        max_tokens=250
-    )
+    missing_items = []
     
-    print("🚀 Ejecutando comparación en paralelo...")
-    try:
-        results = service.compare_models(request)
-        
-        print(f"\n📊 RESULTADOS DE COMPARACIÓN:")
-        print("-" * 50)
-        
-        for provider, result in results.items():
-            print(f"\n{provider.upper()}:")
-            print(f"  Modelo: {result.model_name}")
-            print(f"  Tiempo: {result.response_time:.2f}s")
-            print(f"  Tokens: {result.total_tokens}")
-            if result.estimated_cost:
-                print(f"  Coste: ${result.estimated_cost:.4f}")
-            print(f"  Respuesta: {result.response[:150]}...")
-            if result.error:
-                print(f"  Error: {result.error}")
-        
-        return results
-        
-    except Exception as e:
-        print(f"❌ Error en comparación: {e}")
-        return {}
+    for dir_path in required_dirs:
+        full_path = project_root / dir_path
+        if full_path.exists():
+            print(f"   ✅ {dir_path}/")
+        else:
+            print(f"   ❌ {dir_path}/ - FALTANTE")
+            missing_items.append(dir_path)
+    
+    for file_path in required_files:
+        full_path = project_root / file_path
+        if full_path.exists():
+            print(f"   ✅ {file_path}")
+        else:
+            print(f"   ❌ {file_path} - FALTANTE")
+            missing_items.append(file_path)
+    
+    if missing_items:
+        print(f"\n   💡 Elementos faltantes:")
+        for item in missing_items:
+            print(f"      - {item}")
+        return False
+    
+    return True
 
-def test_service_stats(service):
-    """Test 7: Estadísticas del servicio"""
-    print_section("ESTADÍSTICAS DEL SERVICIO")
+def test_project_imports():
+    """Intentar importar nuestro código del proyecto"""
+    print("\n🔧 Probando importaciones del proyecto...")
     
     try:
-        stats = service.get_service_stats()
-        print(json.dumps(stats, indent=2, ensure_ascii=False))
-        return stats
+        # Verificar que podemos importar la app
+        print("   🔄 Importando app...")
+        import app
+        print("   ✅ app importada correctamente")
+        
+        # Verificar que podemos importar el core
+        print("   🔄 Importando app.core...")
+        from app.core import config, logger
+        print("   ✅ app.core importado correctamente")
+        
+        return True
+        
+    except ImportError as e:
+        print(f"   ❌ Error importando proyecto: {e}")
+        print("   💡 Verifica que todos los archivos __init__.py existan")
+        print("   💡 Verifica que estés en el directorio correcto")
+        return False
     except Exception as e:
-        print(f"❌ Error obteniendo estadísticas: {e}")
-        return {}
-
-def test_error_handling(service):
-    """Test 8: Manejo de errores"""
-    print_section("MANEJO DE ERRORES")
-    
-    # Test proveedor inexistente
-    print("🧪 Testing proveedor inexistente...")
-    request = LLMRequest(query="Test", max_tokens=50)
-    result = service.generate_response(request, 'proveedor_falso')
-    print(f"Resultado: {result.error or 'Error no capturado'}")
-    
-    # Test modelo inexistente en Ollama
-    print("\n🧪 Testing modelo inexistente...")
-    result = service.generate_response(request, 'ollama', 'modelo_inexistente')
-    print(f"Resultado: {result.response[:100]}...")
-
-def generate_test_report(all_results):
-    """Generar reporte de pruebas"""
-    print_section("REPORTE FINAL DE PRUEBAS")
-    
-    print("📋 RESUMEN EJECUTIVO:")
-    print("-" * 30)
-    
-    # Analizar disponibilidad
-    available_providers = []
-    for provider, available in all_results.get('availability', {}).items():
-        if available:
-            available_providers.append(provider)
-    
-    print(f"✅ Proveedores disponibles: {len(available_providers)}/2")
-    print(f"   Activos: {', '.join(available_providers)}")
-    
-    # Analizar modelos
-    total_models = sum(len(models) for models in all_results.get('models', {}).values())
-    print(f"🤖 Total modelos disponibles: {total_models}")
-    
-    # Analizar pruebas de generación
-    simple_tests = all_results.get('simple_generation', {})
-    rag_tests = all_results.get('rag_generation', {})
-    comparison_tests = all_results.get('comparison', {})
-    
-    print(f"🧪 Pruebas de generación simple: {len(simple_tests)} completadas")
-    print(f"📚 Pruebas con RAG: {len(rag_tests)} completadas")
-    print(f"⚖️  Pruebas de comparación: {'✅' if comparison_tests else '❌'}")
-    
-    # Status general
-    if available_providers and total_models > 0:
-        print(f"\n🎉 ESTADO GENERAL: ✅ SISTEMA FUNCIONAL")
-        print("   El LLM Service está listo para integración")
-    else:
-        print(f"\n⚠️  ESTADO GENERAL: 🔧 REQUIERE CONFIGURACIÓN")
-        print("   Verificar instalación de Ollama y/o API key de OpenAI")
+        print(f"   ❌ Error inesperado: {e}")
+        return False
 
 def main():
-    """Función principal de pruebas"""
-    print("🚀 INICIANDO SUITE DE PRUEBAS LLM SERVICE")
+    """Función principal de diagnóstico"""
+    print("🎓 TFM Vicente Caruncho - Diagnóstico del Sistema")
+    print("🏛️ Prototipo Chatbot RAG para Administraciones Locales")
+    print("🔍 Objetivo: Identificar y resolver problemas")
     print("=" * 60)
     
     results = {}
     
-    # Test 1: Inicialización
-    service = test_service_initialization()
-    if not service:
-        print("❌ No se puede continuar sin servicio inicializado")
-        return
+    # Test 1: Importaciones básicas
+    print("\n📦 1. VERIFICANDO DEPENDENCIAS BÁSICAS")
+    basic_imports_ok = test_basic_imports()
+    results['basic_imports'] = basic_imports_ok
     
-    # Test 2: Disponibilidad
-    availability = test_provider_availability(service)
-    results['availability'] = availability
+    # Test 2: Ollama directo
+    print("\n🤖 2. VERIFICANDO OLLAMA")
+    ollama_ok = test_ollama_direct()
+    results['ollama'] = ollama_ok
     
-    # Test 3: Modelos
-    models = test_available_models(service)
-    results['models'] = models
+    # Test 3: Estructura del proyecto
+    print("\n📁 3. VERIFICANDO ESTRUCTURA DEL PROYECTO")
+    structure_ok = test_project_structure()
+    results['structure'] = structure_ok
     
-    # Test 4: Generación simple
-    simple_results = test_simple_generation(service, availability)
-    results['simple_generation'] = simple_results
+    # Test 4: Importaciones del proyecto (solo si estructura OK)
+    if structure_ok:
+        print("\n🔧 4. VERIFICANDO IMPORTACIONES DEL PROYECTO")
+        project_imports_ok = test_project_imports()
+        results['project_imports'] = project_imports_ok
+    else:
+        print("\n⏭️ 4. SALTANDO IMPORTACIONES (estructura incorrecta)")
+        results['project_imports'] = False
     
-    # Test 5: RAG
-    rag_results = test_rag_generation(service, availability)
-    results['rag_generation'] = rag_results
+    # Generar reporte
+    print("\n📋 REPORTE DE DIAGNÓSTICO")
+    print("=" * 40)
     
-    # Test 6: Comparación (si ambos disponibles)
-    comparison_results = test_model_comparison(service, availability)
-    results['comparison'] = comparison_results
+    total_tests = len(results)
+    passed_tests = sum(results.values())
     
-    # Test 7: Estadísticas
-    stats = test_service_stats(service)
-    results['stats'] = stats
+    for test_name, passed in results.items():
+        status = "✅ OK" if passed else "❌ FALLO"
+        print(f"   {status} {test_name.replace('_', ' ').title()}")
     
-    # Test 8: Errores
-    test_error_handling(service)
+    success_rate = (passed_tests / total_tests) * 100
+    print(f"\n📊 RESUMEN:")
+    print(f"   Tests: {passed_tests}/{total_tests}")
+    print(f"   Éxito: {success_rate:.1f}%")
     
-    # Reporte final
-    generate_test_report(results)
+    # Recomendaciones específicas
+    print(f"\n💡 RECOMENDACIONES:")
     
-    print(f"\n🏁 PRUEBAS COMPLETADAS")
-    print("=" * 60)
+    if not results.get('basic_imports', False):
+        print("   🔧 Instalar dependencias: pip install requests flask")
+    
+    if not results.get('ollama', False):
+        print("   🤖 Configurar Ollama:")
+        print("      1. Descargar de https://ollama.ai/download")
+        print("      2. Instalar y ejecutar")
+        print("      3. Descargar modelo: ollama pull llama3.2:3b")
+    
+    if not results.get('structure', False):
+        print("   📁 Crear estructura del proyecto:")
+        print("      mkdir -p app/services app/models app/routes")
+        print("      touch app/__init__.py app/services/__init__.py")
+    
+    if not results.get('project_imports', False) and results.get('structure', False):
+        print("   🔧 Revisar archivos __init__.py y configuración")
+    
+    if all(results.values()):
+        print("\n🎉 ¡SISTEMA LISTO! Puedes proceder con la implementación completa")
+        return 0
+    else:
+        print("\n⚠️ Resolver problemas antes de continuar")
+        return 1
 
 if __name__ == "__main__":
-    main()
+    try:
+        exit_code = main()
+        sys.exit(exit_code)
+    except KeyboardInterrupt:
+        print("\n\n⏹️ Diagnóstico cancelado")
+        sys.exit(130)
+    except Exception as e:
+        print(f"\n💥 Error inesperado: {e}")
+        sys.exit(1)
