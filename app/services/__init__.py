@@ -1,6 +1,13 @@
+# -*- coding: utf-8 -*-
 """
-Servicios principales del sistema
+Services Package
+TFM Vicente Caruncho
 """
 
-# Importar servicios cuando estén disponibles
-__all__ = ['rag', 'ingestion', 'llm']
+# Solo importar lo que realmente existe
+try:
+    from .llm import llm_service
+    __all__ = ['llm_service']
+except ImportError:
+    # Si no existe, no importar nada por ahora
+    __all__ = []
