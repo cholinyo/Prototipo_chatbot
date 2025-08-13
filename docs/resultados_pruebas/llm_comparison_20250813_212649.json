@@ -1,0 +1,69 @@
+{
+  "metadata": {
+    "title": "Comparación LLM Dual - Ollama vs OpenAI",
+    "subtitle": "Evaluación de Modelos para Sistemas RAG",
+    "author": "Vicente Caruncho Ramos",
+    "tfm": "Prototipo de Chatbot RAG para Administraciones Locales",
+    "university": "Universitat Jaume I",
+    "date": "2025-08-13T21:26:49.381114",
+    "version": "3.0"
+  },
+  "methodology": {
+    "scenarios_count": 5,
+    "evaluation_criteria": [
+      "Tiempo de generación",
+      "Relevancia de respuesta",
+      "Calidad del contenido",
+      "Tasa de éxito"
+    ],
+    "context_type": "Documentos administrativos municipales"
+  },
+  "results": {
+    "ollama": {
+      "model_name": "llama3.2:3b",
+      "provider": "ollama",
+      "results": [
+        {
+          "scenario_id": "consulta_simple",
+          "success": false,
+          "error": "HTTP 500",
+          "generation_time": 0.2009744644165039
+        },
+        {
+          "scenario_id": "procedimiento_complejo",
+          "success": false,
+          "error": "HTTP 500",
+          "generation_time": 0.14569973945617676
+        },
+        {
+          "scenario_id": "informacion_tecnica",
+          "success": false,
+          "error": "HTTP 500",
+          "generation_time": 0.12437868118286133
+        },
+        {
+          "scenario_id": "consulta_normativa",
+          "success": false,
+          "error": "HTTP 500",
+          "generation_time": 0.13149189949035645
+        },
+        {
+          "scenario_id": "consulta_ambigua",
+          "success": false,
+          "error": "HTTP 500",
+          "generation_time": 0.2257080078125
+        }
+      ],
+      "summary": {
+        "successful_responses": 0,
+        "total_scenarios": 5,
+        "success_rate": 0,
+        "error": "No se pudieron completar respuestas"
+      }
+    },
+    "openai": null
+  },
+  "analysis": {
+    "comparison": {}
+  }
+}

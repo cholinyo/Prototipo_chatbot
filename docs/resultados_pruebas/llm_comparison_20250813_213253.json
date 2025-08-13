@@ -1,0 +1,143 @@
+{
+  "metadata": {
+    "title": "Comparación LLM Dual - Ollama vs OpenAI",
+    "subtitle": "Evaluación de Modelos para Sistemas RAG",
+    "author": "Vicente Caruncho Ramos",
+    "tfm": "Prototipo de Chatbot RAG para Administraciones Locales",
+    "university": "Universitat Jaume I",
+    "date": "2025-08-13T21:32:53.771210",
+    "version": "3.0"
+  },
+  "methodology": {
+    "scenarios_count": 5,
+    "evaluation_criteria": [
+      "Tiempo de generación",
+      "Relevancia de respuesta",
+      "Calidad del contenido",
+      "Tasa de éxito"
+    ],
+    "context_type": "Documentos administrativos municipales"
+  },
+  "results": {
+    "ollama": {
+      "model_name": "mistral:7b",
+      "provider": "ollama",
+      "results": [
+        {
+          "scenario_id": "consulta_simple",
+          "success": false,
+          "error": "HTTP 500",
+          "generation_time": 0.09084963798522949
+        },
+        {
+          "scenario_id": "procedimiento_complejo",
+          "success": false,
+          "error": "HTTP 500",
+          "generation_time": 0.06256341934204102
+        },
+        {
+          "scenario_id": "informacion_tecnica",
+          "success": false,
+          "error": "HTTP 500",
+          "generation_time": 0.03531360626220703
+        },
+        {
+          "scenario_id": "consulta_normativa",
+          "success": false,
+          "error": "HTTP 500",
+          "generation_time": 0.0326230525970459
+        },
+        {
+          "scenario_id": "consulta_ambigua",
+          "success": false,
+          "error": "HTTP 500",
+          "generation_time": 0.03246712684631348
+        }
+      ],
+      "summary": {
+        "successful_responses": 0,
+        "total_scenarios": 5,
+        "success_rate": 0,
+        "error": "No se pudieron completar respuestas"
+      }
+    },
+    "openai": {
+      "model_name": "gpt-4o-mini-2024-07-18",
+      "provider": "openai",
+      "results": [
+        {
+          "scenario_id": "consulta_simple",
+          "success": true,
+          "response": "Los horarios de atención al ciudadano son de lunes a viernes de 9:00 a 14:00 horas, y los jueves hay atención vespertina de 16:00 a 18:00 horas.",
+          "generation_time": 1.9776842594146729,
+          "relevance_score": 1.0,
+          "elements_found": 5,
+          "response_length": 144,
+          "prompt_tokens": 107,
+          "completion_tokens": 43,
+          "estimated_cost": 0.00579
+        },
+        {
+          "scenario_id": "procedimiento_complejo",
+          "success": true,
+          "response": "Para solicitar una licencia de obras menores necesitas presentar los siguientes documentos:\n\n1. Proyecto técnico.\n2. Documento de identidad del solicitante.\n3. Justificante de pago de tasas.",
+          "generation_time": 2.871324062347412,
+          "relevance_score": 0.5,
+          "elements_found": 2,
+          "response_length": 190,
+          "prompt_tokens": 120,
+          "completion_tokens": 36,
+          "estimated_cost": 0.0057599999999999995
+        },
+        {
+          "scenario_id": "informacion_tecnica",
+          "success": true,
+          "response": "Para denunciar problemas de ruido en tu zona, puedes presentar la denuncia en el Registro General del Ayuntamiento o a través de la sede electrónica. Asegúrate de incluir la dirección exacta, el horario en que se produce el ruido y una descripción detallada de la molestia. Si es necesario, la Policía Local puede realizar mediciones acústicas.",
+          "generation_time": 3.7337019443511963,
+          "relevance_score": 1.0,
+          "elements_found": 5,
+          "response_length": 344,
+          "prompt_tokens": 109,
+          "completion_tokens": 70,
+          "estimated_cost": 0.007469999999999999
+        },
+        {
+          "scenario_id": "consulta_normativa",
+          "success": true,
+          "response": "En el municipio están disponibles las siguientes ayudas sociales: ayudas de emergencia social, becas de comedor escolar y ayudas al alquiler.",
+          "generation_time": 1.0421886444091797,
+          "relevance_score": 0.2,
+          "elements_found": 1,
+          "response_length": 141,
+          "prompt_tokens": 111,
+          "completion_tokens": 25,
+          "estimated_cost": 0.00483
+        },
+        {
+          "scenario_id": "consulta_ambigua",
+          "success": true,
+          "response": "Sí, tu negocio debe cumplir con las normativas de horarios comerciales según la ordenanza municipal. Además, si tu actividad implica hostelería, música en vivo o terrazas, hay restricciones específicas que debes considerar. Si estás iniciando una actividad nueva, necesitarás obtener una licencia de actividad previa.",
+          "generation_time": 1.3112573623657227,
+          "relevance_score": 0.6666666666666666,
+          "elements_found": 2,
+          "response_length": 317,
+          "prompt_tokens": 92,
+          "completion_tokens": 60,
+          "estimated_cost": 0.006359999999999999
+        }
+      ],
+      "summary": {
+        "successful_responses": 5,
+        "total_scenarios": 5,
+        "success_rate": 1.0,
+        "avg_generation_time": 2.187231254577637,
+        "avg_relevance_score": 0.6733333333333333,
+        "total_time": 10.936156272888184,
+        "total_cost": 0.03021
+      }
+    }
+  },
+  "analysis": {
+    "comparison": {}
+  }
+}

@@ -1,0 +1,63 @@
+{
+  "metadata": {
+    "title": "Validación Sistema RAG End-to-End - Fase 4",
+    "subtitle": "Evaluación Completa Pipeline RAG para Administraciones Locales",
+    "author": "Vicente Caruncho Ramos",
+    "tfm": "Prototipo de Chatbot RAG para Administraciones Locales",
+    "university": "Universitat Jaume I",
+    "date": "2025-08-13T22:13:54.390180",
+    "phase": "Fase 4",
+    "version": "1.0"
+  },
+  "test_configuration": {
+    "total_components": 8,
+    "test_categories": [
+      "Dependencias del sistema",
+      "Servicio de embeddings",
+      "Vector stores (FAISS/ChromaDB)",
+      "Ingesta multimodal",
+      "Integración LLM",
+      "Pipeline RAG completo",
+      "Trazabilidad y transparencia",
+      "Endpoints API"
+    ],
+    "success_threshold": 75.0,
+    "environment": "Development",
+    "execution_timestamp": "20250813_221354"
+  },
+  "results": {
+    "individual_tests": {
+      "dependencies": false,
+      "embeddings": false,
+      "vector_stores": false,
+      "ingestion": false,
+      "llm_integration": false,
+      "rag_pipeline": false,
+      "traceability": true,
+      "api_endpoints": false
+    },
+    "summary": {
+      "total_tests": 8,
+      "successful_tests": 1,
+      "success_rate": 12.5,
+      "maturity_level": "🛠️ INICIAL",
+      "ready_for_tfm": false
+    },
+    "detailed_metrics": {
+      "functional_coverage": 12.5,
+      "critical_components_ok": false,
+      "rag_pipeline_functional": false,
+      "api_layer_functional": false,
+      "ready_for_production": false,
+      "ready_for_tfm_demo": false
+    }
+  },
+  "recommendations": {
+    "immediate_actions": [
+      "Instalar dependencias faltantes del sistema",
+      "Configurar al menos un proveedor LLM (Ollama o OpenAI)"
+    ],
+    "medium_term": [],
+    "for_tfm": []
+  }
+}
