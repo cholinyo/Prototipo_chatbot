@@ -1,0 +1,20 @@
+COMPARACIÓN VECTOR STORES - TFM VICENTE CARUNCHO
+==================================================
+
+Fecha: 2025-08-13 17:56:59
+Dataset: 10 documentos, 5 queries
+
+RESULTADOS FAISS:
+- Inserción: 143640.5 docs/s
+- Búsqueda: 0.0004s promedio
+- Queries/segundo: 2776.2
+
+RESULTADOS CHROMADB:
+- Inserción: 137.4 docs/s
+- Búsqueda: 0.0114s promedio
+- Queries/segundo: 88.1
+
+CONCLUSIONES:
+- Inserción: FAISS ganador (1045.5x mejor)
+- Búsqueda: FAISS ganador (31.5x mejor)
+- Ambas tecnologías viables para administraciones locales

@@ -1,0 +1,139 @@
+{
+  "timestamp": "20250813_172812",
+  "test_date": "2025-08-13T17:28:12.554957",
+  "project": "Prototipo_chatbot - TFM Vicente Caruncho",
+  "phase": "Fase 1 - Sistema de Embeddings",
+  "results": {
+    "service_availability": true,
+    "individual_embedding": {
+      "success": true,
+      "shape": [
+        384
+      ],
+      "time": 0.0804758071899414,
+      "text_length": 57
+    },
+    "batch_processing": {
+      "success": false,
+      "error": "'list' object has no attribute 'shape'"
+    },
+    "cache_system": {
+      "success": true,
+      "first_time": 0.06325507164001465,
+      "second_time": 1.1682510375976562e-05,
+      "third_time": 6.9141387939453125e-06,
+      "cache_speedup": 5414.510204081633,
+      "cache_improvement_pct": 99.98153110877423,
+      "embeddings_identical": true
+    },
+    "service_statistics": {
+      "success": true,
+      "stats": {
+        "model_info": {
+          "available": true,
+          "model_name": "all-MiniLM-L6-v2",
+          "dimension": 384,
+          "device": "cpu",
+          "max_seq_length": 256
+        },
+        "cache_stats": {
+          "cache_size": 2,
+          "max_size": 1000,
+          "hits": 2,
+          "misses": 2,
+          "hit_rate": 0.5,
+          "total_requests": 4
+        },
+        "metrics": {
+          "total_texts_processed": 12,
+          "total_batches_processed": 3,
+          "total_processing_time": 0.3173208236694336,
+          "avg_batch_size": 1.0810000000000002,
+          "avg_time_per_text": 0.0264434019724528,
+          "last_batch_time": 0.06316733360290527
+        }
+      }
+    },
+    "edge_cases": {
+      "success": true,
+      "edge_cases": {
+        "empty_text": {
+          "handled": false
+        },
+        "long_text": {
+          "success": true,
+          "length": 3850,
+          "shape": [
+            384
+          ]
+        },
+        "special_chars": {
+          "success": true,
+          "shape": [
+            384
+          ]
+        },
+        "numeric_text": {
+          "success": true,
+          "shape": [
+            384
+          ]
+        }
+      }
+    },
+    "performance_benchmark": {
+      "success": true,
+      "performance_results": {
+        "1": {
+          "execution_time": 0.05065107345581055,
+          "throughput": 19.742918200389745,
+          "avg_time_per_text": 0.05065107345581055,
+          "memory_used_mb": 0.27734375,
+          "embeddings_generated": 1
+        },
+        "5": {
+          "execution_time": 0.11534309387207031,
+          "throughput": 43.34893258148264,
+          "avg_time_per_text": 0.023068618774414063,
+          "memory_used_mb": 1.7578125,
+          "embeddings_generated": 5
+        },
+        "10": {
+          "execution_time": 0.14283347129821777,
+          "throughput": 70.01160098616728,
+          "avg_time_per_text": 0.014283347129821777,
+          "memory_used_mb": 2.8984375,
+          "embeddings_generated": 10
+        },
+        "25": {
+          "execution_time": 0.2495250701904297,
+          "throughput": 100.19033350404746,
+          "avg_time_per_text": 0.009981002807617188,
+          "memory_used_mb": 8.9296875,
+          "embeddings_generated": 25
+        },
+        "50": {
+          "execution_time": 0.5120010375976562,
+          "throughput": 97.65605209435397,
+          "avg_time_per_text": 0.010240020751953125,
+          "memory_used_mb": 4.03125,
+          "embeddings_generated": 50
+        },
+        "100": {
+          "execution_time": 1.376455307006836,
+          "throughput": 72.65037919571432,
+          "avg_time_per_text": 0.01376455307006836,
+          "memory_used_mb": 1.265625,
+          "embeddings_generated": 100
+        }
+      },
+      "optimal_batch_size": 25
+    }
+  },
+  "summary": {
+    "total_tests": 7,
+    "successful_tests": 6,
+    "failed_tests": 1,
+    "success_rate": 85.71428571428571
+  }
+}
