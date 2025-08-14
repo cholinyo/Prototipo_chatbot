@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+
+{% block title %}Chat RAG - Administración Local{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header">
+                    <h4>💬 Chat RAG - Asistente IA</h4>
+                    <small class="text-muted">Consulte información administrativa con inteligencia artificial</small>
+                </div>
+                <div class="card-body">
+                    <!-- Contenedor de mensajes -->
+                    <div id="chat-container">
+                        <div class="message assistant">
+                            <div class="message-header">
+                                <span class="message-sender">🤖 Asistente IA</span>
+                                <span class="message-time">{{ moment().format('HH:mm') }}</span>
+                            </div>
+                            <div class="message-content">
+                                ¡Hola! Soy tu asistente para consultas administrativas. 
+                                Puedo ayudarte con información sobre licencias, trámites, 
+                                impuestos y servicios municipales.
+                                <br><br>
+                                <strong>¿En qué puedo ayudarte hoy?</strong>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Indicador de escritura -->
+                    <div id="typing-indicator" style="display: none;">
+                        <div class="text-muted">
+                            <em>🤖 El asistente está escribiendo...</em>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <!-- Entrada de mensajes -->
+                    <div class="input-group">
+                        <textarea id="message-input" class="form-control" 
+                                 placeholder="Escriba su consulta aquí..." 
+                                 rows="2"></textarea>
+                        <button id="send-button" class="btn btn-primary">
+                            📤 Enviar
+                        </button>
+                        <button id="compare-button" class="btn btn-secondary">
+                            ⚖️ Comparar
+                        </button>
+                    </div>
+                    
+                    <!-- Configuración -->
+                    <div class="mt-2">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <select id="provider-select" class="form-select form-select-sm">
+                                    <option value="ollama">🦙 Ollama (Local)</option>
+                                    <option value="openai">🤖 OpenAI (Cloud)</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <button id="clear-chat" class="btn btn-outline-danger btn-sm">
+                                    🗑️ Limpiar Chat
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5>📊 Estado del Sistema</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <span id="status-indicator" class="badge bg-secondary">
+                            Inicializando...
+                        </span>
+                    </div>
+                    
+                    <div id="stats-panel" class="p-2 bg-light rounded">
+                        <small class="text-muted">Cargando estadísticas...</small>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h6>💡 Ejemplos de Consultas</h6>
+                </div>
+                <div class="card-body">
+                    <ul class="list-unstyled">
+                        <li class="mb-2">
+                            <small>• "¿Qué necesito para una licencia de obras?"</small>
+                        </li>
+                        <li class="mb-2">
+                            <small>• "¿Cuáles son los plazos de empadronamiento?"</small>
+                        </li>
+                        <li class="mb-2">
+                            <small>• "¿Cómo solicito ayudas sociales?"</small>
+                        </li>
+                        <li class="mb-2">
+                            <small>• "¿Qué impuestos municipales pago?"</small>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Scripts específicos para Chat RAG -->
+<script src="{{ url_for('static', filename='js/chat_rag.js') }}"></script>
+{% endblock %}

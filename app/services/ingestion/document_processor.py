@@ -1,294 +1,130 @@
 """
-Procesador de Documentos para Pipeline de Ingesta
-Prototipo_chatbot - TFM Vicente Caruncho
+Procesador de Documentos Básico
+TFM Vicente Caruncho - Sistemas Inteligentes
 """
 
 import os
 import time
 from pathlib import Path
-from typing import List, Dict, Any, Optional, Union
-from abc import ABC, abstractmethod
-import hashlib
-import mimetypes
+from typing import List, Dict, Any
 
 from app.core.logger import get_logger
-from app.models import DocumentChunk, DocumentMetadata, create_document_chunk
-
-class BaseDocumentProcessor(ABC):
-    """Clase base abstracta para procesadores de documentos"""
-    
-    @abstractmethod
-    def can_process(self, file_path: str) -> bool:
-        """Verificar si puede procesar el archivo"""
-        pass
-    
-    @abstractmethod
-    def process(self, file_path: str, **kwargs) -> List[DocumentChunk]:
-        """Procesar archivo y retornar chunks"""
-        pass
-    
-    @abstractmethod
-    def get_supported_extensions(self) -> List[str]:
-        """Obtener extensiones soportadas"""
-        pass
-
-class TextDocumentProcessor(BaseDocumentProcessor):
-    """Procesador para documentos de texto plano"""
-    
-    def __init__(self, chunk_size: int = 500, chunk_overlap: int = 50):
-        self.chunk_size = chunk_size
-        self.chunk_overlap = chunk_overlap
-        self.logger = get_logger("text_processor")
-        self.supported_extensions = ['.txt', '.md', '.rst', '.log']
-    
-    def can_process(self, file_path: str) -> bool:
-        """Verificar si puede procesar el archivo"""
-        ext = Path(file_path).suffix.lower()
-        return ext in self.supported_extensions
-    
-    def get_supported_extensions(self) -> List[str]:
-        """Obtener extensiones soportadas"""
-        return self.supported_extensions
-    
-    def process(self, file_path: str, **kwargs) -> List[DocumentChunk]:
-        """Procesar archivo de texto"""
-        chunks = []
-        
-        try:
-            # Leer archivo
-            with open(file_path, 'r', encoding='utf-8') as f:
-                content = f.read()
-            
-            # Crear metadata
-            file_stats = os.stat(file_path)
-            metadata = DocumentMetadata(
-                source_path=str(file_path),
-                source_type='text_file',
-                file_type=Path(file_path).suffix[1:],
-                file_size=file_stats.st_size,
-                created_at=time.time(),
-                processing_metadata={
-                    'chunk_size': self.chunk_size,
-                    'chunk_overlap': self.chunk_overlap,
-                    'total_characters': len(content)
-                }
-            )
-            
-            # Dividir en chunks
-            chunks = self._split_text_into_chunks(content, metadata)
-            
-            self.logger.info(
-                f"Procesado archivo de texto: {file_path}",
-                chunks_created=len(chunks)
-            )
-            
-        except Exception as e:
-            self.logger.error(f"Error procesando archivo {file_path}: {e}")
-            raise
-        
-        return chunks
-    
-    def _split_text_into_chunks(
-        self, 
-        text: str, 
-        metadata: DocumentMetadata
-    ) -> List[DocumentChunk]:
-        """Dividir texto en chunks con overlap"""
-        chunks = []
-        
-        # Dividir por párrafos primero
-        paragraphs = text.split('\n\n')
-        current_chunk = ""
-        chunk_index = 0
-        
-        for paragraph in paragraphs:
-            # Si el párrafo es muy largo, dividirlo
-            if len(paragraph) > self.chunk_size:
-                # Dividir párrafo largo
-                sentences = self._split_into_sentences(paragraph)
-                for sentence in sentences:
-                    if len(current_chunk) + len(sentence) <= self.chunk_size:
-                        current_chunk += sentence + " "
-                    else:
-                        if current_chunk.strip():
-                            chunks.append(create_document_chunk(
-                                content=current_chunk.strip(),
-                                metadata=metadata,
-                                chunk_index=chunk_index
-                            ))
-                            chunk_index += 1
-                        current_chunk = sentence + " "
-            else:
-                # Agregar párrafo al chunk actual
-                if len(current_chunk) + len(paragraph) <= self.chunk_size:
-                    current_chunk += paragraph + "\n\n"
-                else:
-                    if current_chunk.strip():
-                        chunks.append(create_document_chunk(
-                            content=current_chunk.strip(),
-                            metadata=metadata,
-                            chunk_index=chunk_index
-                        ))
-                        chunk_index += 1
-                    current_chunk = paragraph + "\n\n"
-        
-        # Agregar último chunk si existe
-        if current_chunk.strip():
-            chunks.append(create_document_chunk(
-                content=current_chunk.strip(),
-                metadata=metadata,
-                chunk_index=chunk_index
-            ))
-        
-        return chunks
-    
-    def _split_into_sentences(self, text: str) -> List[str]:
-        """Dividir texto en oraciones (simplificado)"""
-        # Implementación simple, mejorar con spaCy o NLTK si es necesario
-        sentences = []
-        current = ""
-        
-        for char in text:
-            current += char
-            if char in '.!?' and len(current) > 20:
-                sentences.append(current.strip())
-                current = ""
-        
-        if current.strip():
-            sentences.append(current.strip())
-        
-        return sentences
+from app.models import DocumentChunk
 
 class DocumentProcessor:
-    """Procesador principal que coordina los procesadores específicos"""
+    """Procesador básico de documentos"""
     
     def __init__(self):
         self.logger = get_logger("prototipo_chatbot.document_processor")
-        self.processors: List[BaseDocumentProcessor] = []
-        self._register_default_processors()
+        self.processors = {
+            '.txt': self._process_text,
+            '.md': self._process_text,
+            '.pdf': self._process_pdf_mock,
+            '.docx': self._process_docx_mock,
+            '.html': self._process_html_mock
+        }
     
-    def _register_default_processors(self):
-        """Registrar procesadores por defecto"""
-        self.register_processor(TextDocumentProcessor())
-        self.logger.info("Procesadores por defecto registrados")
-    
-    def register_processor(self, processor: BaseDocumentProcessor):
-        """Registrar un nuevo procesador"""
-        self.processors.append(processor)
-        extensions = processor.get_supported_extensions()
-        self.logger.info(
-            f"Procesador registrado: {processor.__class__.__name__}",
-            extensions=extensions
-        )
-    
-    def can_process(self, file_path: str) -> bool:
-        """Verificar si algún procesador puede manejar el archivo"""
-        for processor in self.processors:
-            if processor.can_process(file_path):
-                return True
-        return False
-    
-    def process(
-        self, 
-        file_path: str,
-        source_type: str = 'document',
-        **kwargs
-    ) -> List[DocumentChunk]:
-        """Procesar documento con el procesador apropiado"""
-        
-        # Verificar que el archivo existe
+    def process(self, file_path: str, source_type: str = 'document') -> List[DocumentChunk]:
+        """Procesar archivo según su extensión"""
         if not os.path.exists(file_path):
-            raise FileNotFoundError(f"Archivo no encontrado: {file_path}")
+            self.logger.warning(f"Archivo no encontrado: {file_path}")
+            return []
         
-        # Encontrar procesador apropiado
-        for processor in self.processors:
-            if processor.can_process(file_path):
-                self.logger.info(
-                    f"Procesando con {processor.__class__.__name__}",
-                    file_path=file_path
-                )
-                
-                try:
-                    chunks = processor.process(file_path, **kwargs)
-                    
-                    # Actualizar source_type en metadata si es necesario
-                    for chunk in chunks:
-                        if chunk.metadata and not chunk.metadata.source_type:
-                            chunk.metadata.source_type = source_type
-                    
-                    return chunks
-                    
-                except Exception as e:
-                    self.logger.error(
-                        f"Error procesando archivo: {e}",
-                        file_path=file_path,
-                        processor=processor.__class__.__name__
-                    )
-                    raise
+        file_ext = Path(file_path).suffix.lower()
         
-        # No hay procesador disponible
-        ext = Path(file_path).suffix
-        self.logger.warning(
-            f"No hay procesador disponible para extensión {ext}",
-            file_path=file_path
-        )
+        if file_ext not in self.processors:
+            self.logger.warning(f"Extensión no soportada: {file_ext}")
+            return []
         
-        # Intentar procesamiento genérico de texto
-        return self._generic_text_processing(file_path, source_type)
-    
-    def _generic_text_processing(
-        self, 
-        file_path: str,
-        source_type: str
-    ) -> List[DocumentChunk]:
-        """Procesamiento genérico para archivos de texto"""
         try:
-            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                content = f.read()
-            
-            metadata = DocumentMetadata(
-                source_path=str(file_path),
-                source_type=source_type,
-                file_type='generic_text',
-                file_size=os.path.getsize(file_path),
-                created_at=time.time()
-            )
-            
-            # Crear un solo chunk con todo el contenido
-            chunk = create_document_chunk(
-                content=content[:5000],  # Limitar tamaño
-                metadata=metadata,
-                chunk_index=0
-            )
-            
-            return [chunk]
-            
+            return self.processors[file_ext](file_path, source_type)
         except Exception as e:
-            self.logger.error(f"Error en procesamiento genérico: {e}")
+            self.logger.error(f"Error procesando {file_path}: {e}")
             return []
     
-    def get_supported_extensions(self) -> List[str]:
-        """Obtener todas las extensiones soportadas"""
-        extensions = set()
-        for processor in self.processors:
-            extensions.update(processor.get_supported_extensions())
-        return list(extensions)
+    def _process_text(self, file_path: str, source_type: str) -> List[DocumentChunk]:
+        """Procesar archivos de texto"""
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+            
+            # Dividir en chunks básicos
+            chunks = []
+            chunk_size = 500  # caracteres por chunk
+            
+            for i in range(0, len(content), chunk_size):
+                chunk_content = content[i:i + chunk_size]
+                
+                chunk = DocumentChunk(
+                    id=f"chunk_{Path(file_path).stem}_{i}",
+                    content=chunk_content,
+                    metadata={
+                        'source_path': file_path,
+                        'source_type': source_type,
+                        'title': Path(file_path).stem,
+                        'chunk_index': i // chunk_size
+                    },
+                    embedding=None
+                )
+                chunks.append(chunk)
+            
+            self.logger.info(f"Procesado archivo texto: {file_path} -> {len(chunks)} chunks")
+            return chunks
+            
+        except Exception as e:
+            self.logger.error(f"Error procesando texto {file_path}: {e}")
+            return []
     
-    def get_stats(self) -> Dict[str, Any]:
-        """Obtener estadísticas del procesador"""
-        return {
-            'processors_count': len(self.processors),
-            'supported_extensions': self.get_supported_extensions(),
-            'processors': [p.__class__.__name__ for p in self.processors]
-        }
+    def _process_pdf_mock(self, file_path: str, source_type: str) -> List[DocumentChunk]:
+        """Mock para procesamiento PDF"""
+        chunk = DocumentChunk(
+            id=f"pdf_chunk_{int(time.time())}",
+            content=f"[CONTENIDO PDF MOCK] Archivo: {Path(file_path).name}",
+            metadata={
+                'source_path': file_path,
+                'source_type': source_type,
+                'title': Path(file_path).stem,
+                'note': 'Procesamiento PDF requiere PyPDF2 o pymupdf'
+            },
+            embedding=None
+        )
+        return [chunk]
+    
+    def _process_docx_mock(self, file_path: str, source_type: str) -> List[DocumentChunk]:
+        """Mock para procesamiento DOCX"""
+        chunk = DocumentChunk(
+            id=f"docx_chunk_{int(time.time())}",
+            content=f"[CONTENIDO DOCX MOCK] Archivo: {Path(file_path).name}",
+            metadata={
+                'source_path': file_path,
+                'source_type': source_type,
+                'title': Path(file_path).stem,
+                'note': 'Procesamiento DOCX requiere python-docx'
+            },
+            embedding=None
+        )
+        return [chunk]
+    
+    def _process_html_mock(self, file_path: str, source_type: str) -> List[DocumentChunk]:
+        """Mock para procesamiento HTML"""
+        chunk = DocumentChunk(
+            id=f"html_chunk_{int(time.time())}",
+            content=f"[CONTENIDO HTML MOCK] Archivo: {Path(file_path).name}",
+            metadata={
+                'source_path': file_path,
+                'source_type': source_type,
+                'title': Path(file_path).stem,
+                'note': 'Procesamiento HTML requiere BeautifulSoup4'
+            },
+            embedding=None
+        )
+        return [chunk]
+    
+    def get_supported_extensions(self) -> List[str]:
+        """Obtener extensiones soportadas"""
+        return list(self.processors.keys())
 
 # Instancia global
 document_processor = DocumentProcessor()
 
-# Exportar lo necesario
-__all__ = [
-    'DocumentProcessor',
-    'BaseDocumentProcessor',
-    'TextDocumentProcessor',
-    'document_processor'
-]
+__all__ = ['DocumentProcessor', 'document_processor']

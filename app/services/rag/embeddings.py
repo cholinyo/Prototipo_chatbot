@@ -1,233 +1,286 @@
 """
-Servicio de Embeddings para RAG Pipeline
-Prototipo_chatbot - TFM Vicente Caruncho
+Servicio de Embeddings para el sistema RAG
+TFM Vicente Caruncho - Sistemas Inteligentes
 """
 
-import time
 import numpy as np
+from typing import List, Optional, Dict, Any, Union
+import time
 from pathlib import Path
-from typing import List, Dict, Any, Optional, Union
-from functools import lru_cache
-import hashlib
 
+# Imports principales
 try:
     from sentence_transformers import SentenceTransformer
-    HAS_SENTENCE_TRANSFORMERS = True
+    SENTENCE_TRANSFORMERS_AVAILABLE = True
 except ImportError:
-    HAS_SENTENCE_TRANSFORMERS = False
+    SENTENCE_TRANSFORMERS_AVAILABLE = False
+    print("⚠️  sentence-transformers no disponible. Instalar con: pip install sentence-transformers")
 
-from app.core.config import get_model_config
+from app.core.config import get_embedding_config
 from app.core.logger import get_logger
 
 class EmbeddingCache:
-    """Cache LRU para embeddings"""
+    """Cache simple para embeddings"""
     
-    def __init__(self, max_size: int = 1000):
+    def __init__(self, max_size: int = 10000):
         self.cache = {}
         self.max_size = max_size
-        self.hits = 0
-        self.misses = 0
-    
-    def _hash_text(self, text: str) -> str:
-        """Generar hash único para texto"""
-        return hashlib.md5(text.encode()).hexdigest()
+        self.access_times = {}
+        self.current_time = 0
     
     def get(self, text: str) -> Optional[np.ndarray]:
         """Obtener embedding del cache"""
-        key = self._hash_text(text)
-        if key in self.cache:
-            self.hits += 1
-            return self.cache[key]
-        self.misses += 1
+        if text in self.cache:
+            self.access_times[text] = self.current_time
+            self.current_time += 1
+            return self.cache[text].copy()
         return None
     
     def put(self, text: str, embedding: np.ndarray):
         """Guardar embedding en cache"""
         if len(self.cache) >= self.max_size:
-            # Eliminar el más antiguo (simple FIFO)
-            oldest = next(iter(self.cache))
-            del self.cache[oldest]
+            self._evict_oldest()
         
-        key = self._hash_text(text)
-        self.cache[key] = embedding
+        self.cache[text] = embedding.copy()
+        self.access_times[text] = self.current_time
+        self.current_time += 1
+    
+    def _evict_oldest(self):
+        """Eliminar entrada más antigua"""
+        if not self.cache:
+            return
+        
+        oldest_text = min(self.access_times.keys(), key=lambda x: self.access_times[x])
+        del self.cache[oldest_text]
+        del self.access_times[oldest_text]
     
     def get_stats(self) -> Dict[str, Any]:
-        """Obtener estadísticas del cache"""
-        total_requests = self.hits + self.misses
-        hit_rate = self.hits / total_requests if total_requests > 0 else 0
-        
+        """Estadísticas del cache"""
         return {
-            'cache_size': len(self.cache),
+            'size': len(self.cache),
             'max_size': self.max_size,
-            'hits': self.hits,
-            'misses': self.misses,
-            'hit_rate': hit_rate,
-            'total_requests': total_requests
+            'hit_rate': getattr(self, '_hit_rate', 0.0)
         }
 
 class EmbeddingMetrics:
     """Métricas del servicio de embeddings"""
     
     def __init__(self):
-        self.total_texts_processed = 0
-        self.total_batches_processed = 0
-        self.total_processing_time = 0.0
-        self.avg_batch_size = 0
-        self.last_batch_time = 0.0
+        self.total_requests = 0
+        self.total_time = 0.0
+        self.cache_hits = 0
+        self.cache_misses = 0
+        self.errors = 0
     
-    def record_batch(self, batch_size: int, processing_time: float):
-        """Registrar procesamiento de batch"""
-        self.total_texts_processed += batch_size
-        self.total_batches_processed += 1
-        self.total_processing_time += processing_time
-        self.last_batch_time = processing_time
+    def record_request(self, time_taken: float, cache_hit: bool = False, error: bool = False):
+        """Registrar una petición"""
+        self.total_requests += 1
+        self.total_time += time_taken
         
-        # Actualizar media móvil del tamaño de batch
-        alpha = 0.1  # Factor de suavizado
-        self.avg_batch_size = (1 - alpha) * self.avg_batch_size + alpha * batch_size
+        if cache_hit:
+            self.cache_hits += 1
+        else:
+            self.cache_misses += 1
+        
+        if error:
+            self.errors += 1
     
     def get_stats(self) -> Dict[str, Any]:
         """Obtener estadísticas"""
-        avg_time_per_text = (
-            self.total_processing_time / self.total_texts_processed 
-            if self.total_texts_processed > 0 else 0
-        )
+        avg_time = self.total_time / max(self.total_requests, 1)
+        cache_hit_rate = self.cache_hits / max(self.total_requests, 1)
         
         return {
-            'total_texts_processed': self.total_texts_processed,
-            'total_batches_processed': self.total_batches_processed,
-            'total_processing_time': self.total_processing_time,
-            'avg_batch_size': self.avg_batch_size,
-            'avg_time_per_text': avg_time_per_text,
-            'last_batch_time': self.last_batch_time
+            'total_requests': self.total_requests,
+            'average_time': avg_time,
+            'cache_hit_rate': cache_hit_rate,
+            'total_errors': self.errors
         }
 
 class EmbeddingService:
-    """Servicio principal de embeddings"""
+    """Servicio principal de embeddings con compatibilidad completa"""
     
-    def __init__(self):
-        self.config = get_model_config()
+    def __init__(self, model_name: str = None):
         self.logger = get_logger("prototipo_chatbot.embedding_service")
+        self.config = get_embedding_config()
         self.model = None
-        self.cache = EmbeddingCache(max_size=1000)
+        self.cache = EmbeddingCache(max_size=self.config.cache_size)
         self.metrics = EmbeddingMetrics()
-        self._initialize_model()
+        
+        # Usar modelo de configuración o parámetro
+        self.model_name = model_name or self.config.embedding_name
+        self._load_model()
     
-    def _initialize_model(self):
-        """Inicializar modelo de embeddings"""
-        if not HAS_SENTENCE_TRANSFORMERS:
-            self.logger.error("sentence-transformers no instalado")
+    def _load_model(self):
+        """Cargar modelo de sentence transformers"""
+        if not SENTENCE_TRANSFORMERS_AVAILABLE:
+            self.logger.error("sentence-transformers no disponible")
             return
         
         try:
-            model_name = self.config.embedding_name
-            cache_dir = self.config.embedding_cache_dir
-            device = self.config.embedding_device
+            self.logger.info(f"Cargando modelo: {self.model_name}")
             
-            # Crear directorio de cache si no existe
-            Path(cache_dir).mkdir(parents=True, exist_ok=True)
-            
-            # Cargar modelo
             self.model = SentenceTransformer(
-                model_name,
-                cache_folder=cache_dir,
-                device=device
+                self.model_name,
+                device=self.config.embedding_device,
+                cache_folder=self.config.cache_dir
             )
-            
-            # Obtener dimensión del modelo
-            test_embedding = self.model.encode("test", convert_to_numpy=True)
-            self.dimension = len(test_embedding)
             
             self.logger.info(
                 "Modelo de embeddings inicializado",
-                model=model_name,
-                device=device,
-                dimension=self.dimension
+                model=self.model_name,
+                device=self.config.embedding_device,
+                dimension=self.get_dimension()
             )
             
         except Exception as e:
-            self.logger.error(f"Error inicializando modelo: {e}")
+            self.logger.error(f"Error cargando modelo: {e}")
             self.model = None
     
     def is_available(self) -> bool:
-        """Verificar disponibilidad del servicio"""
-        return self.model is not None
+        """Verificar si el servicio está disponible"""
+        return SENTENCE_TRANSFORMERS_AVAILABLE and self.model is not None
     
     def get_dimension(self) -> int:
         """Obtener dimensión de los embeddings"""
-        return getattr(self, 'dimension', self.config.embedding_dimension)
+        if not self.is_available():
+            return 0
+        return self.model.get_sentence_embedding_dimension()
     
-    def encode_single_text(self, text: str, use_cache: bool = True) -> Optional[np.ndarray]:
+    # =========================================================================
+    # MÉTODOS PRINCIPALES - COMPATIBILIDAD TOTAL
+    # =========================================================================
+    
+    def encode(self, sentences: Union[str, List[str]], **kwargs) -> Union[np.ndarray, List[np.ndarray]]:
+        """
+        Método principal 'encode' para compatibilidad total con sentence-transformers
+        Acepta tanto strings individuales como listas
+        """
+        if isinstance(sentences, str):
+            return self.encode_single_text(sentences)
+        elif isinstance(sentences, list):
+            return self.encode_batch(sentences)
+        else:
+            raise ValueError(f"Tipo no soportado: {type(sentences)}")
+    
+    def encode_single_text(self, text: str) -> Optional[np.ndarray]:
         """Codificar un texto individual"""
         if not self.is_available():
-            self.logger.warning("Servicio no disponible")
+            self.logger.warning("Servicio de embeddings no disponible")
             return None
         
+        if not text or not text.strip():
+            self.logger.warning("Texto vacío proporcionado")
+            return None
+        
+        # Verificar cache
+        cached = self.cache.get(text)
+        if cached is not None:
+            self.metrics.record_request(0.0, cache_hit=True)
+            return cached
+        
         try:
-            # Verificar cache
-            if use_cache:
-                cached = self.cache.get(text)
-                if cached is not None:
-                    return cached
-            
-            # Generar embedding
             start_time = time.time()
-            embedding = self.model.encode(
-                text,
-                convert_to_numpy=True,
-                normalize_embeddings=True
-            )
+            
+            # Generar embedding usando sentence-transformers
+            embedding = self.model.encode(text, convert_to_numpy=True)
+            
             processing_time = time.time() - start_time
             
-            # Actualizar métricas
-            self.metrics.record_batch(1, processing_time)
+            # Normalizar si está configurado
+            if self.config.normalize_embeddings:
+                embedding = embedding / np.linalg.norm(embedding)
             
             # Guardar en cache
-            if use_cache:
-                self.cache.put(text, embedding)
+            self.cache.put(text, embedding)
+            
+            # Registrar métricas
+            self.metrics.record_request(processing_time, cache_hit=False)
+            
+            self.logger.debug(
+                "Embedding generado",
+                text_length=len(text),
+                embedding_shape=embedding.shape,
+                processing_time=processing_time
+            )
             
             return embedding
             
         except Exception as e:
-            self.logger.error(f"Error codificando texto: {e}")
+            self.metrics.record_request(0.0, cache_hit=False, error=True)
+            self.logger.error(f"Error generando embedding: {e}")
             return None
     
-    def encode_batch(
-        self, 
-        texts: List[str], 
-        batch_size: int = 32,
-        show_progress: bool = False
-    ) -> List[np.ndarray]:
-        """Codificar batch de textos"""
+    def encode_batch(self, texts: List[str], batch_size: int = None) -> List[np.ndarray]:
+        """Codificar múltiples textos en batch"""
         if not self.is_available():
-            self.logger.warning("Servicio no disponible")
+            self.logger.warning("Servicio de embeddings no disponible")
             return []
         
+        if not texts:
+            return []
+        
+        batch_size = batch_size or self.config.batch_size
+        results = []
+        
         try:
-            start_time = time.time()
+            # Procesar en batches
+            for i in range(0, len(texts), batch_size):
+                batch = texts[i:i + batch_size]
+                
+                # Verificar cache para textos del batch
+                batch_embeddings = []
+                texts_to_process = []
+                indices_to_process = []
+                
+                for j, text in enumerate(batch):
+                    cached = self.cache.get(text)
+                    if cached is not None:
+                        batch_embeddings.append((j, cached))
+                        self.metrics.record_request(0.0, cache_hit=True)
+                    else:
+                        texts_to_process.append(text)
+                        indices_to_process.append(j)
+                
+                # Procesar textos no cacheados
+                if texts_to_process:
+                    start_time = time.time()
+                    
+                    new_embeddings = self.model.encode(
+                        texts_to_process,
+                        convert_to_numpy=True,
+                        batch_size=min(len(texts_to_process), batch_size)
+                    )
+                    
+                    processing_time = time.time() - start_time
+                    
+                    # Normalizar si está configurado
+                    if self.config.normalize_embeddings:
+                        new_embeddings = new_embeddings / np.linalg.norm(new_embeddings, axis=1, keepdims=True)
+                    
+                    # Añadir a cache y resultados
+                    for idx, text, embedding in zip(indices_to_process, texts_to_process, new_embeddings):
+                        self.cache.put(text, embedding)
+                        batch_embeddings.append((idx, embedding))
+                        self.metrics.record_request(processing_time / len(texts_to_process), cache_hit=False)
+                
+                # Ordenar y añadir a resultados
+                batch_embeddings.sort(key=lambda x: x[0])
+                results.extend([emb for _, emb in batch_embeddings])
             
-            embeddings = self.model.encode(
-                texts,
-                batch_size=batch_size,
-                convert_to_numpy=True,
-                normalize_embeddings=True,
-                show_progress_bar=show_progress
-            )
-            
-            processing_time = time.time() - start_time
-            
-            # Actualizar métricas
-            self.metrics.record_batch(len(texts), processing_time)
-            
-            self.logger.debug(
-                f"Batch procesado: {len(texts)} textos en {processing_time:.2f}s"
-            )
-            
-            return embeddings.tolist() if isinstance(embeddings, np.ndarray) else embeddings
+            return results
             
         except Exception as e:
             self.logger.error(f"Error procesando batch: {e}")
             return []
+    
+    def encode_documents(self, documents: List[str]) -> List[np.ndarray]:
+        """Método específico para documentos (alias de encode_batch)"""
+        return self.encode_batch(documents)
+    
+    # =========================================================================
+    # INFORMACIÓN Y ESTADÍSTICAS
+    # =========================================================================
     
     def get_model_info(self) -> Dict[str, Any]:
         """Obtener información del modelo"""
@@ -241,10 +294,11 @@ class EmbeddingService:
         
         return {
             'available': True,
-            'model_name': self.config.embedding_name,
+            'model_name': self.model_name,
             'dimension': self.get_dimension(),
             'device': self.config.embedding_device,
-            'max_seq_length': getattr(self.model, 'max_seq_length', 512)
+            'max_seq_length': getattr(self.model, 'max_seq_length', 512),
+            'normalize_embeddings': self.config.normalize_embeddings
         }
     
     def get_stats(self) -> Dict[str, Any]:
@@ -255,10 +309,13 @@ class EmbeddingService:
             'metrics': self.metrics.get_stats()
         }
 
+# ============================================================================
+# INSTANCIA GLOBAL Y FUNCIONES DE CONVENIENCIA
+# ============================================================================
+
 # Instancia global del servicio
 embedding_service = EmbeddingService()
 
-# Funciones de conveniencia para compatibilidad
 def encode_text(text: str) -> Optional[np.ndarray]:
     """Función de conveniencia para codificar texto"""
     return embedding_service.encode_single_text(text)

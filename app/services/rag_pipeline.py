@@ -1,378 +1,391 @@
 """
-Pipeline RAG Principal
-Prototipo_chatbot - TFM Vicente Caruncho
+Pipeline RAG Completo para TFM Vicente Caruncho
+Conexión end-to-end de todos los componentes implementados
 """
 
 import time
-from pathlib import Path
-from typing import Dict, Any, List, Optional, Tuple
+from typing import List, Dict, Any, Optional
+from dataclasses import dataclass
 
-from app.core.config import get_rag_config
+from app.core.config import get_config
 from app.core.logger import get_logger
-from app.models import (
-    DocumentChunk, 
-    ModelResponse, 
-    ComparisonResult,
-    SearchResult
-)
+from app.models import DocumentChunk, ModelResponse
+from app.services.rag.embeddings import get_embedding_service
+from app.services.llm_service import LLMService
 
-# Importar servicios
-from app.services.rag import rag_service
-from app.services.llm_service import llm_service
-from app.services.ingestion import ingestion_service
+
+@dataclass
+class RAGResponse:
+    """Respuesta completa del pipeline RAG"""
+    query: str
+    response: str
+    model_name: str
+    provider: str
+    response_time: float
+    sources: List[str]
+    context_chunks: List[DocumentChunk]
+    confidence: float
+    estimated_cost: Optional[float] = None
+    error: Optional[str] = None
+
 
 class RAGPipeline:
-    """Pipeline principal que coordina todo el sistema RAG"""
+    """Pipeline RAG completo integrado"""
     
     def __init__(self):
         self.logger = get_logger("prototipo_chatbot.rag_pipeline")
-        self.config = get_rag_config()
+        self.config = get_config()
         
-        # Configuración del pipeline
-        self.chunk_size = self.config.chunk_size
-        self.chunk_overlap = self.config.chunk_overlap
-        self.default_k = self.config.similarity_top_k
-        self.enabled = self.config.enabled
+        # Inicializar servicios
+        self.embedding_service = None
+        self.vector_store = None
+        self.llm_service = None
         
-        self.logger.info(
-            "RAG Pipeline inicializado",
-            rag_enabled=self.enabled,
-            chunk_size=self.chunk_size,
-            default_k=self.default_k
-        )
+        self._initialize_services()
+    
+    def _initialize_services(self):
+        """Inicializar todos los servicios del pipeline"""
+        try:
+            # 1. Embedding Service
+            self.embedding_service = get_embedding_service()
+            self.logger.info("EmbeddingService inicializado")
+            
+            # 2. Vector Store (FAISS o ChromaDB según configuración)
+            self._initialize_vector_store()
+            
+            # 3. LLM Service
+            self.llm_service = LLMService()
+            
+            self.logger.info(
+                "Pipeline RAG inicializado",
+                embedding_model=self.embedding_service.model_name if self.embedding_service else None,
+                vector_store=self.vector_store.__class__.__name__ if self.vector_store else None,
+                llm_providers=list(self.llm_service.providers.keys()) if self.llm_service else []
+            )
+            
+        except Exception as e:
+            self.logger.error(f"Error inicializando pipeline RAG: {e}")
+            raise
+    
+    def _initialize_vector_store(self):
+        """Inicializar vector store según configuración"""
+        try:
+            vector_store_type = self.config.get('DEFAULT_VECTOR_STORE', 'faiss')
+            
+            if vector_store_type == 'faiss':
+                from app.services.rag.faiss_store import FAISSVectorStore
+                self.vector_store = FAISSVectorStore()
+                
+            elif vector_store_type == 'chromadb':
+                from app.services.rag.chromadb_store import ChromaDBVectorStore
+                self.vector_store = ChromaDBVectorStore()
+                
+            else:
+                raise ValueError(f"Vector store no soportado: {vector_store_type}")
+                
+            self.logger.info(f"Vector store {vector_store_type} inicializado")
+            
+        except Exception as e:
+            self.logger.error(f"Error inicializando vector store: {e}")
+            raise
     
     def is_available(self) -> bool:
-        """Verificar disponibilidad del pipeline"""
-        return (
-            self.enabled and 
-            rag_service.is_available() and
-            llm_service.is_available()
-        )
+        """Verificar disponibilidad del pipeline completo"""
+        return all([
+            self.embedding_service is not None,
+            self.vector_store is not None,
+            self.llm_service is not None and self.llm_service.is_available()
+        ])
     
     def process_query(
         self,
         query: str,
-        k: int = None,
-        use_rag: bool = True,
         provider: str = 'ollama',
         model: Optional[str] = None,
-        **kwargs
-    ) -> ModelResponse:
-        """Procesar consulta con RAG opcional"""
+        top_k: int = 5,
+        temperature: float = 0.3,
+        max_tokens: Optional[int] = None
+    ) -> RAGResponse:
+        """
+        Procesar consulta completa con pipeline RAG
         
-        k = k or self.default_k
+        Args:
+            query: Consulta del usuario
+            provider: Proveedor LLM ('ollama' o 'openai')
+            model: Modelo específico (opcional)
+            top_k: Número de documentos relevantes a recuperar
+            temperature: Temperatura para generación
+            max_tokens: Límite de tokens (opcional)
         
-        self.logger.info(
-            "Procesando consulta RAG",
-            query_length=len(query),
-            use_rag=use_rag,
-            k=k,
-            provider=provider
-        )
-        
-        context = None
-        
-        try:
-            # Recuperar contexto si RAG está habilitado
-            if use_rag and rag_service.is_available():
-                start_retrieval = time.time()
-                
-                # Buscar documentos relevantes
-                search_results = rag_service.search(query, k=k)
-                context = search_results if search_results else None
-                
-                retrieval_time = time.time() - start_retrieval
-                
-                self.logger.info(
-                    "Contexto RAG recuperado",
-                    chunks_found=len(context) if context else 0,
-                    retrieval_time=retrieval_time,
-                    sources_count=len(set(c.metadata.source_path for c in context if c.metadata)) if context else 0
-                )
-            
-            # Generar respuesta con LLM
-            response = llm_service.generate_response(
-                query=query,
-                context=context,
-                provider=provider,
-                model=model,
-                **kwargs
-            )
-            
-            return response
-            
-        except Exception as e:
-            self.logger.error(
-                "Error procesando consulta RAG",
-                error=str(e),
-                query=query[:100]
-            )
-            
-            return ModelResponse(
-                content="Lo siento, ocurrió un error procesando tu consulta.",
-                model=model or "unknown",
-                provider=provider,
-                error=str(e)
-            )
-    
-    def compare_models(
-        self,
-        query: str,
-        k: int = None,
-        local_model: Optional[str] = None,
-        openai_model: Optional[str] = None,
-        use_rag: bool = True,
-        **kwargs
-    ) -> ComparisonResult:
-        """Comparar respuestas de modelo local y OpenAI"""
-        
-        k = k or self.default_k
-        
-        self.logger.info(
-            "Iniciando comparación RAG",
-            query_length=len(query),
-            k=k,
-            local_model=local_model,
-            openai_model=openai_model
-        )
-        
-        start_time = time.time()
-        context = None
-        
-        try:
-            # Recuperar contexto compartido
-            if use_rag and rag_service.is_available():
-                context = rag_service.search(query, k=k)
-                
-                self.logger.info(
-                    "Contexto compartido recuperado",
-                    chunks_count=len(context) if context else 0,
-                    retrieval_time=time.time() - start_time
-                )
-            
-            # Comparar modelos
-            comparison = llm_service.compare_models(
-                query=query,
-                context=context,
-                local_model=local_model,
-                openai_model=openai_model,
-                **kwargs
-            )
-            
-            comparison.context_used = context
-            comparison.total_time = time.time() - start_time
-            
-            return comparison
-            
-        except Exception as e:
-            self.logger.error(
-                "Error en comparación RAG",
-                error=str(e)
-            )
-            
-            return ComparisonResult(
-                query=query,
-                context_used=context,
-                total_time=time.time() - start_time,
-                metadata={'error': str(e)}
-            )
-    
-    def ingest_document(
-        self,
-        file_path: str,
-        source_type: str = 'document',
-        **kwargs
-    ) -> Dict[str, Any]:
-        """Ingestar documento en el sistema RAG"""
-        
-        self.logger.info(
-            "Iniciando ingesta de documento",
-            file_path=file_path,
-            source_type=source_type
-        )
-        
+        Returns:
+            RAGResponse con la respuesta completa y metadatos
+        """
         start_time = time.time()
         
         try:
-            # Verificar que el archivo existe
-            if not Path(file_path).exists():
-                raise FileNotFoundError(f"Archivo no encontrado: {file_path}")
-            
-            # Procesar documento con servicio de ingesta
-            try:
-                from app.services.ingestion.document_processor import document_processor
-                
-                chunks = document_processor.process(
-                    file_path=file_path,
-                    source_type=source_type,
-                    chunk_size=self.chunk_size,
-                    chunk_overlap=self.chunk_overlap,
-                    **kwargs
+            # 1. Verificar disponibilidad
+            if not self.is_available():
+                return RAGResponse(
+                    query=query,
+                    response="Pipeline RAG no disponible",
+                    model_name="none",
+                    provider="none",
+                    response_time=0.0,
+                    sources=[],
+                    context_chunks=[],
+                    confidence=0.0,
+                    error="Pipeline not available"
                 )
-            except ImportError:
-                # Si no está disponible el procesador completo, usar versión simple
-                chunks = self._simple_text_processing(file_path, source_type)
             
-            processing_time = time.time() - start_time
+            # 2. Generar embedding de la consulta
+            self.logger.info(f"Procesando consulta: {query[:100]}...")
+            query_embedding = self.embedding_service.encode_single_text(query)
             
-            if not chunks:
-                self.logger.warning(
-                    "No se crearon chunks del documento",
-                    file_path=file_path
-                )
-                return {
-                    'success': False,
-                    'file_path': file_path,
-                    'chunks_created': 0,
-                    'processing_time': processing_time,
-                    'error': 'No se pudieron extraer chunks del documento'
-                }
-            
-            # Indexar chunks en el vector store
-            indexed_count = 0
-            if rag_service.is_available():
-                for chunk in chunks:
-                    success = rag_service.add_document(chunk)
-                    if success:
-                        indexed_count += 1
+            # 3. Buscar documentos relevantes
+            context_chunks = self.vector_store.search(
+                query_embedding=query_embedding,
+                k=top_k
+            )
             
             self.logger.info(
-                "Documento ingestado exitosamente",
-                file_path=file_path,
-                chunks_created=len(chunks),
-                chunks_indexed=indexed_count,
-                processing_time=processing_time
+                f"Encontrados {len(context_chunks)} documentos relevantes",
+                sources=[chunk.metadata.source_path for chunk in context_chunks[:3]]
             )
             
-            return {
-                'success': True,
-                'file_path': file_path,
-                'chunks_created': len(chunks),
-                'chunks_indexed': indexed_count,
-                'processing_time': processing_time
-            }
+            # 4. Generar respuesta con LLM
+            llm_response = self.llm_service.generate_response(
+                query=query,
+                context=context_chunks,
+                provider=provider,
+                model=model,
+                temperature=temperature,
+                max_tokens=max_tokens
+            )
+            
+            # 5. Extraer fuentes y calcular confianza
+            sources = self._extract_sources(context_chunks)
+            confidence = self._calculate_confidence(context_chunks, llm_response)
+            
+            response_time = time.time() - start_time
+            
+            # 6. Crear respuesta RAG completa
+            rag_response = RAGResponse(
+                query=query,
+                response=llm_response.content,
+                model_name=llm_response.model,
+                provider=llm_response.provider,
+                response_time=response_time,
+                sources=sources,
+                context_chunks=context_chunks,
+                confidence=confidence,
+                estimated_cost=getattr(llm_response, 'estimated_cost', None),
+                error=llm_response.error
+            )
+            
+            self.logger.info(
+                "Consulta procesada exitosamente",
+                response_time=f"{response_time:.2f}s",
+                model=llm_response.model,
+                provider=llm_response.provider,
+                sources_count=len(sources)
+            )
+            
+            return rag_response
             
         except Exception as e:
-            processing_time = time.time() - start_time
+            error_msg = f"Error procesando consulta: {e}"
+            self.logger.error(error_msg)
             
-            self.logger.error(
-                "Error en ingesta de documento",
-                file_path=file_path,
-                error=str(e),
-                processing_time=processing_time
+            return RAGResponse(
+                query=query,
+                response="Error interno del sistema",
+                model_name="error",
+                provider="error",
+                response_time=time.time() - start_time,
+                sources=[],
+                context_chunks=[],
+                confidence=0.0,
+                error=error_msg
             )
-            
-            return {
-                'success': False,
-                'file_path': file_path,
-                'chunks_created': 0,
-                'chunks_indexed': 0,
-                'processing_time': processing_time,
-                'error': str(e)
-            }
     
-    def _simple_text_processing(
-        self, 
-        file_path: str,
-        source_type: str
-    ) -> List[DocumentChunk]:
-        """Procesamiento simple de texto como fallback"""
-        from app.models import create_document_chunk, DocumentMetadata
-        import os
-        
-        chunks = []
-        
-        try:
-            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                content = f.read()
-            
-            # Crear metadata
-            metadata = DocumentMetadata(
-                source_path=str(file_path),
-                source_type=source_type,
-                file_type='text',
-                file_size=os.path.getsize(file_path),
-                created_at=time.time()
-            )
-            
-            # Dividir en chunks simples
-            chunk_size = self.chunk_size
-            for i in range(0, len(content), chunk_size - self.chunk_overlap):
-                chunk_content = content[i:i + chunk_size]
-                if chunk_content.strip():
-                    chunk = create_document_chunk(
-                        content=chunk_content,
-                        metadata=metadata,
-                        chunk_index=i // (chunk_size - self.chunk_overlap)
-                    )
-                    chunks.append(chunk)
-            
-        except Exception as e:
-            self.logger.error(f"Error en procesamiento simple: {e}")
-        
-        return chunks
-    
-    def search_documents(
+    def compare_providers(
         self,
         query: str,
-        k: int = None,
-        threshold: float = 0.0
-    ) -> SearchResult:
-        """Buscar documentos relevantes"""
+        top_k: int = 5,
+        temperature: float = 0.3
+    ) -> Dict[str, RAGResponse]:
+        """
+        Comparar respuestas entre múltiples proveedores
         
-        k = k or self.default_k
-        start_time = time.time()
+        Args:
+            query: Consulta del usuario
+            top_k: Número de documentos relevantes
+            temperature: Temperatura para generación
         
-        try:
-            chunks = rag_service.search(
-                query=query,
-                k=k,
-                threshold=threshold
-            )
-            
-            search_time = time.time() - start_time
-            
-            return SearchResult(
-                chunks=chunks,
-                query=query,
-                search_time=search_time,
-                total_results=len(chunks)
-            )
-            
-        except Exception as e:
-            self.logger.error(f"Error en búsqueda: {e}")
-            
-            return SearchResult(
-                chunks=[],
-                query=query,
-                search_time=time.time() - start_time,
-                total_results=0,
-                metadata={'error': str(e)}
-            )
+        Returns:
+            Diccionario con respuestas de cada proveedor disponible
+        """
+        results = {}
+        
+        available_providers = list(self.llm_service.providers.keys())
+        self.logger.info(f"Comparando proveedores: {available_providers}")
+        
+        for provider in available_providers:
+            try:
+                response = self.process_query(
+                    query=query,
+                    provider=provider,
+                    top_k=top_k,
+                    temperature=temperature
+                )
+                results[provider] = response
+                
+            except Exception as e:
+                self.logger.error(f"Error con proveedor {provider}: {e}")
+                results[provider] = RAGResponse(
+                    query=query,
+                    response=f"Error con {provider}",
+                    model_name="error",
+                    provider=provider,
+                    response_time=0.0,
+                    sources=[],
+                    context_chunks=[],
+                    confidence=0.0,
+                    error=str(e)
+                )
+        
+        return results
     
-    def get_stats(self) -> Dict[str, Any]:
+    def _extract_sources(self, chunks: List[DocumentChunk]) -> List[str]:
+        """Extraer fuentes únicas de los chunks"""
+        sources = []
+        seen = set()
+        
+        for chunk in chunks:
+            source = chunk.metadata.source_path
+            if source not in seen:
+                sources.append(source)
+                seen.add(source)
+        
+        return sources
+    
+    def _calculate_confidence(
+        self,
+        chunks: List[DocumentChunk],
+        llm_response: ModelResponse
+    ) -> float:
+        """
+        Calcular confianza de la respuesta basada en:
+        - Número de fuentes encontradas
+        - Calidad de la respuesta del LLM
+        - Ausencia de errores
+        """
+        confidence = 0.5  # Base
+        
+        # +0.3 si hay documentos relevantes
+        if chunks:
+            confidence += 0.3 * min(len(chunks) / 3, 1.0)
+        
+        # +0.2 si no hay errores
+        if not llm_response.error:
+            confidence += 0.2
+        
+        # -0.3 si respuesta muy corta (posible error)
+        if len(llm_response.content) < 50:
+            confidence -= 0.3
+        
+        return max(0.0, min(1.0, confidence))
+    
+    def get_pipeline_stats(self) -> Dict[str, Any]:
         """Obtener estadísticas del pipeline"""
         stats = {
-            'pipeline_enabled': self.enabled,
             'pipeline_available': self.is_available(),
-            'configuration': {
-                'chunk_size': self.chunk_size,
-                'chunk_overlap': self.chunk_overlap,
-                'default_k': self.default_k
-            }
+            'timestamp': time.time()
         }
         
-        # Agregar estadísticas de servicios
-        if rag_service:
-            stats['rag_service'] = rag_service.get_stats()
+        if self.embedding_service:
+            stats['embeddings'] = {
+                'model': self.embedding_service.model_name,
+                'cache_size': len(getattr(self.embedding_service, '_cache', {})),
+                'cache_hits': getattr(self.embedding_service, '_cache_hits', 0)
+            }
         
-        if llm_service:
-            stats['llm_service'] = llm_service.get_service_stats()
+        if self.vector_store:
+            try:
+                vs_stats = self.vector_store.get_stats()
+                stats['vector_store'] = {
+                    'type': self.vector_store.__class__.__name__,
+                    'documents': vs_stats.get('total_documents', 0)
+                }
+            except:
+                stats['vector_store'] = {'type': 'unknown', 'documents': 0}
+        
+        if self.llm_service:
+            stats['llm'] = {
+                'providers': list(self.llm_service.providers.keys()),
+                'available': self.llm_service.is_available()
+            }
+        
+        stats['config'] = {
+            'default_vector_store': self.config.get('DEFAULT_VECTOR_STORE', 'faiss'),
+            'rag_enabled': True
+        }
         
         return stats
+    
+    def health_check(self) -> Dict[str, Any]:
+        """Verificación de salud completa del pipeline"""
+        health = {
+            'status': 'healthy',
+            'timestamp': time.time(),
+            'components': {}
+        }
+        
+        # Test embedding service
+        try:
+            test_embedding = self.embedding_service.encode_single_text("test")
+            health['components']['embeddings'] = 'healthy'
+        except Exception as e:
+            health['components']['embeddings'] = f'error: {e}'
+            health['status'] = 'degraded'
+        
+        # Test vector store
+        try:
+            vs_stats = self.vector_store.get_stats()
+            health['components']['vector_store'] = 'healthy'
+        except Exception as e:
+            health['components']['vector_store'] = f'error: {e}'
+            health['status'] = 'degraded'
+        
+        # Test LLM service
+        if self.llm_service.is_available():
+            health['components']['llm'] = 'healthy'
+        else:
+            health['components']['llm'] = 'no providers available'
+            health['status'] = 'degraded'
+        
+        return health
+
 
 # Instancia global del pipeline
 rag_pipeline = RAGPipeline()
 
-# Exportar
-__all__ = ['RAGPipeline', 'rag_pipeline']
+
+def get_rag_pipeline() -> RAGPipeline:
+    """Obtener instancia global del pipeline RAG"""
+    return rag_pipeline
+
+
+# Funciones de conveniencia para usar en Flask
+def process_chat_query(
+    query: str,
+    provider: str = 'ollama',
+    **kwargs
+) -> RAGResponse:
+    """Función de conveniencia para procesar consultas de chat"""
+    return rag_pipeline.process_query(query, provider, **kwargs)
+
+
+def compare_chat_providers(query: str, **kwargs) -> Dict[str, RAGResponse]:
+    """Función de conveniencia para comparar proveedores"""
+    return rag_pipeline.compare_providers(query, **kwargs)
