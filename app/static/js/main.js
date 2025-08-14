@@ -8,23 +8,62 @@ document.addEventListener('DOMContentLoaded', function() {
         return new bootstrap.Tooltip(tooltipTriggerEl);
     });
     
-    // Verificar estado del sistema cada minuto
-    setInterval(checkSystemStatus, 60000);
-    
-    // Verificar estado inicial
+    // Verificar estado del sistema al cargar y cada minuto
     checkSystemStatus();
+    setInterval(checkSystemStatus, 60000);
 });
 
 function checkSystemStatus() {
+    console.log('Verificando estado del sistema...');
+    
     fetch('/health')
         .then(response => response.json())
         .then(data => {
-            updateStatusIndicator(data.status);
+            console.log('Estado del sistema:', data);
+            updateSystemStatus(data);
         })
         .catch(error => {
             console.error('Error verificando estado:', error);
-            updateStatusIndicator('error');
+            updateSystemStatus({
+                status: 'error',
+                services: {
+                    ollama: 'unavailable',
+                    openai: 'unavailable'
+                }
+            });
         });
+}
+
+function updateSystemStatus(data) {
+    // Actualizar indicador principal
+    const indicator = document.getElementById('status-indicator');
+    if (indicator) {
+        updateStatusIndicator(data.status);
+    }
+    
+    // Actualizar modelos locales
+    const localModelsStatus = document.getElementById('local-models-status');
+    if (localModelsStatus) {
+        if (data.services && data.services.ollama === 'available') {
+            localModelsStatus.className = 'badge bg-success';
+            localModelsStatus.innerHTML = '<i class="fas fa-check me-1"></i>Disponible';
+        } else {
+            localModelsStatus.className = 'badge bg-warning';
+            localModelsStatus.innerHTML = '<i class="fas fa-exclamation-triangle me-1"></i>No configurado';
+        }
+    }
+    
+    // Actualizar OpenAI API
+    const openaiStatus = document.getElementById('openai-status');
+    if (openaiStatus) {
+        if (data.services && data.services.openai === 'configured') {
+            openaiStatus.className = 'badge bg-success';
+            openaiStatus.innerHTML = '<i class="fas fa-check me-1"></i>Configurado';
+        } else {
+            openaiStatus.className = 'badge bg-secondary';
+            openaiStatus.innerHTML = '<i class="fas fa-times me-1"></i>No configurado';
+        }
+    }
 }
 
 function updateStatusIndicator(status) {
@@ -33,13 +72,13 @@ function updateStatusIndicator(status) {
     
     const statusClasses = {
         'healthy': 'bg-success',
-        'warning': 'bg-warning',
+        'degraded': 'bg-warning', 
         'error': 'bg-danger'
     };
     
     const statusTexts = {
         'healthy': 'Sistema Activo',
-        'warning': 'Sistema con Alertas',
+        'degraded': 'Sistema con Alertas',
         'error': 'Sistema con Errores'
     };
     
@@ -51,9 +90,9 @@ function updateStatusIndicator(status) {
     indicator.innerHTML = `<i class="fas fa-circle me-1"></i>${statusTexts[status] || 'Estado Desconocido'}`;
 }
 
-// Funciones para navegación
+// Funciones para navegación (placeholder)
 function navigateToChat() {
-    alert('Chat RAG en desarrollo');
+    window.location.href = '/chat';
 }
 
 function navigateToComparison() {
@@ -68,27 +107,6 @@ function navigateToConfig() {
     alert('Configuración de fuentes de datos en desarrollo');
 }
 
-function navigateToVectorStore() {
-    alert('Gestión de Vector Store en desarrollo');
+function showComingSoon(feature) {
+    alert(feature + ' próximamente disponible');
 }
-
-function showHelp() {
-    alert('Sistema de ayuda en desarrollo');
-}
-
-// Event listeners para navegación
-document.addEventListener('DOMContentLoaded', function() {
-    const chatLink = document.getElementById('chat-link');
-    const comparisonLink = document.getElementById('comparison-link');
-    const adminLink = document.getElementById('admin-link');
-    const configLink = document.getElementById('config-link');
-    const vectorstoreLink = document.getElementById('vectorstore-link');
-    const helpLink = document.getElementById('help-link');
-    
-    if (chatLink) chatLink.addEventListener('click', navigateToChat);
-    if (comparisonLink) comparisonLink.addEventListener('click', navigateToComparison);
-    if (adminLink) adminLink.addEventListener('click', navigateToAdmin);
-    if (configLink) configLink.addEventListener('click', navigateToConfig);
-    if (vectorstoreLink) vectorstoreLink.addEventListener('click', navigateToVectorStore);
-    if (helpLink) helpLink.addEventListener('click', showHelp);
-});

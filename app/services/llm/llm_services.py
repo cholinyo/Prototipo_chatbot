@@ -62,6 +62,64 @@ class LLMService:
             return []
         return ['gpt-4o', 'gpt-4o-mini', 'gpt-3.5-turbo']
     
+    def get_available_providers(self) -> Dict[str, bool]:
+        """Obtener proveedores disponibles"""
+        return {
+            'ollama': self.test_ollama_connection(),
+            'openai': self.test_openai_connection()
+        }
+    
+    def is_available(self) -> bool:
+        """Verificar si hay al menos un proveedor disponible"""
+        providers = self.get_available_providers()
+        return any(providers.values())
+    
+    def health_check(self) -> Dict[str, Any]:
+        """Health check completo del servicio LLM"""
+        health = {
+            'status': 'healthy',
+            'timestamp': time.time(),
+            'services': {},
+            'models': {}
+        }
+        
+        # Test Ollama
+        ollama_available = self.test_ollama_connection()
+        if ollama_available:
+            ollama_models = self.get_ollama_models()
+            health['services']['ollama'] = {
+                'status': 'available',
+                'url': self.ollama_base_url,
+                'models_count': len(ollama_models)
+            }
+            health['models']['ollama'] = ollama_models
+        else:
+            health['services']['ollama'] = {
+                'status': 'unavailable',
+                'url': self.ollama_base_url,
+                'models_count': 0
+            }
+            health['status'] = 'degraded'
+        
+        # Test OpenAI
+        openai_available = self.test_openai_connection()
+        if openai_available:
+            openai_models = self.get_openai_models()
+            health['services']['openai'] = {
+                'status': 'configured',
+                'models_count': len(openai_models)
+            }
+            health['models']['openai'] = openai_models
+        else:
+            health['services']['openai'] = {
+                'status': 'not_configured',
+                'models_count': 0
+            }
+            if not ollama_available:
+                health['status'] = 'error'
+        
+        return health
+    
     def generate_local(self, query: str, context: List[Any], model: str = "llama3.2:3b") -> LLMResponse:
         """Generar con modelo local"""
         start_time = time.time()
