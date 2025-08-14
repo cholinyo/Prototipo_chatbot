@@ -1,13 +1,11 @@
 """
-Services Package
-TFM Vicente Caruncho
+Paquete de servicios del sistema RAG
 """
 
-# Importar servicios principales
+# Importaciones principales
 try:
-    from .llm import llm_service, get_llm_service
+    from .llm.llm_service import LLMService
 except ImportError:
-    llm_service = None
-    get_llm_service = lambda: None
+    LLMService = None
 
-__all__ = ['llm_service', 'get_llm_service']
+__all__ = ['LLMService']
