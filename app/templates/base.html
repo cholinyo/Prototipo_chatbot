@@ -10,7 +10,7 @@
     <title>{% block title %}{{ app_name or 'Prototipo_chatbot' }}{% endblock %}</title>
     
     <!-- Favicon -->
-    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='images/favicon.ico') if url_for('static', filename='images/favicon.ico') else 'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🤖</text></svg>' }}">
+    <link rel="icon" type="image/x-icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🤖</text></svg>">
     
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" 
@@ -21,7 +21,43 @@
           integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw==" crossorigin="anonymous">
     
     <!-- Custom CSS -->
-    <link href="{{ url_for('static', filename='css/custom.css') }}" rel="stylesheet">
+    <style>
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.7; }
+            100% { opacity: 1; }
+        }
+        
+        .visually-hidden-focusable {
+            position: absolute !important;
+            width: 1px !important;
+            height: 1px !important;
+            padding: 0 !important;
+            margin: -1px !important;
+            overflow: hidden !important;
+            clip: rect(0, 0, 0, 0) !important;
+            white-space: nowrap !important;
+            border: 0 !important;
+        }
+        
+        .visually-hidden-focusable:focus {
+            position: static !important;
+            width: auto !important;
+            height: auto !important;
+            padding: 0.25rem 0.5rem !important;
+            margin: 0 !important;
+            overflow: visible !important;
+            clip: auto !important;
+            white-space: normal !important;
+            background-color: #007bff !important;
+            color: white !important;
+            text-decoration: none !important;
+        }
+    </style>
     
     <!-- Chart.js (si se necesita) -->
     {% if request.endpoint and ('dashboard' in request.endpoint or 'charts' in request.endpoint) %}
@@ -38,7 +74,7 @@
     <!-- Navigation -->
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary fixed-top shadow-sm" aria-label="Navegación principal">
         <div class="container-fluid">
-            <a class="navbar-brand fw-bold d-flex align-items-center" href="{{ url_for('main.index') }}">
+            <a class="navbar-brand fw-bold d-flex align-items-center" href="/">
                 <i class="fas fa-robot me-2" aria-hidden="true"></i>
                 <span>{{ app_name or 'Prototipo_chatbot' }}</span>
                 {% if app_version %}
@@ -54,21 +90,20 @@
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav me-auto">
                     <li class="nav-item">
-                        <a class="nav-link {{ 'active' if request.endpoint == 'main.index' }}" 
-                           href="{{ url_for('main.index') }}" aria-current="{{ 'page' if request.endpoint == 'main.index' }}">
+                        <a class="nav-link {{ 'active' if request.endpoint == 'index' }}" 
+                           href="/" aria-current="{{ 'page' if request.endpoint == 'index' }}">
                             <i class="fas fa-home me-1" aria-hidden="true"></i>Inicio
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link {{ 'active' if 'chat' in request.endpoint }}" 
-                           href="{{ url_for('chat.chat_index') }}" aria-current="{{ 'page' if 'chat' in request.endpoint }}">
+                        <a class="nav-link {{ 'active' if request.endpoint and 'chat' in request.endpoint }}"
+                           href="/chat" aria-current="{{ 'page' if request.endpoint and 'chat' in request.endpoint }}">
                             <i class="fas fa-comments me-1" aria-hidden="true"></i>Chat RAG
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link {{ 'active' if request.endpoint == 'main.dashboard' }}" 
-                           href="{{ url_for('main.dashboard') }}" aria-current="{{ 'page' if request.endpoint == 'main.dashboard' }}">
-                            <i class="fas fa-chart-line me-1" aria-hidden="true"></i>Dashboard
+                        <a class="nav-link" href="/health">
+                            <i class="fas fa-chart-line me-1" aria-hidden="true"></i>Estado
                         </a>
                     </li>
                     <li class="nav-item dropdown">
@@ -77,20 +112,17 @@
                             <i class="fas fa-cog me-1" aria-hidden="true"></i>Sistema
                         </a>
                         <ul class="dropdown-menu">
-                            <li><a class="dropdown-item {{ 'active' if request.endpoint == 'main.settings' }}" 
-                                   href="{{ url_for('main.settings') }}">
+                            <li><a class="dropdown-item" href="#">
                                 <i class="fas fa-sliders-h me-2" aria-hidden="true"></i>Configuración
                             </a></li>
                             <li><a class="dropdown-item" href="#" id="ingestion-link">
                                 <i class="fas fa-upload me-2" aria-hidden="true"></i>Ingesta de Datos
                             </a></li>
                             <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item {{ 'active' if request.endpoint == 'main.documentation' }}" 
-                                   href="{{ url_for('main.documentation') }}">
+                            <li><a class="dropdown-item" href="#">
                                 <i class="fas fa-book me-2" aria-hidden="true"></i>Documentación
                             </a></li>
-                            <li><a class="dropdown-item {{ 'active' if request.endpoint == 'main.about' }}" 
-                                   href="{{ url_for('main.about') }}">
+                            <li><a class="dropdown-item" href="#">
                                 <i class="fas fa-info-circle me-2" aria-hidden="true"></i>Acerca de
                             </a></li>
                         </ul>
@@ -190,6 +222,15 @@
             <div class="text-center py-5">
                 <h1 class="display-4">¡Bienvenido a Prototipo_chatbot!</h1>
                 <p class="lead">Sistema RAG para Administraciones Locales</p>
+                <p class="text-muted">TFM Vicente Caruncho Ramos - Sistemas Inteligentes UJI</p>
+                <div class="mt-4">
+                    <a href="/chat" class="btn btn-primary btn-lg me-3">
+                        <i class="fas fa-comments me-2"></i>Acceder al Chat RAG
+                    </a>
+                    <a href="/health" class="btn btn-outline-secondary">
+                        <i class="fas fa-chart-line me-2"></i>Estado del Sistema
+                    </a>
+                </div>
             </div>
             {% endblock %}
         </div>
@@ -222,7 +263,7 @@
                         </span>
                     </div>
                     <small class="text-muted d-block mt-2">
-                        TFM Vicente Caruncho - Sistemas Inteligentes {{ current_year or '2025' }}
+                        TFM Vicente Caruncho - Sistemas Inteligentes 2025
                     </small>
                 </div>
             </div>
@@ -239,9 +280,6 @@
             integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" 
             crossorigin="anonymous"></script>
     
-    <!-- Custom JavaScript -->
-    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
-    
     <!-- Page specific scripts -->
     {% block extra_scripts %}{% endblock %}
 
@@ -249,17 +287,16 @@
         // Configuración global para JavaScript
         window.PrototipoChatbot = {
             config: {
-                baseUrl: '{{ request.url_root }}',
-                currentPage: '{{ request.endpoint }}',
+                baseUrl: window.location.origin,
+                currentPage: '{{ request.endpoint or "unknown" }}',
                 apiEndpoints: {
-                    status: '{{ url_for("api.system_status") }}',
-                    chatQuery: '{{ url_for("api.chat_query") }}',
-                    ragSearch: '{{ url_for("api.rag_search") }}'
-                },
-                csrf_token: '{{ csrf_token() if csrf_token else "" }}'
+                    status: '/health',
+                    chatQuery: '/api/chat/send',
+                    ragSearch: '/api/chat/status'
+                }
             },
             user: {
-                isAuthenticated: false, // En el futuro para autenticación
+                isAuthenticated: false,
                 permissions: []
             }
         };
@@ -267,11 +304,6 @@
         // Inicializar aplicación cuando el DOM esté listo
         document.addEventListener('DOMContentLoaded', function() {
             console.log('🚀 Prototipo_chatbot inicializado');
-            
-            // Verificar estado del sistema automáticamente
-            if (window.prototipoApp && typeof window.prototipoApp.initialize === 'function') {
-                window.prototipoApp.initialize();
-            }
             
             // Configurar tema
             initializeTheme();
@@ -312,19 +344,15 @@
 
         // Verificación de estado del sistema
         function checkSystemStatus() {
-            fetch('{{ url_for("main.ajax_system_health") }}')
+            fetch('/health')
                 .then(response => response.json())
                 .then(data => {
                     updateStatusIndicators(data);
                 })
                 .catch(error => {
                     console.warn('Error verificando estado del sistema:', error);
-                    // Mostrar estado de error
                     updateStatusIndicators({
-                        overall: 'error',
-                        rag: 'error',
-                        llm: 'error',
-                        ingestion: 'error'
+                        status: 'error'
                     });
                 });
         }
@@ -340,22 +368,22 @@
             // Actualizar indicador principal
             const mainIndicator = document.getElementById('system-status-indicator');
             if (mainIndicator) {
-                const config = statusConfig[status.overall] || statusConfig['unknown'];
+                const config = statusConfig[status.status] || statusConfig['unknown'];
                 mainIndicator.className = `badge ${config.class} pulse`;
                 mainIndicator.innerHTML = `<i class="fas ${config.icon} me-1"></i>Sistema`;
             }
 
             // Actualizar indicadores específicos
             const indicators = [
-                { id: 'vectorstore-status-nav', key: 'rag' },
-                { id: 'local-models-status-nav', key: 'llm' },
-                { id: 'openai-status-nav', key: 'llm' }
+                { id: 'vectorstore-status-nav', status: status.status },
+                { id: 'local-models-status-nav', status: status.status },
+                { id: 'openai-status-nav', status: status.status }
             ];
 
-            indicators.forEach(({ id, key }) => {
+            indicators.forEach(({ id, status: itemStatus }) => {
                 const element = document.getElementById(id);
                 if (element) {
-                    const config = statusConfig[status[key]] || statusConfig['unknown'];
+                    const config = statusConfig[itemStatus] || statusConfig['unknown'];
                     element.className = `badge ${config.class}`;
                     element.innerHTML = `<i class="fas ${config.icon} me-1"></i>${config.text}`;
                 }
