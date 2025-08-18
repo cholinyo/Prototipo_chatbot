@@ -4,7 +4,7 @@ Paquete de servicios del sistema RAG
 
 # Importaciones principales
 try:
-    from .llm.llm_service import LLMService
+    from .llm.llm_services import LLMService
 except ImportError:
     LLMService = None
 

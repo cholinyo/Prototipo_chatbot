@@ -1,485 +1,526 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ app_name }} - Inicio</title>
+{% extends "base.html" %}
+
+{% block title %}{{ app_name or 'Prototipo_chatbot' }} - Inicio{% endblock %}
+
+{% block extra_head %}
+<style>
+    :root {
+        --primary-color: #0d6efd;
+        --gradient-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
     
-    <!-- Bootstrap CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    .hero-section {
+        background: var(--gradient-primary);
+        border-radius: 15px;
+        position: relative;
+        overflow: hidden;
+    }
     
-    <!-- Font Awesome -->
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    .card {
+        border: none;
+        border-radius: 10px;
+        box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+        transition: all 0.3s ease;
+    }
     
-    <style>
-        :root {
-            --primary-color: #0d6efd;
-            --gradient-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        }
-        
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #f8f9fa;
-        }
-        
-        .hero-section {
-            background: var(--gradient-primary);
-            border-radius: 15px;
-            position: relative;
-            overflow: hidden;
-        }
-        
-        .card {
-            border: none;
-            border-radius: 10px;
-            box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
-            transition: all 0.3s ease;
-        }
-        
-        .card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 1rem 3rem rgba(0, 0, 0, 0.175);
-        }
-        
-        .icon-circle {
-            width: 50px;
-            height: 50px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.2rem;
-        }
-        
-        .btn {
-            border-radius: 8px;
-            font-weight: 500;
-            transition: all 0.3s ease;
-        }
-        
-        .btn:hover {
-            transform: translateY(-1px);
-        }
-        
-        .status-item {
-            padding: 0.5rem 0;
-            border-bottom: 1px solid #f8f9fa;
-        }
-        
-        .status-item:last-child {
-            border-bottom: none;
-        }
-        
-        .navbar {
-            box-shadow: 0 2px 4px rgba(0,0,0,.1);
-        }
-    </style>
-</head>
-<body>
-    <!-- Navigation -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-primary fixed-top">
-        <div class="container-fluid">
-            <a class="navbar-brand fw-bold" href="/">
-                <i class="fas fa-robot me-2"></i>
-                {{ app_name or 'Prototipo_chatbot' }}
-            </a>
-            
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav me-auto">
-                    <li class="nav-item">
-                        <a class="nav-link active" href="/">
-                            <i class="fas fa-home me-1"></i>Inicio
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="#" onclick="showComingSoon('Chat RAG')">
-                            <i class="fas fa-comments me-1"></i>Chat RAG
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="#" onclick="showComingSoon('Comparador de Modelos')">
-                            <i class="fas fa-balance-scale me-1"></i>Comparador
-                        </a>
-                    </li>
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
-                            <i class="fas fa-cog me-1"></i>Configuración
-                        </a>
-                        <ul class="dropdown-menu">
-                            <li><a class="dropdown-item" href="#" onclick="showComingSoon('Panel de Administración')">
-                                <i class="fas fa-user-shield me-1"></i>Administración
-                            </a></li>
-                            <li><a class="dropdown-item" href="#" onclick="showComingSoon('Configuración de Fuentes')">
-                                <i class="fas fa-database me-1"></i>Fuentes de Datos
-                            </a></li>
-                        </ul>
-                    </li>
-                </ul>
-                
-                <ul class="navbar-nav">
-                    <li class="nav-item">
-                        <span class="navbar-text me-3">
-                            <span class="badge bg-success" id="status-indicator">
-                                <i class="fas fa-circle me-1"></i>Sistema Activo
-                            </span>
-                        </span>
-                    </li>
-                </ul>
+    .card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 1rem 3rem rgba(0, 0, 0, 0.175);
+    }
+    
+    .icon-circle {
+        width: 50px;
+        height: 50px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.2rem;
+    }
+    
+    .btn {
+        border-radius: 8px;
+        font-weight: 500;
+        transition: all 0.3s ease;
+    }
+    
+    .btn:hover {
+        transform: translateY(-1px);
+    }
+    
+    .status-item {
+        padding: 0.5rem 0;
+        border-bottom: 1px solid #f8f9fa;
+    }
+    
+    .status-item:last-child {
+        border-bottom: none;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Hero Section -->
+<div class="row">
+    <div class="col-12">
+        <div class="hero-section text-white p-5 rounded-3 mb-5">
+            <div class="container text-center">
+                <h1 class="display-4 fw-bold mb-3">
+                    <i class="fas fa-robot me-3"></i>
+                    {{ app_name or 'Prototipo_chatbot' }}
+                </h1>
+                <p class="lead mb-4">{{ app_description or 'Sistema de Chatbot RAG para Administraciones Locales' }}</p>
+                {% if app_version %}
+                <p class="mb-4">
+                    <span class="badge bg-light text-dark fs-6">
+                        <i class="fas fa-tag me-1"></i>Versión {{ app_version }}
+                    </span>
+                </p>
+                {% endif %}
+                <div class="d-flex justify-content-center gap-3">
+                    <a href="/chat" class="btn btn-light btn-lg">
+                        <i class="fas fa-comments me-2"></i>
+                        Iniciar Chat
+                    </a>
+                    <a href="/comparador" class="btn btn-outline-light btn-lg">
+                        <i class="fas fa-balance-scale me-2"></i>
+                        Ver Comparador
+                    </a>
+                </div>
             </div>
         </div>
-    </nav>
+    </div>
+</div>
 
-    <!-- Main Content -->
-    <main class="container-fluid" style="margin-top: 80px; min-height: calc(100vh - 140px);">
-        <!-- Hero Section -->
-        <div class="row">
-            <div class="col-12">
-                <div class="hero-section text-white p-5 rounded-3 mb-5">
-                    <div class="container text-center">
-                        <h1 class="display-4 fw-bold mb-3">
-                            <i class="fas fa-robot me-3"></i>
-                            {{ app_name or 'Prototipo_chatbot' }}
-                        </h1>
-                        <p class="lead mb-4">{{ app_description or 'Sistema de Chatbot RAG para Administraciones Locales' }}</p>
-                        {% if app_version %}
-                        <p class="mb-4">
-                            <span class="badge bg-light text-dark fs-6">
-                                <i class="fas fa-tag me-1"></i>Versión {{ app_version }}
-                            </span>
+<div class="row">
+    <!-- Features Section -->
+    <div class="col-lg-8">
+        <h2 class="mb-4">
+            <i class="fas fa-star me-2 text-primary"></i>
+            Características Principales
+        </h2>
+        
+        <div class="row g-4">
+            <div class="col-md-6">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center mb-3">
+                            <div class="icon-circle bg-primary text-white me-3">
+                                <i class="fas fa-search"></i>
+                            </div>
+                            <h5 class="card-title mb-0">RAG Avanzado</h5>
+                        </div>
+                        <p class="card-text">
+                            Recuperación aumentada desde múltiples fuentes: documentos, APIs, bases de datos y páginas web.
                         </p>
-                        {% endif %}
-                        <div class="d-flex justify-content-center gap-3">
-                            <button class="btn btn-light btn-lg" onclick="showComingSoon('Chat RAG')">
-                                <i class="fas fa-comments me-2"></i>
-                                Iniciar Chat
-                            </button>
-                            <button class="btn btn-outline-light btn-lg" onclick="showComingSoon('Comparador de Modelos')">
-                                <i class="fas fa-balance-scale me-2"></i>
-                                Ver Comparador
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="row">
-            <!-- Features Section -->
-            <div class="col-lg-8">
-                <h2 class="mb-4">
-                    <i class="fas fa-star me-2 text-primary"></i>
-                    Características Principales
-                </h2>
-                
-                <div class="row g-4">
-                    <div class="col-md-6">
-                        <div class="card h-100">
-                            <div class="card-body">
-                                <div class="d-flex align-items-center mb-3">
-                                    <div class="icon-circle bg-primary text-white me-3">
-                                        <i class="fas fa-search"></i>
-                                    </div>
-                                    <h5 class="card-title mb-0">RAG Avanzado</h5>
-                                </div>
-                                <p class="card-text">
-                                    Recuperación aumentada desde múltiples fuentes: documentos, APIs, bases de datos y páginas web.
-                                </p>
-                                <div class="d-flex gap-2">
-                                    <span class="badge bg-primary">FAISS</span>
-                                    <span class="badge bg-success">ChromaDB</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="col-md-6">
-                        <div class="card h-100">
-                            <div class="card-body">
-                                <div class="d-flex align-items-center mb-3">
-                                    <div class="icon-circle bg-success text-white me-3">
-                                        <i class="fas fa-brain"></i>
-                                    </div>
-                                    <h5 class="card-title mb-0">Modelos Duales</h5>
-                                </div>
-                                <p class="card-text">
-                                    Comparación directa entre modelos locales (Ollama) y modelos en la nube (OpenAI).
-                                </p>
-                                <div class="d-flex gap-2">
-                                    <span class="badge bg-warning">Local</span>
-                                    <span class="badge bg-info">OpenAI</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="col-md-6">
-                        <div class="card h-100">
-                            <div class="card-body">
-                                <div class="d-flex align-items-center mb-3">
-                                    <div class="icon-circle bg-warning text-white me-3">
-                                        <i class="fas fa-shield-alt"></i>
-                                    </div>
-                                    <h5 class="card-title mb-0">Seguridad Local</h5>
-                                </div>
-                                <p class="card-text">
-                                    Cumplimiento con ENS y CCN-TEC 014. Los datos sensibles nunca salen del servidor local.
-                                </p>
-                                <div class="d-flex gap-2">
-                                    <span class="badge bg-success">ENS</span>
-                                    <span class="badge bg-primary">CCN-TEC</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="col-md-6">
-                        <div class="card h-100">
-                            <div class="card-body">
-                                <div class="d-flex align-items-center mb-3">
-                                    <div class="icon-circle bg-info text-white me-3">
-                                        <i class="fas fa-cogs"></i>
-                                    </div>
-                                    <h5 class="card-title mb-0">Configuración Flexible</h5>
-                                </div>
-                                <p class="card-text">
-                                    Ingesta configurable desde documentos, APIs REST, bases de datos y archivos Excel/CSV.
-                                </p>
-                                <div class="d-flex gap-2">
-                                    <span class="badge bg-secondary">PDF</span>
-                                    <span class="badge bg-secondary">API</span>
-                                    <span class="badge bg-secondary">DB</span>
-                                </div>
-                            </div>
+                        <div class="d-flex gap-2">
+                            <span class="badge bg-primary">FAISS</span>
+                            <span class="badge bg-success">ChromaDB</span>
                         </div>
                     </div>
                 </div>
             </div>
             
-            <!-- System Status -->
-            <div class="col-lg-4">
-                <h2 class="mb-4">
-                    <i class="fas fa-heartbeat me-2 text-success"></i>
-                    Estado del Sistema
-                </h2>
-                
-                <div class="card">
-                    <div class="card-header bg-light">
-                        <h6 class="mb-0">
-                            <i class="fas fa-info-circle me-2"></i>
-                            Estado Actual
-                        </h6>
-                    </div>
+            <div class="col-md-6">
+                <div class="card h-100">
                     <div class="card-body">
-                        <div class="status-item d-flex justify-content-between align-items-center mb-3">
-                            <span>
-                                <i class="fas fa-server me-2"></i>
-                                Servidor Flask
-                            </span>
-                            <span class="badge bg-success">
-                                <i class="fas fa-check-circle me-1"></i>Activo
-                            </span>
+                        <div class="d-flex align-items-center mb-3">
+                            <div class="icon-circle bg-success text-white me-3">
+                                <i class="fas fa-brain"></i>
+                            </div>
+                            <h5 class="card-title mb-0">Modelos Duales</h5>
                         </div>
-                        
-                        <div class="status-item d-flex justify-content-between align-items-center mb-3">
-                            <span>
-                                <i class="fas fa-database me-2"></i>
-                                Vector Store
-                            </span>
-                            <span class="badge bg-warning" id="vectorstore-status">
-                                <i class="fas fa-clock me-1"></i>Verificando...
-                            </span>
-                        </div>
-                        
-                        <div class="status-item d-flex justify-content-between align-items-center mb-3">
-                            <span>
-                                <i class="fas fa-robot me-2"></i>
-                                Modelos Locales
-                            </span>
-                            <span class="badge bg-warning" id="local-models-status">
-                                <i class="fas fa-clock me-1"></i>Verificando...
-                            </span>
-                        </div>
-                        
-                        <div class="status-item d-flex justify-content-between align-items-center mb-3">
-                            <span>
-                                <i class="fas fa-cloud me-2"></i>
-                                OpenAI API
-                            </span>
-                            <span class="badge bg-secondary" id="openai-status">
-                                <i class="fas fa-times me-1"></i>No configurado
-                            </span>
-                        </div>
-                        
-                        <hr>
-                        
-                        <div class="text-center">
-                            <button class="btn btn-outline-primary btn-sm" onclick="checkSystemStatus()">
-                                <i class="fas fa-sync-alt me-1"></i>
-                                Actualizar Estado
-                            </button>
+                        <p class="card-text">
+                            Comparación directa entre modelos locales (Ollama) y modelos en la nube (OpenAI).
+                        </p>
+                        <div class="d-flex gap-2">
+                            <span class="badge bg-warning">Local</span>
+                            <span class="badge bg-info">OpenAI</span>
                         </div>
                     </div>
                 </div>
-                
-                <!-- Quick Actions -->
-                <div class="card mt-4">
-                    <div class="card-header bg-light">
-                        <h6 class="mb-0">
-                            <i class="fas fa-bolt me-2"></i>
-                            Acciones Rápidas
-                        </h6>
-                    </div>
+            </div>
+            
+            <div class="col-md-6">
+                <div class="card h-100">
                     <div class="card-body">
-                        <div class="d-grid gap-2">
-                            <button class="btn btn-primary" onclick="showComingSoon('Chat RAG')">
-                                <i class="fas fa-comments me-2"></i>
-                                Abrir Chat
-                            </button>
-                            <button class="btn btn-success" onclick="showComingSoon('Configuración de Fuentes')">
-                                <i class="fas fa-cog me-2"></i>
-                                Configurar Fuentes
-                            </button>
-                            <button class="btn btn-info" onclick="showComingSoon('Panel de Administración')">
-                                <i class="fas fa-user-shield me-2"></i>
-                                Panel Admin
-                            </button>
+                        <div class="d-flex align-items-center mb-3">
+                            <div class="icon-circle bg-warning text-white me-3">
+                                <i class="fas fa-shield-alt"></i>
+                            </div>
+                            <h5 class="card-title mb-0">Seguridad Local</h5>
+                        </div>
+                        <p class="card-text">
+                            Cumplimiento con ENS y CCN-TEC 014. Los datos sensibles nunca salen del servidor local.
+                        </p>
+                        <div class="d-flex gap-2">
+                            <span class="badge bg-success">ENS</span>
+                            <span class="badge bg-primary">CCN-TEC</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center mb-3">
+                            <div class="icon-circle bg-info text-white me-3">
+                                <i class="fas fa-cogs"></i>
+                            </div>
+                            <h5 class="card-title mb-0">Configuración Flexible</h5>
+                        </div>
+                        <p class="card-text">
+                            Ingesta configurable desde documentos, APIs REST, bases de datos y archivos Excel/CSV.
+                        </p>
+                        <div class="d-flex gap-2">
+                            <span class="badge bg-secondary">PDF</span>
+                            <span class="badge bg-secondary">API</span>
+                            <span class="badge bg-secondary">DB</span>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
-
-        <!-- Statistics Section -->
-        <div class="row mt-5">
-            <div class="col-12">
-                <h2 class="mb-4">
-                    <i class="fas fa-chart-line me-2 text-info"></i>
-                    Estadísticas del Sistema
-                </h2>
-                
-                <div class="row g-4">
-                    <div class="col-md-3">
-                        <div class="card text-center">
-                            <div class="card-body">
-                                <i class="fas fa-file-alt fa-2x text-primary mb-3"></i>
-                                <h4 class="card-title" id="documents-count">0</h4>
-                                <p class="card-text text-muted">Documentos Indexados</p>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="col-md-3">
-                        <div class="card text-center">
-                            <div class="card-body">
-                                <i class="fas fa-puzzle-piece fa-2x text-success mb-3"></i>
-                                <h4 class="card-title" id="fragments-count">0</h4>
-                                <p class="card-text text-muted">Fragmentos RAG</p>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="col-md-3">
-                        <div class="card text-center">
-                            <div class="card-body">
-                                <i class="fas fa-comments fa-2x text-warning mb-3"></i>
-                                <h4 class="card-title" id="queries-count">0</h4>
-                                <p class="card-text text-muted">Consultas Realizadas</p>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="col-md-3">
-                        <div class="card text-center">
-                            <div class="card-body">
-                                <i class="fas fa-tachometer-alt fa-2x text-info mb-3"></i>
-                                <h4 class="card-title" id="avg-response-time">0.0</h4>
-                                <p class="card-text text-muted">Tiempo Respuesta (s)</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </main>
-
-    <!-- Footer -->
-    <footer class="bg-light py-4 mt-5">
-        <div class="container">
-            <div class="row">
-                <div class="col-md-6">
-                    <p class="mb-0">
-                        <i class="fas fa-robot me-2"></i>
-                        <strong>{{ app_name or 'Prototipo_chatbot' }}</strong>
-                        {% if app_version %}v{{ app_version }}{% endif %}
-                    </p>
-                    <p class="text-muted small mb-0">
-                        Sistema RAG para Administraciones Locales
-                    </p>
-                </div>
-                <div class="col-md-6 text-md-end">
-                    <p class="text-muted small mb-0">
-                        TFM - Sistemas Inteligentes
-                    </p>
-                </div>
-            </div>
-        </div>
-    </footer>
-
-    <!-- Bootstrap JS -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    </div>
     
-    <script>
-        // Funciones JavaScript básicas
-        function showComingSoon(feature) {
-            alert(feature + ' se implementará en el siguiente paso del desarrollo.');
+    <!-- System Status -->
+    <div class="col-lg-4">
+        <h2 class="mb-4">
+            <i class="fas fa-heartbeat me-2 text-success"></i>
+            Estado del Sistema
+        </h2>
+        
+        <div class="card">
+            <div class="card-header bg-light">
+                <h6 class="mb-0">
+                    <i class="fas fa-info-circle me-2"></i>
+                    Estado Actual
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="status-item d-flex justify-content-between align-items-center mb-3">
+                    <span>
+                        <i class="fas fa-server me-2"></i>
+                        Servidor Flask
+                    </span>
+                    <span class="badge bg-success">
+                        <i class="fas fa-check-circle me-1"></i>Activo
+                    </span>
+                </div>
+                
+                <div class="status-item d-flex justify-content-between align-items-center mb-3">
+                    <span>
+                        <i class="fas fa-database me-2"></i>
+                        Vector Store
+                    </span>
+                    <span class="badge bg-warning" id="vectorstore-status">
+                        <i class="fas fa-clock me-1"></i>Verificando...
+                    </span>
+                </div>
+                
+                <div class="status-item d-flex justify-content-between align-items-center mb-3">
+                    <span>
+                        <i class="fas fa-robot me-2"></i>
+                        Modelos Locales
+                    </span>
+                    <span class="badge bg-warning" id="local-models-status">
+                        <i class="fas fa-clock me-1"></i>Verificando...
+                    </span>
+                </div>
+                
+                <div class="status-item d-flex justify-content-between align-items-center mb-3">
+                    <span>
+                        <i class="fas fa-cloud me-2"></i>
+                        OpenAI API
+                    </span>
+                    <span class="badge bg-secondary" id="openai-status">
+                        <i class="fas fa-times me-1"></i>No configurado
+                    </span>
+                </div>
+                
+                <hr>
+                
+                <div class="text-center">
+                    <button class="btn btn-outline-primary btn-sm" onclick="checkIndexSystemStatus()">
+                        <i class="fas fa-sync-alt me-1"></i>
+                        Actualizar Estado
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Quick Actions -->
+        <div class="card mt-4">
+            <div class="card-header bg-light">
+                <h6 class="mb-0">
+                    <i class="fas fa-bolt me-2"></i>
+                    Acciones Rápidas
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <a href="/chat" class="btn btn-primary">
+                        <i class="fas fa-comments me-2"></i>
+                        Abrir Chat
+                    </a>
+                    <button class="btn btn-success" onclick="showComingSoon('Configuración de Fuentes')">
+                        <i class="fas fa-cog me-2"></i>
+                        Configurar Fuentes
+                    </button>
+                    <button class="btn btn-info" onclick="showComingSoon('Panel de Administración')">
+                        <i class="fas fa-user-shield me-2"></i>
+                        Panel Admin
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Statistics Section -->
+<div class="row mt-5">
+    <div class="col-12">
+        <h2 class="mb-4">
+            <i class="fas fa-chart-line me-2 text-info"></i>
+            Estadísticas del Sistema
+        </h2>
+        
+        <div class="row g-4">
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <i class="fas fa-file-alt fa-2x text-primary mb-3"></i>
+                        <h4 class="card-title" id="documents-count">0</h4>
+                        <p class="card-text text-muted">Documentos Indexados</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <i class="fas fa-puzzle-piece fa-2x text-success mb-3"></i>
+                        <h4 class="card-title" id="fragments-count">0</h4>
+                        <p class="card-text text-muted">Fragmentos RAG</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <i class="fas fa-comments fa-2x text-warning mb-3"></i>
+                        <h4 class="card-title" id="queries-count">0</h4>
+                        <p class="card-text text-muted">Consultas Realizadas</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <i class="fas fa-tachometer-alt fa-2x text-info mb-3"></i>
+                        <h4 class="card-title" id="avg-response-time">0.0</h4>
+                        <p class="card-text text-muted">Tiempo Respuesta (s)</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// Funciones JavaScript específicas para la página de inicio
+function showComingSoon(feature) {
+    alert(feature + ' se implementará en el siguiente paso del desarrollo.');
+}
+
+// Función específica para el botón de la página index
+function checkIndexSystemStatus() {
+    console.log('🔘 Button clicked: checkIndexSystemStatus');
+    checkIndexPageStatus(); // Llamar a la función específica del index
+}
+
+async function checkIndexPageStatus() {
+    console.log('🔍 Index: Checking system status...');
+    
+    try {
+        // Mostrar estado "verificando..." en todos los elementos
+        updateIndexStatus('vectorstore-status', 'warning', 'Verificando...');
+        updateIndexStatus('local-models-status', 'warning', 'Verificando...');
+        updateIndexStatus('openai-status', 'warning', 'Verificando...');
+        
+        // Llamada real al endpoint /health
+        const response = await fetch('/health');
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
         }
         
-        function checkSystemStatus() {
-            // Simular verificación de estado
-            const vectorstoreStatus = document.getElementById('vectorstore-status');
-            const localModelsStatus = document.getElementById('local-models-status');
-            
-            // Actualizar estados (simulado)
-            setTimeout(() => {
-                updateStatus('vectorstore-status', 'success', 'Disponible');
-                updateStatus('local-models-status', 'warning', 'No configurado');
-            }, 1000);
+        const data = await response.json();
+        console.log('📊 Index: Health check response:', data);
+        
+        // Actualizar Vector Store
+        if (data.components && data.components.vector_store) {
+            const vectorStatus = data.components.vector_store;
+            if (vectorStatus === 'available') {
+                updateIndexStatus('vectorstore-status', 'success', 'Disponible');
+            } else {
+                updateIndexStatus('vectorstore-status', 'danger', 'No disponible');
+            }
+        } else {
+            updateIndexStatus('vectorstore-status', 'danger', 'Error');
         }
         
-        function updateStatus(elementId, status, text) {
-            const element = document.getElementById(elementId);
-            if (!element) return;
-            
-            // Remover clases anteriores
-            element.classList.remove('bg-success', 'bg-warning', 'bg-danger', 'bg-secondary');
-            
-            // Añadir nueva clase
-            const statusClasses = {
-                'success': 'bg-success',
-                'warning': 'bg-warning', 
-                'danger': 'bg-danger'
-            };
-            
-            element.classList.add(statusClasses[status] || 'bg-secondary');
-            
-            // Actualizar icono y texto
-            const icons = {
-                'success': 'fa-check-circle',
-                'warning': 'fa-exclamation-triangle',
-                'danger': 'fa-times-circle'
-            };
-            
-            element.innerHTML = `<i class="fas ${icons[status] || 'fa-question-circle'} me-1"></i>${text}`;
+        // Actualizar Modelos Locales (Ollama)
+        if (data.services && data.services.ollama) {
+            const ollamaStatus = data.services.ollama;
+            if (ollamaStatus === 'available') {
+                // Contar modelos disponibles
+                const modelCount = data.models && data.models.ollama ? 
+                    Object.keys(data.models.ollama).length : 0;
+                if (modelCount > 0) {
+                    updateIndexStatus('local-models-status', 'success', `Disponible (${modelCount} modelos)`);
+                } else {
+                    updateIndexStatus('local-models-status', 'warning', 'Sin modelos');
+                }
+            } else {
+                updateIndexStatus('local-models-status', 'danger', 'No disponible');
+            }
+        } else {
+            updateIndexStatus('local-models-status', 'danger', 'No configurado');
         }
         
-        // Verificar estado al cargar
-        document.addEventListener('DOMContentLoaded', function() {
-            setTimeout(checkSystemStatus, 2000);
-        });
-    </script>
-</body>
-</html>
+        // Actualizar OpenAI API
+        if (data.services && data.services.openai) {
+            const openaiStatus = data.services.openai;
+            if (openaiStatus === 'configured') {
+                updateIndexStatus('openai-status', 'success', 'Configurado');
+            } else if (openaiStatus === 'available') {
+                updateIndexStatus('openai-status', 'success', 'Disponible');
+            } else {
+                updateIndexStatus('openai-status', 'secondary', 'No configurado');
+            }
+        } else {
+            updateIndexStatus('openai-status', 'secondary', 'No configurado');
+        }
+        
+        // Actualizar estadísticas
+        updateStatistics(data);
+        
+        console.log('✅ Index: System status check completed successfully');
+        
+    } catch (error) {
+        console.error('❌ Index: Error checking system status:', error);
+        
+        // Mostrar error en todos los componentes
+        updateIndexStatus('vectorstore-status', 'danger', 'Error de conexión');
+        updateIndexStatus('local-models-status', 'danger', 'Error de conexión');
+        updateIndexStatus('openai-status', 'danger', 'Error de conexión');
+    }
+}
+
+function updateIndexStatus(elementId, status, text) {
+    const element = document.getElementById(elementId);
+    if (!element) {
+        console.warn(`Element with id '${elementId}' not found`);
+        return;
+    }
+    
+    // Remover clases anteriores
+    element.classList.remove('bg-success', 'bg-warning', 'bg-danger', 'bg-secondary');
+    
+    // Añadir nueva clase
+    const statusClasses = {
+        'success': 'bg-success',
+        'warning': 'bg-warning', 
+        'danger': 'bg-danger',
+        'secondary': 'bg-secondary'
+    };
+    
+    element.classList.add(statusClasses[status] || 'bg-secondary');
+    
+    // Actualizar icono y texto
+    const icons = {
+        'success': 'fa-check-circle',
+        'warning': 'fa-exclamation-triangle',
+        'danger': 'fa-times-circle',
+        'secondary': 'fa-times'
+    };
+    
+    element.innerHTML = `<i class="fas ${icons[status] || 'fa-question-circle'} me-1"></i>${text}`;
+    
+    console.log(`Updated ${elementId}: ${status} - ${text}`);
+}
+
+async function updateStatistics(healthData) {
+    try {
+        // Intentar obtener estadísticas del endpoint /ajax/quick-stats
+        let stats = null;
+        
+        try {
+            const statsResponse = await fetch('/ajax/quick-stats');
+            if (statsResponse.ok) {
+                stats = await statsResponse.json();
+            }
+        } catch (e) {
+            console.log('No stats endpoint available, using health data');
+            stats = healthData;
+        }
+        
+        // Actualizar contadores (valores por defecto si no hay datos)
+        const documentsCount = document.getElementById('documents-count');
+        const fragmentsCount = document.getElementById('fragments-count');
+        const queriesCount = document.getElementById('queries-count');
+        const avgResponseTime = document.getElementById('avg-response-time');
+        
+        if (documentsCount) {
+            documentsCount.textContent = stats?.documents || '0';
+        }
+        if (fragmentsCount) {
+            // Si no hay fragmentos específicos, usar documents como estimación
+            fragmentsCount.textContent = stats?.fragments || stats?.documents || '0';
+        }
+        if (queriesCount) {
+            queriesCount.textContent = stats?.queries || '0';
+        }
+        if (avgResponseTime) {
+            avgResponseTime.textContent = stats?.avg_response_time ? 
+                stats.avg_response_time.toFixed(1) : '0.0';
+        }
+        
+    } catch (error) {
+        console.error('Error updating statistics:', error);
+    }
+}
+
+// Verificar estado al cargar la página - ESPECÍFICO PARA INDEX
+document.addEventListener('DOMContentLoaded', function() {
+    // Esperar un poco más para asegurar que base.html termine de cargar
+    setTimeout(function() {
+        console.log('🏠 Index page: Starting system status check...');
+        
+        // Verificar que los elementos del INDEX existen
+        const vectorElement = document.getElementById('vectorstore-status');
+        const modelsElement = document.getElementById('local-models-status');
+        const openaiElement = document.getElementById('openai-status');
+        
+        if (vectorElement && modelsElement && openaiElement) {
+            console.log('✅ Index status elements found, proceeding with health check');
+            checkIndexPageStatus(); // Llamar a la función específica del index
+            
+            // Actualizar estado cada 30 segundos SOLO para la página index
+            setInterval(checkIndexPageStatus, 30000);
+        } else {
+            console.warn('❌ Index status elements not found:', {
+                vectorstore: !!vectorElement,
+                models: !!modelsElement,
+                openai: !!openaiElement
+            });
+        }
+    }, 2000); // Delay de 2 segundos para evitar conflictos
+});
+</script>
+{% endblock %}

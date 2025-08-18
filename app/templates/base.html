@@ -102,18 +102,25 @@
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="/health">
-                            <i class="fas fa-chart-line me-1" aria-hidden="true"></i>Estado
+                        <a class="nav-link {{ 'active' if request.endpoint and 'dashboard' in request.endpoint }}"
+                           href="/dashboard" aria-current="{{ 'page' if request.endpoint and 'dashboard' in request.endpoint }}">
+                            <i class="fas fa-tachometer-alt me-1" aria-hidden="true"></i>Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {{ 'active' if request.endpoint and 'comparador' in request.endpoint }}"
+                           href="/comparador" aria-current="{{ 'page' if request.endpoint and 'comparador' in request.endpoint }}">
+                            <i class="fas fa-balance-scale me-1" aria-hidden="true"></i>Comparador
                         </a>
                     </li>
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" 
                            aria-expanded="false" aria-haspopup="true">
-                            <i class="fas fa-cog me-1" aria-hidden="true"></i>Sistema
+                            <i class="fas fa-cog me-1" aria-hidden="true"></i>Configuración
                         </a>
                         <ul class="dropdown-menu">
                             <li><a class="dropdown-item" href="#">
-                                <i class="fas fa-sliders-h me-2" aria-hidden="true"></i>Configuración
+                                <i class="fas fa-sliders-h me-2" aria-hidden="true"></i>Configuración General
                             </a></li>
                             <li><a class="dropdown-item" href="#" id="ingestion-link">
                                 <i class="fas fa-upload me-2" aria-hidden="true"></i>Ingesta de Datos
@@ -124,6 +131,33 @@
                             </a></li>
                             <li><a class="dropdown-item" href="#">
                                 <i class="fas fa-info-circle me-2" aria-hidden="true"></i>Acerca de
+                            </a></li>
+                        </ul>
+                    </li>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" 
+                           aria-expanded="false" aria-haspopup="true">
+                            <i class="fas fa-link me-1" aria-hidden="true"></i>Endpoints
+                        </a>
+                        <ul class="dropdown-menu">
+                            <li><h6 class="dropdown-header">Estado del Sistema</h6></li>
+                            <li><a class="dropdown-item" href="http://localhost:5000/health" target="_blank">
+                                <i class="fas fa-heartbeat me-2 text-success" aria-hidden="true"></i>Estado del Sistema
+                                <small class="text-muted d-block">/health</small>
+                            </a></li>
+                            <li><a class="dropdown-item" href="http://localhost:5000/api/status" target="_blank">
+                                <i class="fas fa-cog me-2 text-info" aria-hidden="true"></i>API de Estado
+                                <small class="text-muted d-block">/api/status</small>
+                            </a></li>
+                            <li><a class="dropdown-item" href="http://localhost:5000/routes" target="_blank">
+                                <i class="fas fa-route me-2 text-warning" aria-hidden="true"></i>Lista de Rutas
+                                <small class="text-muted d-block">/routes</small>
+                            </a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><h6 class="dropdown-header">Endpoints API</h6></li>
+                            <li><a class="dropdown-item" href="http://localhost:5000/ajax/quick-stats" target="_blank">
+                                <i class="fas fa-chart-bar me-2 text-primary" aria-hidden="true"></i>Estadísticas Rápidas
+                                <small class="text-muted d-block">/ajax/quick-stats</small>
                             </a></li>
                         </ul>
                     </li>
@@ -138,7 +172,7 @@
                                 <i class="fas fa-circle me-1" aria-hidden="true"></i>Sistema
                             </span>
                         </a>
-                        <div class="dropdown-menu dropdown-menu-end p-3" style="min-width: 300px;">
+                        <div class="dropdown-menu dropdown-menu-end p-3" style="min-width: 320px;">
                             <h6 class="dropdown-header">Estado de Servicios</h6>
                             <div class="d-flex justify-content-between align-items-center mb-2">
                                 <span><i class="fas fa-database me-2" aria-hidden="true"></i>Vector Store</span>
@@ -158,6 +192,37 @@
                                     <i class="fas fa-clock me-1" aria-hidden="true"></i>Verificando...
                                 </span>
                             </div>
+                            
+                            <!-- Estadísticas rápidas -->
+                            <hr class="my-2">
+                            <h6 class="dropdown-header">Estadísticas</h6>
+                            <div class="row g-2 mb-3">
+                                <div class="col-6">
+                                    <div class="text-center p-2 bg-light rounded">
+                                        <small class="text-muted d-block">Documentos</small>
+                                        <strong id="quick-docs-count">-</strong>
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="text-center p-2 bg-light rounded">
+                                        <small class="text-muted d-block">Consultas</small>
+                                        <strong id="quick-queries-count">-</strong>
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="text-center p-2 bg-light rounded">
+                                        <small class="text-muted d-block">Uptime</small>
+                                        <strong id="quick-uptime">-</strong>
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="text-center p-2 bg-light rounded">
+                                        <small class="text-muted d-block">Resp. Time</small>
+                                        <strong id="quick-response-time">-</strong>
+                                    </div>
+                                </div>
+                            </div>
+                            
                             <div class="d-grid">
                                 <button class="btn btn-outline-primary btn-sm" id="refresh-system-status" type="button">
                                     <i class="fas fa-sync-alt me-1" aria-hidden="true"></i>Actualizar Estado
@@ -227,6 +292,9 @@
                     <a href="/chat" class="btn btn-primary btn-lg me-3">
                         <i class="fas fa-comments me-2"></i>Acceder al Chat RAG
                     </a>
+                    <a href="/dashboard" class="btn btn-outline-primary btn-lg me-3">
+                        <i class="fas fa-tachometer-alt me-2"></i>Ver Dashboard
+                    </a>
                     <a href="/health" class="btn btn-outline-secondary">
                         <i class="fas fa-chart-line me-2"></i>Estado del Sistema
                     </a>
@@ -291,6 +359,7 @@
                 currentPage: '{{ request.endpoint or "unknown" }}',
                 apiEndpoints: {
                     status: '/health',
+                    quickStats: '/ajax/quick-stats',
                     chatQuery: '/api/chat/send',
                     ragSearch: '/api/chat/status'
                 }
@@ -310,6 +379,9 @@
             
             // Verificar estado del sistema
             checkSystemStatus();
+            
+            // Cargar estadísticas rápidas
+            loadQuickStats();
         });
 
         // Gestión de tema claro/oscuro
@@ -373,21 +445,72 @@
                 mainIndicator.innerHTML = `<i class="fas ${config.icon} me-1"></i>Sistema`;
             }
 
-            // Actualizar indicadores específicos
-            const indicators = [
-                { id: 'vectorstore-status-nav', status: status.status },
-                { id: 'local-models-status-nav', status: status.status },
-                { id: 'openai-status-nav', status: status.status }
-            ];
+            // Actualizar indicadores específicos si están disponibles en el status
+            if (status.components) {
+                updateComponentStatus('vectorstore-status-nav', status.components.vector_store);
+                updateComponentStatus('local-models-status-nav', status.services?.ollama);
+                updateComponentStatus('openai-status-nav', status.services?.openai);
+            }
+        }
 
-            indicators.forEach(({ id, status: itemStatus }) => {
-                const element = document.getElementById(id);
-                if (element) {
-                    const config = statusConfig[itemStatus] || statusConfig['unknown'];
-                    element.className = `badge ${config.class}`;
-                    element.innerHTML = `<i class="fas ${config.icon} me-1"></i>${config.text}`;
-                }
-            });
+        function updateComponentStatus(elementId, componentStatus) {
+            const element = document.getElementById(elementId);
+            if (!element) return;
+
+            const statusMap = {
+                'available': { class: 'bg-success', icon: 'fa-check-circle', text: 'Disponible' },
+                'configured': { class: 'bg-success', icon: 'fa-check-circle', text: 'Configurado' },
+                'healthy': { class: 'bg-success', icon: 'fa-check-circle', text: 'Saludable' },
+                'warning': { class: 'bg-warning', icon: 'fa-exclamation-triangle', text: 'Advertencia' },
+                'error': { class: 'bg-danger', icon: 'fa-times-circle', text: 'Error' },
+                'unavailable': { class: 'bg-danger', icon: 'fa-times-circle', text: 'No disponible' }
+            };
+
+            const config = statusMap[componentStatus] || { class: 'bg-secondary', icon: 'fa-question-circle', text: 'Desconocido' };
+            element.className = `badge ${config.class}`;
+            element.innerHTML = `<i class="fas ${config.icon} me-1"></i>${config.text}`;
+        }
+
+        // Cargar estadísticas rápidas
+        async function loadQuickStats() {
+            try {
+                const response = await fetch('/ajax/quick-stats');
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                
+                const stats = await response.json();
+                
+                // Actualizar elementos de estadísticas rápidas
+                const updateElement = (id, value) => {
+                    const element = document.getElementById(id);
+                    if (element) element.textContent = value;
+                };
+
+                updateElement('quick-docs-count', stats.documents || '0');
+                updateElement('quick-queries-count', stats.queries || '0');
+                updateElement('quick-uptime', formatUptime(stats.uptime || 0));
+                updateElement('quick-response-time', `${(stats.avg_response_time || 0).toFixed(1)}s`);
+                
+            } catch (error) {
+                console.warn('Error cargando estadísticas rápidas:', error);
+                // Mostrar valores por defecto en caso de error
+                ['quick-docs-count', 'quick-queries-count', 'quick-uptime', 'quick-response-time'].forEach(id => {
+                    const element = document.getElementById(id);
+                    if (element) element.textContent = 'N/A';
+                });
+            }
+        }
+
+        // Formatear uptime en formato legible
+        function formatUptime(hours) {
+            if (hours < 1) {
+                return `${Math.round(hours * 60)}m`;
+            } else if (hours < 24) {
+                return `${hours.toFixed(1)}h`;
+            } else {
+                const days = Math.floor(hours / 24);
+                const remainingHours = Math.round(hours % 24);
+                return `${days}d ${remainingHours}h`;
+            }
         }
 
         // Refresh status button
@@ -400,17 +523,22 @@
                 button.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Actualizando...';
                 button.disabled = true;
                 
-                checkSystemStatus();
-                
-                setTimeout(() => {
-                    button.innerHTML = originalContent;
-                    button.disabled = false;
-                }, 2000);
+                // Actualizar tanto el estado como las estadísticas
+                Promise.all([checkSystemStatus(), loadQuickStats()])
+                    .finally(() => {
+                        setTimeout(() => {
+                            button.innerHTML = originalContent;
+                            button.disabled = false;
+                        }, 1000);
+                    });
             }
         });
 
-        // Actualizar estado cada 30 segundos
-        setInterval(checkSystemStatus, 30000);
+        // Actualizar estado y estadísticas cada 30 segundos
+        setInterval(() => {
+            checkSystemStatus();
+            loadQuickStats();
+        }, 30000);
     </script>
 </body>
 </html>

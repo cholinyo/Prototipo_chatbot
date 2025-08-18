@@ -1,0 +1,634 @@
+{% extends "base.html" %}
+
+{% block title %}{{ app_name or 'Prototipo_chatbot' }} - Configuración de Fuentes de Datos{% endblock %}
+
+{% block extra_head %}
+<style>
+    .stats-dashboard {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 15px;
+        color: white;
+        margin-bottom: 2rem;
+    }
+    
+    .stats-card {
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 10px;
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        transition: all 0.3s ease;
+    }
+    
+    .stats-card:hover {
+        background: rgba(255, 255, 255, 0.15);
+        transform: translateY(-2px);
+    }
+    
+    .source-tabs .nav-link {
+        border-radius: 8px 8px 0 0;
+        margin-right: 0.25rem;
+        font-weight: 500;
+    }
+    
+    .source-tabs .nav-link.active {
+        background-color: #f8f9fa;
+        border-color: #dee2e6 #dee2e6 #f8f9fa;
+    }
+    
+    .source-section {
+        border: 1px solid #dee2e6;
+        border-radius: 0 10px 10px 10px;
+        background: #fff;
+        box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    }
+    
+    .source-table {
+        margin-bottom: 0;
+    }
+    
+    .source-table th {
+        background-color: #f8f9fa;
+        border-bottom: 2px solid #dee2e6;
+        font-weight: 600;
+    }
+    
+    .status-badge {
+        font-size: 0.75rem;
+        padding: 0.25rem 0.5rem;
+    }
+    
+    .action-buttons .btn {
+        margin-right: 0.25rem;
+        margin-bottom: 0.25rem;
+    }
+    
+    .add-source-form {
+        background: #f8f9fa;
+        border-radius: 10px;
+        border: 2px dashed #dee2e6;
+        margin-top: 1rem;
+        transition: all 0.3s ease;
+    }
+    
+    .add-source-form:hover {
+        border-color: #0d6efd;
+        background: #e7f3ff;
+    }
+    
+    .source-type-icon {
+        font-size: 2rem;
+        margin-bottom: 1rem;
+    }
+    
+    .connection-test {
+        min-width: 120px;
+    }
+    
+    .sync-progress {
+        height: 4px;
+        border-radius: 2px;
+        overflow: hidden;
+        background: #e9ecef;
+    }
+    
+    .sync-progress-bar {
+        height: 100%;
+        background: linear-gradient(45deg, #28a745, #20c997);
+        animation: syncAnimation 2s ease-in-out infinite;
+    }
+    
+    @keyframes syncAnimation {
+        0%, 100% { width: 0%; }
+        50% { width: 100%; }
+    }
+    
+    .source-preview {
+        max-height: 200px;
+        overflow-y: auto;
+        background: #f8f9fa;
+        border-radius: 5px;
+        font-family: 'Courier New', monospace;
+        font-size: 0.875rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Dashboard de Estadísticas -->
+    <div class="stats-dashboard p-4 mb-4">
+        <div class="container">
+            <div class="row align-items-center">
+                <div class="col-md-8">
+                    <h1 class="h3 mb-3">
+                        <i class="fas fa-database me-2"></i>
+                        Configuración de Fuentes de Datos
+                    </h1>
+                    <p class="mb-0 opacity-75">
+                        Gestiona y configura las fuentes de datos para tu sistema RAG
+                    </p>
+                </div>
+                <div class="col-md-4 text-md-end">
+                    <button class="btn btn-light me-2" id="sync-all-sources">
+                        <i class="fas fa-sync-alt me-1"></i>Sincronizar Todo
+                    </button>
+                    <button class="btn btn-outline-light" id="export-config">
+                        <i class="fas fa-download me-1"></i>Exportar Config
+                    </button>
+                </div>
+            </div>
+            
+            <div class="row g-3 mt-3">
+                <div class="col-md-3">
+                    <div class="stats-card p-3 text-center">
+                        <i class="fas fa-plug fa-2x mb-2"></i>
+                        <h4 class="mb-1" id="total-sources">0</h4>
+                        <small class="opacity-75">Fuentes Activas</small>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stats-card p-3 text-center">
+                        <i class="fas fa-file-alt fa-2x mb-2"></i>
+                        <h4 class="mb-1" id="total-documents">0</h4>
+                        <small class="opacity-75">Documentos Procesados</small>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stats-card p-3 text-center">
+                        <i class="fas fa-clock fa-2x mb-2"></i>
+                        <h4 class="mb-1" id="last-sync">-</h4>
+                        <small class="opacity-75">Última Sincronización</small>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stats-card p-3 text-center">
+                        <i class="fas fa-chart-line fa-2x mb-2"></i>
+                        <h4 class="mb-1" id="sync-status">100%</h4>
+                        <small class="opacity-75">Estado de Sincronización</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Navegación por Pestañas -->
+    <ul class="nav nav-tabs source-tabs mb-0" id="sourceTypeTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="documents-tab" data-bs-toggle="tab" data-bs-target="#documents" type="button" role="tab">
+                <i class="fas fa-file-pdf me-1"></i>Documentos
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="databases-tab" data-bs-toggle="tab" data-bs-target="#databases" type="button" role="tab">
+                <i class="fas fa-database me-1"></i>Bases de Datos
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="apis-tab" data-bs-toggle="tab" data-bs-target="#apis" type="button" role="tab">
+                <i class="fas fa-cloud me-1"></i>APIs REST
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="webscraping-tab" data-bs-toggle="tab" data-bs-target="#webscraping" type="button" role="tab">
+                <i class="fas fa-globe me-1"></i>Web Scraping
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="files-tab" data-bs-toggle="tab" data-bs-target="#files" type="button" role="tab">
+                <i class="fas fa-table me-1"></i>Archivos
+            </button>
+        </li>
+    </ul>
+
+    <!-- Contenido de las Pestañas -->
+    <div class="tab-content source-section" id="sourceTypeTabContent">
+        
+        <!-- Pestaña Documentos -->
+        <div class="tab-pane fade show active" id="documents" role="tabpanel">
+            <div class="p-4">
+                <!-- Estadísticas específicas -->
+                <div class="row g-3 mb-4">
+                    <div class="col-md-3">
+                        <div class="card bg-primary text-white">
+                            <div class="card-body text-center">
+                                <i class="fas fa-file-pdf fa-2x mb-2"></i>
+                                <h5 class="mb-1" id="doc-pdfs">0</h5>
+                                <small>PDFs</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-info text-white">
+                            <div class="card-body text-center">
+                                <i class="fas fa-file-word fa-2x mb-2"></i>
+                                <h5 class="mb-1" id="doc-word">0</h5>
+                                <small>Word/TXT</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-success text-white">
+                            <div class="card-body text-center">
+                                <i class="fas fa-folder fa-2x mb-2"></i>
+                                <h5 class="mb-1" id="doc-folders">0</h5>
+                                <small>Carpetas</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-warning text-dark">
+                            <div class="card-body text-center">
+                                <i class="fas fa-sync-alt fa-2x mb-2"></i>
+                                <h5 class="mb-1" id="doc-processing">0</h5>
+                                <small>Procesando</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tabla de fuentes configuradas -->
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-list me-2"></i>Fuentes de Documentos Configuradas
+                        </h5>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table source-table">
+                                <thead>
+                                    <tr>
+                                        <th>Nombre</th>
+                                        <th>Tipo</th>
+                                        <th>Ruta/URL</th>
+                                        <th>Estado</th>
+                                        <th>Documentos</th>
+                                        <th>Última Actualización</th>
+                                        <th>Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="documents-table-body">
+                                    <tr>
+                                        <td><strong>Documentos Legales</strong></td>
+                                        <td><span class="badge bg-primary">PDF</span></td>
+                                        <td><code>/data/legal/*.pdf</code></td>
+                                        <td><span class="badge bg-success status-badge">Activo</span></td>
+                                        <td>127</td>
+                                        <td>Hace 2 horas</td>
+                                        <td class="action-buttons">
+                                            <button class="btn btn-sm btn-outline-primary" title="Editar">
+                                                <i class="fas fa-edit"></i>
+                                            </button>
+                                            <button class="btn btn-sm btn-outline-success" title="Sincronizar">
+                                                <i class="fas fa-sync"></i>
+                                            </button>
+                                            <button class="btn btn-sm btn-outline-warning" title="Pausar">
+                                                <i class="fas fa-pause"></i>
+                                            </button>
+                                            <button class="btn btn-sm btn-outline-danger" title="Eliminar">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Manuales Técnicos</strong></td>
+                                        <td><span class="badge bg-info">Word</span></td>
+                                        <td><code>/data/manuals/</code></td>
+                                        <td><span class="badge bg-warning status-badge">Sincronizando</span></td>
+                                        <td>45</td>
+                                        <td>Hace 10 minutos</td>
+                                        <td class="action-buttons">
+                                            <button class="btn btn-sm btn-outline-primary" title="Editar">
+                                                <i class="fas fa-edit"></i>
+                                            </button>
+                                            <button class="btn btn-sm btn-outline-success" title="Sincronizar" disabled>
+                                                <i class="fas fa-spinner fa-spin"></i>
+                                            </button>
+                                            <button class="btn btn-sm btn-outline-warning" title="Pausar">
+                                                <i class="fas fa-pause"></i>
+                                            </button>
+                                            <button class="btn btn-sm btn-outline-danger" title="Eliminar">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Formulario para añadir nueva fuente -->
+                <div class="add-source-form p-4">
+                    <div class="text-center source-type-icon">
+                        <i class="fas fa-plus-circle text-primary"></i>
+                    </div>
+                    <h5 class="text-center mb-4">Añadir Nueva Fuente de Documentos</h5>
+                    
+                    <form id="add-document-source-form">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label for="doc-name" class="form-label">Nombre de la Fuente</label>
+                                <input type="text" class="form-control" id="doc-name" placeholder="Ej: Documentos Administrativos">
+                            </div>
+                            <div class="col-md-6">
+                                <label for="doc-type" class="form-label">Tipo de Documento</label>
+                                <select class="form-select" id="doc-type">
+                                    <option value="pdf">PDF</option>
+                                    <option value="word">Word (DOC/DOCX)</option>
+                                    <option value="text">Texto (TXT/MD)</option>
+                                    <option value="mixed">Mixto</option>
+                                </select>
+                            </div>
+                            <div class="col-md-8">
+                                <label for="doc-path" class="form-label">Ruta o URL</label>
+                                <div class="input-group">
+                                    <input type="text" class="form-control" id="doc-path" placeholder="/ruta/a/documentos/ o https://...">
+                                    <button class="btn btn-outline-secondary" type="button" id="browse-path">
+                                        <i class="fas fa-folder-open"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="doc-recursive" class="form-label">Configuración</label>
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="doc-recursive" checked>
+                                    <label class="form-check-label" for="doc-recursive">
+                                        Incluir subcarpetas
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="doc-pattern" class="form-label">Patrón de Archivos</label>
+                                <input type="text" class="form-control" id="doc-pattern" placeholder="*.pdf,*.docx" value="*.*">
+                            </div>
+                            <div class="col-md-6">
+                                <label for="doc-encoding" class="form-label">Codificación</label>
+                                <select class="form-select" id="doc-encoding">
+                                    <option value="utf-8" selected>UTF-8</option>
+                                    <option value="latin1">Latin1</option>
+                                    <option value="cp1252">Windows-1252</option>
+                                </select>
+                            </div>
+                            <div class="col-12">
+                                <div class="d-flex gap-2">
+                                    <button type="button" class="btn btn-outline-primary connection-test" id="test-doc-connection">
+                                        <i class="fas fa-plug me-1"></i>Probar Acceso
+                                    </button>
+                                    <button type="button" class="btn btn-success" id="add-doc-source">
+                                        <i class="fas fa-plus me-1"></i>Añadir Fuente
+                                    </button>
+                                    <button type="button" class="btn btn-outline-secondary" id="preview-doc-source">
+                                        <i class="fas fa-eye me-1"></i>Vista Previa
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Pestaña Bases de Datos -->
+        <div class="tab-pane fade" id="databases" role="tabpanel">
+            <div class="p-4">
+                <!-- Estadísticas específicas -->
+                <div class="row g-3 mb-4">
+                    <div class="col-md-3">
+                        <div class="card bg-success text-white">
+                            <div class="card-body text-center">
+                                <i class="fas fa-database fa-2x mb-2"></i>
+                                <h5 class="mb-1" id="db-mysql">0</h5>
+                                <small>MySQL</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-primary text-white">
+                            <div class="card-body text-center">
+                                <i class="fas fa-elephant fa-2x mb-2"></i>
+                                <h5 class="mb-1" id="db-postgres">0</h5>
+                                <small>PostgreSQL</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-info text-white">
+                            <div class="card-body text-center">
+                                <i class="fas fa-cube fa-2x mb-2"></i>
+                                <h5 class="mb-1" id="db-sqlite">0</h5>
+                                <small>SQLite</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-warning text-dark">
+                            <div class="card-body text-center">
+                                <i class="fas fa-table fa-2x mb-2"></i>
+                                <h5 class="mb-1" id="db-records">0</h5>
+                                <small>Registros</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tabla de bases de datos configuradas -->
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-list me-2"></i>Bases de Datos Configuradas
+                        </h5>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table source-table">
+                                <thead>
+                                    <tr>
+                                        <th>Nombre</th>
+                                        <th>Tipo</th>
+                                        <th>Host/Archivo</th>
+                                        <th>Base de Datos</th>
+                                        <th>Estado</th>
+                                        <th>Registros</th>
+                                        <th>Última Sincronización</th>
+                                        <th>Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="databases-table-body">
+                                    <tr>
+                                        <td colspan="8" class="text-center text-muted py-4">
+                                            <i class="fas fa-database fa-3x mb-3 opacity-25"></i>
+                                            <p class="mb-0">No hay bases de datos configuradas</p>
+                                            <small>Añade tu primera base de datos usando el formulario inferior</small>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Formulario para añadir nueva base de datos -->
+                <div class="add-source-form p-4">
+                    <div class="text-center source-type-icon">
+                        <i class="fas fa-plus-circle text-success"></i>
+                    </div>
+                    <h5 class="text-center mb-4">Añadir Nueva Base de Datos</h5>
+                    
+                    <form id="add-database-source-form">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label for="db-name" class="form-label">Nombre de la Conexión</label>
+                                <input type="text" class="form-control" id="db-name" placeholder="Ej: Base de Datos Principal">
+                            </div>
+                            <div class="col-md-6">
+                                <label for="db-type-select" class="form-label">Tipo de Base de Datos</label>
+                                <select class="form-select" id="db-type-select">
+                                    <option value="mysql">MySQL</option>
+                                    <option value="postgresql">PostgreSQL</option>
+                                    <option value="sqlite">SQLite</option>
+                                    <option value="mariadb">MariaDB</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="db-host" class="form-label">Host</label>
+                                <input type="text" class="form-control" id="db-host" placeholder="localhost" value="localhost">
+                            </div>
+                            <div class="col-md-2">
+                                <label for="db-port" class="form-label">Puerto</label>
+                                <input type="number" class="form-control" id="db-port" placeholder="3306" value="3306">
+                            </div>
+                            <div class="col-md-6">
+                                <label for="db-database" class="form-label">Nombre de la Base de Datos</label>
+                                <input type="text" class="form-control" id="db-database" placeholder="mi_base_datos">
+                            </div>
+                            <div class="col-md-6">
+                                <label for="db-username" class="form-label">Usuario</label>
+                                <input type="text" class="form-control" id="db-username" placeholder="usuario">
+                            </div>
+                            <div class="col-md-6">
+                                <label for="db-password" class="form-label">Contraseña</label>
+                                <div class="input-group">
+                                    <input type="password" class="form-control" id="db-password" placeholder="••••••••">
+                                    <button class="btn btn-outline-secondary" type="button" id="toggle-db-password">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="col-12">
+                                <label for="db-query" class="form-label">Consulta SQL</label>
+                                <textarea class="form-control font-monospace" id="db-query" rows="4" placeholder="SELECT id, titulo, contenido, fecha FROM documentos WHERE activo = 1"></textarea>
+                            </div>
+                            <div class="col-12">
+                                <div class="d-flex gap-2">
+                                    <button type="button" class="btn btn-outline-primary connection-test" id="test-db-connection">
+                                        <i class="fas fa-plug me-1"></i>Probar Conexión
+                                    </button>
+                                    <button type="button" class="btn btn-success" id="add-db-source">
+                                        <i class="fas fa-plus me-1"></i>Añadir Base de Datos
+                                    </button>
+                                    <button type="button" class="btn btn-outline-secondary" id="preview-db-query">
+                                        <i class="fas fa-eye me-1"></i>Previsualizar Datos
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Pestaña APIs REST -->
+        <div class="tab-pane fade" id="apis" role="tabpanel">
+            <div class="p-4">
+                <!-- Estadísticas específicas -->
+                <div class="row g-3 mb-4">
+                    <div class="col-md-3">
+                        <div class="card bg-info text-white">
+                            <div class="card-body text-center">
+                                <i class="fas fa-cloud fa-2x mb-2"></i>
+                                <h5 class="mb-1" id="api-total">0</h5>
+                                <small>APIs Activas</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-success text-white">
+                            <div class="card-body text-center">
+                                <i class="fas fa-check-circle fa-2x mb-2"></i>
+                                <h5 class="mb-1" id="api-success">0</h5>
+                                <small>Respuestas OK</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-warning text-dark">
+                            <div class="card-body text-center">
+                                <i class="fas fa-clock fa-2x mb-2"></i>
+                                <h5 class="mb-1" id="api-latency">0ms</h5>
+                                <small>Latencia Media</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-danger text-white">
+                            <div class="card-body text-center">
+                                <i class="fas fa-exclamation-triangle fa-2x mb-2"></i>
+                                <h5 class="mb-1" id="api-errors">0</h5>
+                                <small>Errores</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tabla de APIs configuradas -->
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-list me-2"></i>APIs REST Configuradas
+                        </h5>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table source-table">
+                                <thead>
+                                    <tr>
+                                        <th>Nombre</th>
+                                        <th>URL Base</th>
+                                        <th>Método</th>
+                                        <th>Autenticación</th>
+                                        <th>Estado</th>
+                                        <th>Última Llamada</th>
+                                        <th>Registros</th>
+                                        <th>Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="apis-table-body">
+                                    <tr>
+                                        <td colspan="8" class="text-center text-muted py-4">
+                                            <i class="fas fa-cloud fa-3x mb-3 opacity-25"></i>
+                                            <p class="mb-0">No hay APIs configuradas</p>
+                                            <small>Añade tu primera API usando el formulario inferior</small>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Formulario para añadir nueva API -->
+                <div class="add-source-form p-4">
+                    <div class="text-center source-type-icon">
+                        <i class="fas fa-plus-circle text-info"></i>
+                    </div>
+                    <h5 class="text-center mb-4">Añadir Nueva API REST</h5>
+                    
+                    <form id="add-api-source-form">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label for="api-name" class="form-label">Nombre de la API</label>
+                                <input type="text" class="form-control" id="api-name" placeholder="Ej: API de Documentos Oficiales">
+                            </div>
+                            <div class="col-md-6">
+                                <label for="api-method" class="form-

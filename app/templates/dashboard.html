@@ -109,7 +109,7 @@
 <nav aria-label="breadcrumb" class="mb-3">
     <div class="container-fluid">
         <ol class="breadcrumb">
-            <li class="breadcrumb-item"><a href="{{ url_for('main.index') }}">Inicio</a></li>
+            <li class="breadcrumb-item"><a href="{{ url_for('index') }}">Inicio</a></li>
             <li class="breadcrumb-item active" aria-current="page">Dashboard</li>
         </ol>
     </div>
@@ -155,7 +155,7 @@
                 <div class="metric-icon bg-primary mx-auto mb-3">
                     <i class="fas fa-comments"></i>
                 </div>
-                <div class="metric-number" id="total-queries">{{ usage_stats.queries_today or 0 }}</div>
+                <div class="metric-number" id="total-queries">{{ usage_stats.queries_today|default(0) }}</div>
                 <div class="metric-label">Consultas Totales</div>
                 <div class="metric-change text-success">
                     <i class="fas fa-arrow-up me-1"></i>+12% vs ayer
@@ -170,7 +170,7 @@
                 <div class="metric-icon bg-success mx-auto mb-3">
                     <i class="fas fa-tachometer-alt"></i>
                 </div>
-                <div class="metric-number" id="avg-response-time">{{ "%.2f"|format(usage_stats.response_time_avg or 0) }}s</div>
+                <div class="metric-number" id="avg-response-time">{{ "%.2f"|format(usage_stats.response_time_avg|default(0)) }}s</div>
                 <div class="metric-label">Tiempo Respuesta Promedio</div>
                 <div class="metric-change text-success">
                     <i class="fas fa-arrow-down me-1"></i>-5% mejora
@@ -185,10 +185,10 @@
                 <div class="metric-icon bg-info mx-auto mb-3">
                     <i class="fas fa-database"></i>
                 </div>
-                <div class="metric-number" id="total-documents">{{ performance_metrics.total_documents or 0 }}</div>
+                <div class="metric-number" id="total-documents">{{ performance_metrics.total_documents|default(0) }}</div>
                 <div class="metric-label">Documentos Indexados</div>
                 <div class="metric-change text-info">
-                    <i class="fas fa-plus me-1"></i>{{ performance_metrics.vector_store_size|round(1) or 0 }}MB
+                    <i class="fas fa-plus me-1"></i>{{ performance_metrics.vector_store_size|round(1)|default(0) }}MB
                 </div>
             </div>
         </div>
@@ -200,7 +200,7 @@
                 <div class="metric-icon bg-warning mx-auto mb-3">
                     <i class="fas fa-percentage"></i>
                 </div>
-                <div class="metric-number" id="success-rate">{{ "%.1f"|format(usage_stats.success_rate or 0) }}%</div>
+                <div class="metric-number" id="success-rate">{{ "%.1f"|format(usage_stats.success_rate|default(0)) }}%</div>
                 <div class="metric-label">Tasa de Éxito</div>
                 <div class="metric-change text-success">
                     <i class="fas fa-check me-1"></i>Excelente
@@ -348,27 +348,27 @@
                     <tbody>
                         <tr>
                             <td><strong>Tiempo de actividad:</strong></td>
-                            <td id="system-uptime">{{ "%.1f"|format(usage_stats.uptime_hours or 0) }} horas</td>
+                            <td id="system-uptime">{{ "%.1f"|format(usage_stats.uptime_hours|default(0)) }} horas</td>
                         </tr>
                         <tr>
                             <td><strong>Modelo de embeddings:</strong></td>
-                            <td><code>{{ performance_metrics.embedding_model or 'No configurado' }}</code></td>
+                            <td><code>{{ performance_metrics.embedding_model|default('all-MiniLM-L6-v2') }}</code></td>
                         </tr>
                         <tr>
                             <td><strong>Tamaño de chunk:</strong></td>
-                            <td>{{ performance_metrics.chunk_size or 500 }} caracteres</td>
+                            <td>{{ performance_metrics.chunk_size|default(500) }} caracteres</td>
                         </tr>
                         <tr>
                             <td><strong>Vector store:</strong></td>
                             <td>
-                                <span class="badge bg-primary">{{ rag_stats.vector_store_type or 'FAISS' }}</span>
+                                <span class="badge bg-primary">{{ (rag_stats.vector_store_type if rag_stats is defined else 'FAISS')|default('FAISS') }}</span>
                             </td>
                         </tr>
                         <tr>
                             <td><strong>Trabajos de ingesta:</strong></td>
                             <td>
-                                <span class="badge bg-success">{{ ingestion_stats.jobs_completed or 0 }} completados</span>
-                                <span class="badge bg-warning">{{ ingestion_stats.jobs_active or 0 }} activos</span>
+                                <span class="badge bg-success">{{ (ingestion_stats.jobs_completed if ingestion_stats is defined else 0)|default(0) }} completados</span>
+                                <span class="badge bg-warning">{{ (ingestion_stats.jobs_active if ingestion_stats is defined else 0)|default(0) }} activos</span>
                             </td>
                         </tr>
                     </tbody>
@@ -403,7 +403,7 @@
                         <div class="d-flex align-items-center">
                             <i class="fas fa-upload text-info me-3"></i>
                             <div class="flex-grow-1">
-                                <div>{{ performance_metrics.total_documents or 0 }} documentos procesados</div>
+                                <div>{{ performance_metrics.total_documents|default(0) }} documentos procesados</div>
                                 <div class="activity-time">Hace 3 horas</div>
                             </div>
                         </div>
@@ -412,7 +412,7 @@
                         <div class="d-flex align-items-center">
                             <i class="fas fa-comments text-primary me-3"></i>
                             <div class="flex-grow-1">
-                                <div>{{ usage_stats.queries_today or 0 }} consultas procesadas hoy</div>
+                                <div>{{ usage_stats.queries_today|default(0) }} consultas procesadas hoy</div>
                                 <div class="activity-time">Continuo</div>
                             </div>
                         </div>
@@ -437,7 +437,7 @@
                 <div class="row g-3">
                     <div class="col-lg-3 col-md-6">
                         <div class="d-grid">
-                            <a href="{{ url_for('chat.chat_index') }}" class="btn btn-primary">
+                            <a href="/chat" class="btn btn-primary">
                                 <i class="fas fa-comments me-2"></i>
                                 Abrir Chat
                             </a>
@@ -453,7 +453,7 @@
                     </div>
                     <div class="col-lg-3 col-md-6">
                         <div class="d-grid">
-                            <a href="{{ url_for('main.settings') }}" class="btn btn-info">
+                            <a href="/config" class="btn btn-info">
                                 <i class="fas fa-cog me-2"></i>
                                 Configuración
                             </a>
@@ -475,7 +475,35 @@
 {% endblock %}
 
 {% block extra_scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
+// Default chart data fallback
+const defaultChartData = {
+    usage_over_time: {
+        labels: ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'],
+        datasets: [{
+            label: 'Consultas',
+            data: [12, 19, 15, 25, 22, 8, 14],
+            borderColor: 'rgb(75, 192, 192)',
+            backgroundColor: 'rgba(75, 192, 192, 0.2)'
+        }]
+    },
+    model_usage: {
+        labels: ['Ollama Local', 'OpenAI', 'Otros'],
+        datasets: [{
+            data: [60, 35, 5],
+            backgroundColor: ['#ff6384', '#36a2eb', '#ffce56']
+        }]
+    },
+    response_times: {
+        labels: ['< 1s', '1-2s', '2-5s', '> 5s'],
+        datasets: [{
+            data: [70, 20, 8, 2],
+            backgroundColor: ['#4bc0c0', '#ffcd56', '#ff9f40', '#ff6384']
+        }]
+    }
+};
+
 class DashboardManager {
     constructor() {
         this.charts = {};
@@ -488,43 +516,57 @@ class DashboardManager {
         this.initializeCharts();
         this.startAutoRefresh();
         this.updateLastCheckTime();
+        this.refreshSystemStatus();
+        this.refreshQuickStats();
     }
     
     setupEventListeners() {
         // Refresh button
-        document.getElementById('refresh-dashboard').addEventListener('click', () => {
-            this.refreshDashboard();
-        });
+        const refreshBtn = document.getElementById('refresh-dashboard');
+        if (refreshBtn) {
+            refreshBtn.addEventListener('click', async () => {
+                await this.refreshDashboard();
+            });
+        }
         
         // Export metrics
-        document.getElementById('export-metrics').addEventListener('click', () => {
-            this.exportMetrics();
-        });
+        const exportBtn = document.getElementById('export-metrics');
+        if (exportBtn) {
+            exportBtn.addEventListener('click', () => {
+                this.exportMetrics();
+            });
+        }
         
         // Chart period buttons
         document.querySelectorAll('[data-chart-period]').forEach(btn => {
             btn.addEventListener('click', (e) => {
-                // Update active state
                 document.querySelectorAll('[data-chart-period]').forEach(b => b.classList.remove('active'));
                 e.target.classList.add('active');
-                
-                // Update chart
                 this.updateUsageChart(e.target.dataset.chartPeriod);
             });
         });
         
         // Quick actions
-        document.getElementById('start-ingestion').addEventListener('click', () => {
-            this.showNotification('Funcionalidad de ingesta en desarrollo', 'info');
-        });
+        const startIngestionBtn = document.getElementById('start-ingestion');
+        if (startIngestionBtn) {
+            startIngestionBtn.addEventListener('click', () => {
+                this.showNotification('Funcionalidad de ingesta en desarrollo', 'info');
+            });
+        }
         
-        document.getElementById('run-diagnostics').addEventListener('click', () => {
-            this.runDiagnostics();
-        });
+        const runDiagnosticsBtn = document.getElementById('run-diagnostics');
+        if (runDiagnosticsBtn) {
+            runDiagnosticsBtn.addEventListener('click', () => {
+                this.runDiagnostics();
+            });
+        }
         
-        document.getElementById('view-all-activity').addEventListener('click', () => {
-            this.showActivityModal();
-        });
+        const viewAllActivityBtn = document.getElementById('view-all-activity');
+        if (viewAllActivityBtn) {
+            viewAllActivityBtn.addEventListener('click', () => {
+                this.showActivityModal();
+            });
+        }
     }
     
     initializeCharts() {
@@ -534,103 +576,146 @@ class DashboardManager {
     }
     
     initUsageChart() {
-        const ctx = document.getElementById('usage-chart').getContext('2d');
+        const ctx = document.getElementById('usage-chart');
+        if (!ctx) return;
+        
+        // Use server data if available, otherwise use default
+        let chartData;
+        try {
+            chartData = {{ charts_data.usage_over_time | tojson | safe }};
+        } catch (e) {
+            chartData = defaultChartData.usage_over_time;
+        }
         
         this.charts.usage = new Chart(ctx, {
             type: 'line',
-            data: {{ charts_data.usage_over_time | tojson | safe }},
+            data: chartData,
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: {
-                    title: {
-                        display: false
-                    },
-                    legend: {
-                        position: 'bottom'
-                    }
+                    title: { display: false },
+                    legend: { position: 'bottom' }
                 },
                 scales: {
-                    y: {
-                        beginAtZero: true,
-                        grid: {
-                            color: 'rgba(0,0,0,0.1)'
-                        }
-                    },
-                    x: {
-                        grid: {
-                            color: 'rgba(0,0,0,0.1)'
-                        }
-                    }
+                    y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.1)' } },
+                    x: { grid: { color: 'rgba(0,0,0,0.1)' } }
                 },
                 elements: {
-                    line: {
-                        tension: 0.4
-                    },
-                    point: {
-                        radius: 4,
-                        hoverRadius: 6
-                    }
+                    line: { tension: 0.4 },
+                    point: { radius: 4, hoverRadius: 6 }
                 }
             }
         });
     }
     
     initModelsChart() {
-        const ctx = document.getElementById('models-chart').getContext('2d');
+        const ctx = document.getElementById('models-chart');
+        if (!ctx) return;
+        
+        let chartData;
+        try {
+            chartData = {{ charts_data.model_usage | tojson | safe }};
+        } catch (e) {
+            chartData = defaultChartData.model_usage;
+        }
         
         this.charts.models = new Chart(ctx, {
             type: 'doughnut',
-            data: {{ charts_data.model_usage | tojson | safe }},
+            data: chartData,
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        position: 'bottom'
-                    }
-                }
+                plugins: { legend: { position: 'bottom' } }
             }
         });
     }
     
     initResponseTimesChart() {
-        const ctx = document.getElementById('response-times-chart').getContext('2d');
+        const ctx = document.getElementById('response-times-chart');
+        if (!ctx) return;
+        
+        let chartData;
+        try {
+            chartData = {{ charts_data.response_times | tojson | safe }};
+        } catch (e) {
+            chartData = defaultChartData.response_times;
+        }
         
         this.charts.responseTimes = new Chart(ctx, {
             type: 'doughnut',
-            data: {{ charts_data.response_times | tojson | safe }},
+            data: chartData,
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        position: 'bottom'
-                    }
-                }
+                plugins: { legend: { position: 'bottom' } }
             }
         });
     }
     
+    normalizeStatus(status) {
+        if (!status) return 'error';
+        const s = String(status).toLowerCase();
+        if (['healthy', 'available', 'configured'].includes(s)) return 'healthy';
+        if (['degraded', 'warning'].includes(s)) return 'warning';
+        if (['error', 'unavailable', 'not_configured'].includes(s)) return 'error';
+        return 'warning';
+    }
+    
+    async refreshSystemStatus() {
+        const alertEl = document.getElementById('system-status-alert');
+        if (!alertEl) return;
+        
+        try {
+            const res = await fetch('/api/status', { 
+                headers: { 'Accept': 'application/json' }
+            });
+            const data = await res.json();
+            const globalStatus = this.normalizeStatus(data.status);
+            
+            // Update alert classes
+            alertEl.classList.remove('alert-success', 'alert-warning', 'alert-danger');
+            if (globalStatus === 'healthy') alertEl.classList.add('alert-success');
+            else if (globalStatus === 'warning') alertEl.classList.add('alert-warning');
+            else alertEl.classList.add('alert-danger');
+            
+            // Update content
+            const heading = alertEl.querySelector('.alert-heading');
+            const p = alertEl.querySelector('p.mb-0');
+            const lastCheckText = new Date().toLocaleTimeString('es-ES');
+            
+            if (globalStatus === 'healthy') {
+                heading.textContent = 'Sistema Operativo';
+                p.innerHTML = `Todos los servicios funcionan correctamente. Última verificación: <span id="last-check-time">${lastCheckText}</span>`;
+            } else if (globalStatus === 'warning') {
+                heading.textContent = 'Sistema Degradado';
+                p.innerHTML = `Algún servicio presenta advertencias. Última verificación: <span id="last-check-time">${lastCheckText}</span>`;
+            } else {
+                heading.textContent = 'Error de Sistema';
+                p.innerHTML = `Algún servicio no está disponible. Última verificación: <span id="last-check-time">${lastCheckText}</span>`;
+            }
+        } catch (e) {
+            alertEl.classList.remove('alert-success', 'alert-warning');
+            alertEl.classList.add('alert-danger');
+            const heading = alertEl.querySelector('.alert-heading');
+            const p = alertEl.querySelector('p.mb-0');
+            heading.textContent = 'Error de Sistema';
+            p.textContent = 'No se pudo obtener el estado del sistema.';
+        }
+    }
+    
     async refreshDashboard() {
         const button = document.getElementById('refresh-dashboard');
-        const originalText = button.innerHTML;
+        if (!button) return;
         
+        const originalText = button.innerHTML;
         button.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Actualizando...';
         button.disabled = true;
         
         try {
-            // Actualizar métricas rápidas
-            const response = await fetch('/ajax/quick-stats');
-            const data = await response.json();
-            
-            if (data) {
-                this.updateMetrics(data);
-                this.showNotification('Dashboard actualizado', 'success');
-            }
-            
+            await Promise.all([this.refreshQuickStats(), this.refreshSystemStatus()]);
+            this.showNotification('Dashboard actualizado', 'success');
             this.updateLastCheckTime();
-            
         } catch (error) {
             console.error('Error actualizando dashboard:', error);
             this.showNotification('Error actualizando dashboard', 'error');
@@ -641,51 +726,54 @@ class DashboardManager {
     }
     
     updateMetrics(data) {
-        // Actualizar números principales
-        document.getElementById('total-queries').textContent = data.queries || 0;
-        document.getElementById('avg-response-time').textContent = (data.avg_response_time || 0).toFixed(2) + 's';
-        document.getElementById('total-documents').textContent = data.documents || 0;
+        const elements = {
+            'total-queries': data.queries || 0,
+            'avg-response-time': (data.avg_response_time || 0).toFixed(2) + 's',
+            'total-documents': data.documents || 0,
+            'system-uptime': (data.uptime || 0).toFixed(1) + ' horas'
+        };
         
-        // Actualizar uptime
-        document.getElementById('system-uptime').textContent = (data.uptime || 0).toFixed(1) + ' horas';
+        Object.entries(elements).forEach(([id, value]) => {
+            const el = document.getElementById(id);
+            if (el) el.textContent = value;
+        });
+        
+        if (typeof data.success_rate !== 'undefined' && data.success_rate !== null) {
+            const srEl = document.getElementById('success-rate');
+            if (srEl) srEl.textContent = `${Number(data.success_rate).toFixed(1)}%`;
+        }
     }
     
     updateUsageChart(period) {
-        // En producción, esto haría una llamada AJAX para obtener datos del período
         this.showNotification(`Mostrando datos de ${period}`, 'info');
     }
     
     async runDiagnostics() {
         const button = document.getElementById('run-diagnostics');
-        const originalText = button.innerHTML;
+        if (!button) return;
         
+        const originalText = button.innerHTML;
         button.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Ejecutando...';
         button.disabled = true;
         
         try {
-            // Simular diagnósticos
-            await new Promise(resolve => setTimeout(resolve, 2000));
-            
-            // Verificar estado del sistema
+            await new Promise(r => setTimeout(r, 1000));
             const response = await fetch('/api/status');
             const data = await response.json();
             
             let diagnosticsHtml = '<h6>Resultados del Diagnóstico:</h6><ul>';
-            
-            // Verificar servicios
-            Object.entries(data.services).forEach(([service, info]) => {
-                const status = info.status;
-                const icon = status === 'healthy' ? 'fa-check-circle text-success' : 
-                           status === 'warning' ? 'fa-exclamation-triangle text-warning' : 
-                           'fa-times-circle text-danger';
-                
-                diagnosticsHtml += `<li><i class="fas ${icon} me-1"></i>${service}: ${status}</li>`;
-            });
-            
+            if (data.services) {
+                Object.entries(data.services).forEach(([service, info]) => {
+                    const normalized = this.normalizeStatus(info.status);
+                    const icon = normalized === 'healthy' ? 'fa-check-circle text-success' :
+                                 normalized === 'warning' ? 'fa-exclamation-triangle text-warning' :
+                                 'fa-times-circle text-danger';
+                    diagnosticsHtml += `<li><i class="fas ${icon} me-1"></i>${service}: ${info.status}</li>`;
+                });
+            }
             diagnosticsHtml += '</ul>';
             
             this.showNotification(diagnosticsHtml, 'info', 8000);
-            
         } catch (error) {
             console.error('Error ejecutando diagnósticos:', error);
             this.showNotification('Error ejecutando diagnósticos', 'error');
@@ -704,10 +792,10 @@ class DashboardManager {
                 timestamp: new Date().toISOString(),
                 system_stats: data,
                 usage_metrics: {
-                    queries: document.getElementById('total-queries').textContent,
-                    response_time: document.getElementById('avg-response-time').textContent,
-                    documents: document.getElementById('total-documents').textContent,
-                    success_rate: document.getElementById('success-rate').textContent
+                    queries: document.getElementById('total-queries')?.textContent || '0',
+                    response_time: document.getElementById('avg-response-time')?.textContent || '0.00s',
+                    documents: document.getElementById('total-documents')?.textContent || '0',
+                    success_rate: document.getElementById('success-rate')?.textContent || '0%'
                 }
             };
             
@@ -725,7 +813,6 @@ class DashboardManager {
             URL.revokeObjectURL(url);
             
             this.showNotification('Métricas exportadas exitosamente', 'success');
-            
         } catch (error) {
             console.error('Error exportando métricas:', error);
             this.showNotification('Error exportando métricas', 'error');
@@ -733,14 +820,12 @@ class DashboardManager {
     }
     
     showActivityModal() {
-        // En producción, esto abriría un modal con actividad detallada
         this.showNotification('Modal de actividad detallada en desarrollo', 'info');
     }
     
     startAutoRefresh() {
-        // Actualizar cada 30 segundos
-        this.refreshInterval = setInterval(() => {
-            this.refreshQuickStats();
+        this.refreshInterval = setInterval(async () => {
+            await Promise.all([this.refreshQuickStats(), this.refreshSystemStatus()]);
         }, 30000);
     }
     
@@ -748,7 +833,6 @@ class DashboardManager {
         try {
             const response = await fetch('/ajax/quick-stats');
             const data = await response.json();
-            
             if (data) {
                 this.updateMetrics(data);
                 this.updateLastCheckTime();
@@ -760,18 +844,17 @@ class DashboardManager {
     
     updateLastCheckTime() {
         const now = new Date();
-        const timeString = now.toLocaleTimeString('es-ES');
-        document.getElementById('last-check-time').textContent = timeString;
+        const el = document.getElementById('last-check-time');
+        if (el) el.textContent = now.toLocaleTimeString('es-ES');
     }
     
     showNotification(message, type = 'info', duration = 5000) {
-        // Crear toast
-        const toastContainer = document.querySelector('.toast-container');
+        const container = document.querySelector('.toast-container') || this.ensureToastContainer();
         const toastId = 'toast-' + Date.now();
         
         const bgClass = {
             'success': 'bg-success',
-            'error': 'bg-danger', 
+            'error': 'bg-danger',
             'warning': 'bg-warning',
             'info': 'bg-info'
         }[type] || 'bg-info';
@@ -795,17 +878,24 @@ class DashboardManager {
             </div>
         `;
         
-        toastContainer.insertAdjacentHTML('beforeend', toastHtml);
+        container.insertAdjacentHTML('beforeend', toastHtml);
         
         const toast = new bootstrap.Toast(document.getElementById(toastId), {
             delay: duration
         });
         toast.show();
         
-        // Limpiar del DOM
         document.getElementById(toastId).addEventListener('hidden.bs.toast', () => {
-            document.getElementById(toastId).remove();
+            const toastEl = document.getElementById(toastId);
+            if (toastEl) toastEl.remove();
         });
+    }
+    
+    ensureToastContainer() {
+        const div = document.createElement('div');
+        div.className = 'toast-container position-fixed top-0 end-0 p-3';
+        document.body.appendChild(div);
+        return div;
     }
     
     destroy() {
@@ -814,19 +904,21 @@ class DashboardManager {
         }
         
         Object.values(this.charts).forEach(chart => {
-            chart.destroy();
+            if (chart && typeof chart.destroy === 'function') {
+                chart.destroy();
+            }
         });
     }
 }
 
-// Inicializar dashboard
+// Initialize dashboard
 let dashboardManager;
 
 document.addEventListener('DOMContentLoaded', function() {
     dashboardManager = new DashboardManager();
 });
 
-// Limpiar al salir
+// Cleanup on page unload
 window.addEventListener('beforeunload', function() {
     if (dashboardManager) {
         dashboardManager.destroy();

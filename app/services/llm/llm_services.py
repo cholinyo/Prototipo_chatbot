@@ -60,6 +60,7 @@ class LLMService:
         """Modelos OpenAI disponibles"""
         if not self.test_openai_connection():
             return []
+        # Lista estática básica; puedes extenderla si necesitas
         return ['gpt-4o', 'gpt-4o-mini', 'gpt-3.5-turbo']
     
     def get_available_providers(self) -> Dict[str, bool]:
@@ -119,17 +120,41 @@ class LLMService:
                 health['status'] = 'error'
         
         return health
+
+    # -------------------------
+    # AÑADIDO: compatibilidad main.py / dashboard
+    # -------------------------
+    def get_available_models(self) -> Dict[str, List[str]]:
+        """Modelos disponibles por proveedor, en formato esperado por main.py"""
+        return {
+            'ollama': self.get_ollama_models(),
+            'openai': self.get_openai_models()
+        }
+
+    def get_service_stats(self) -> Dict[str, Any]:
+        """Resumen de estado en el shape que usa main.py/dashboard"""
+        health = self.health_check()
+        providers_available = {
+            'ollama': health['services'].get('ollama', {}).get('status') == 'available',
+            'openai': health['services'].get('openai', {}).get('status') in ('configured', 'available')
+        }
+        return {
+            'status': health.get('status', 'error'),
+            'timestamp': health.get('timestamp'),
+            'providers_available': providers_available,
+            'models': health.get('models', {}),
+            'services': health.get('services', {})
+        }
     
     def generate_local(self, query: str, context: List[Any], model: str = "llama3.2:3b") -> LLMResponse:
         """Generar con modelo local"""
         start_time = time.time()
-        
         try:
             # Construir contexto
-            if hasattr(context[0], 'content'):
+            if context and hasattr(context[0], 'content'):
                 context_text = "\n".join([chunk.content for chunk in context])
             else:
-                context_text = "\n".join([str(chunk) for chunk in context])
+                context_text = "\n".join([str(chunk) for chunk in (context or [])])
             
             prompt = f"Contexto: {context_text}\n\nPregunta: {query}\n\nResponde basándote en el contexto."
             
@@ -187,10 +212,10 @@ class LLMService:
             client = openai.OpenAI(api_key=self.openai_api_key)
             
             # Construir contexto
-            if hasattr(context[0], 'content'):
+            if context and hasattr(context[0], 'content'):
                 context_text = "\n".join([chunk.content for chunk in context])
             else:
-                context_text = "\n".join([str(chunk) for chunk in context])
+                context_text = "\n".join([str(chunk) for chunk in (context or [])])
             
             messages = [
                 {"role": "system", "content": "Eres un asistente para administraciones locales."},
@@ -207,7 +232,7 @@ class LLMService:
             processing_time = time.time() - start_time
             content = response.choices[0].message.content.strip()
             
-            # Calcular costo
+            # Calcular costo (aproximación simple)
             prompt_tokens = response.usage.prompt_tokens
             completion_tokens = response.usage.completion_tokens
             cost = (prompt_tokens * 0.000001 + completion_tokens * 0.000002) if "gpt-3.5" in model else (prompt_tokens * 0.00003 + completion_tokens * 0.00006)
@@ -226,3 +251,7 @@ class LLMService:
                 model_used=model,
                 processing_time=time.time() - start_time
             )
+
+
+# Singleton para uso desde main.py y otros módulos
+llm_service = LLMService()

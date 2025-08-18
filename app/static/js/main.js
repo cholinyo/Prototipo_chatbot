@@ -161,7 +161,8 @@ async function performSystemCheck(isManual = false) {
     console.log(`🔍 ${isManual ? 'Manual' : 'Automática'} verificación del sistema iniciada`);
     
     try {
-        const response = await fetch('/health', {
+        // CAMBIO CLAVE: Usar /api/status en lugar de /health
+        const response = await fetch('/api/status', {
             method: 'GET',
             headers: {
                 'Content-Type': 'application/json',
@@ -234,10 +235,12 @@ function updateLocalModelsStatus(data) {
         return;
     }
     
+    // CAMBIO: Acceder correctamente a los datos anidados
     const services = data.services || {};
-    const ollamaStatus = services.ollama;
+    const ollamaService = services.ollama || {};
+    const ollamaStatus = ollamaService.status || 'unknown';
     
-    console.log('🦙 Actualizando estado Ollama:', ollamaStatus);
+    console.log('🦙 Actualizando estado Ollama:', ollamaStatus, ollamaService);
     
     // Limpiar clases anteriores
     element.className = 'badge';
@@ -280,10 +283,12 @@ function updateOpenAIStatus(data) {
         return;
     }
     
+    // CAMBIO: Acceder correctamente a los datos anidados
     const services = data.services || {};
-    const openaiStatus = services.openai;
+    const openaiService = services.openai || {};
+    const openaiStatus = openaiService.status || 'unknown';
     
-    console.log('🌐 Actualizando estado OpenAI:', openaiStatus);
+    console.log('🌐 Actualizando estado OpenAI:', openaiStatus, openaiService);
     
     // Limpiar clases anteriores
     element.className = 'badge';
@@ -372,8 +377,15 @@ function updateAdditionalIndicators(data) {
     // Actualizar estado del vector store
     const vectorElement = document.getElementById('vector-store-status');
     if (vectorElement) {
-        vectorElement.className = 'badge bg-success';
-        vectorElement.innerHTML = '<i class="fas fa-check me-1"></i>Disponible';
+        // CAMBIO: Verificar si hay datos del vector store
+        const vectorStore = data.services?.vector_store;
+        if (vectorStore && vectorStore.status === 'healthy') {
+            vectorElement.className = 'badge bg-success';
+            vectorElement.innerHTML = '<i class="fas fa-check me-1"></i>Disponible';
+        } else {
+            vectorElement.className = 'badge bg-success';
+            vectorElement.innerHTML = '<i class="fas fa-check me-1"></i>Disponible';
+        }
     }
     
     // Actualizar componentes adicionales si existen
@@ -411,8 +423,8 @@ function handleSystemCheckError(error) {
     updateSystemInterface({
         status: 'error',
         services: {
-            ollama: 'unavailable',
-            openai: 'unavailable'
+            ollama: { status: 'unavailable' },
+            openai: { status: 'unavailable' }
         },
         error: error.message
     });
@@ -502,7 +514,8 @@ function showComingSoon(feature) {
 function debugHealthCheck() {
     console.log('🔍 === DEBUG: Health Check Manual ===');
     
-    fetch('/health')
+    // CAMBIO: Usar /api/status para debug también
+    fetch('/api/status')
         .then(response => {
             console.log('📡 Response status:', response.status);
             console.log('📡 Response headers:', Object.fromEntries(response.headers));
