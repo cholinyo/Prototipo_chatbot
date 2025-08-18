@@ -251,7 +251,10 @@ class LLMService:
                 model_used=model,
                 processing_time=time.time() - start_time
             )
-
+# Función de conveniencia que falta
+def get_llm_service() -> LLMService:
+    """Obtener instancia del servicio LLM (función de conveniencia)"""
+    return llm_service
 
 # Singleton para uso desde main.py y otros módulos
 llm_service = LLMService()

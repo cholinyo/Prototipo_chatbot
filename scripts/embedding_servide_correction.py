@@ -1,4 +1,25 @@
+#!/usr/bin/env python3
 """
+Script para corregir el Embedding Service
+"""
+
+import sys
+from pathlib import Path
+
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
+
+def fix_embedding_service():
+    """Corregir el servicio de embeddings"""
+    
+    # Leer el archivo actual
+    embeddings_file = project_root / "app" / "services" / "rag" / "embeddings.py"
+    
+    with open(embeddings_file, 'r', encoding='utf-8') as f:
+        content = f.read()
+    
+    # Código corregido para el servicio de embeddings
+    fixed_code = '''"""
 Servicio de Embeddings para Prototipo_chatbot
 TFM Vicente Caruncho - Sistemas Inteligentes UJI
 """
@@ -85,3 +106,47 @@ embedding_service = EmbeddingService()
 def get_embedding_service() -> EmbeddingService:
     """Obtener instancia del servicio de embeddings"""
     return embedding_service
+'''
+    
+    # Escribir el código corregido
+    with open(embeddings_file, 'w', encoding='utf-8') as f:
+        f.write(fixed_code)
+    
+    print("✅ Embedding Service corregido")
+
+def test_fix():
+    """Probar que la corrección funciona"""
+    try:
+        from app.services.rag.embeddings import get_embedding_service
+        embedding_service = get_embedding_service()
+        
+        if embedding_service.is_available():
+            print("✅ Embedding Service funciona correctamente")
+            
+            # Test de embedding
+            test_text = "Esta es una prueba"
+            embedding = embedding_service.encode_single_text(test_text)
+            
+            if embedding is not None:
+                print(f"✅ Test de embedding exitoso - Dimensión: {len(embedding)}")
+                return True
+            else:
+                print("❌ Error generando embedding de prueba")
+                return False
+        else:
+            print("❌ Embedding Service no disponible")
+            return False
+            
+    except Exception as e:
+        print(f"❌ Error probando Embedding Service: {e}")
+        return False
+
+if __name__ == "__main__":
+    print("🔧 Corrigiendo Embedding Service...")
+    fix_embedding_service()
+    
+    print("\n🧪 Probando corrección...")
+    if test_fix():
+        print("\n🎉 ¡Embedding Service completamente funcional!")
+    else:
+        print("\n⚠️ Aún hay problemas con el Embedding Service")

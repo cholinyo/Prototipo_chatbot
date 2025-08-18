@@ -520,3 +520,66 @@ def validate_configuration() -> Dict[str, Any]:
 def reload_configuration() -> None:
     """Recargar configuración"""
     config_manager.reload_config()  
+
+# Añadir estas funciones al final de tu app/core/config.py
+
+def get_embedding_config() -> Dict[str, Any]:
+    """Obtener configuración específica de embeddings"""
+    model_config = get_model_config()
+    return {
+        'model_name': model_config.embedding_name,
+        'dimension': model_config.embedding_dimension,
+        'device': model_config.embedding_device,
+        'cache_dir': model_config.embedding_cache_dir,
+        'normalize_vectors': True,
+        'batch_size': 32
+    }
+
+def get_llm_config() -> Dict[str, Any]:
+    """Obtener configuración específica de LLM"""
+    model_config = get_model_config()
+    return {
+        'local': {
+            'default_model': model_config.local_default,
+            'available_models': model_config.local_available,
+            'endpoint': model_config.local_endpoint,
+            'timeout': model_config.local_timeout
+        },
+        'openai': {
+            'default_model': model_config.openai_default,
+            'available_models': model_config.openai_available,
+            'timeout': model_config.openai_timeout,
+            'max_retries': model_config.openai_max_retries,
+            'api_key': get_openai_api_key()
+        }
+    }
+
+def get_vector_store_settings() -> Dict[str, Any]:
+    """Obtener configuración específica de vector stores"""
+    vs_config = get_vector_store_config()
+    return {
+        'default_store': vs_config.default,
+        'faiss': {
+            'enabled': vs_config.faiss_enabled,
+            'path': vs_config.faiss_path,
+            'index_type': vs_config.faiss_index_type,
+            'normalize_vectors': vs_config.faiss_normalize_vectors
+        },
+        'chromadb': {
+            'enabled': vs_config.chromadb_enabled,
+            'path': vs_config.chromadb_path,
+            'collection': vs_config.chromadb_collection,
+            'distance_function': vs_config.chromadb_distance_function
+        }
+    }
+def get_embedding_config() -> Dict[str, Any]:
+    """Obtener configuración específica de embeddings"""
+    model_config = get_model_config()
+    return {
+        'model_name': model_config.embedding_name,
+        'dimension': model_config.embedding_dimension,
+        'device': model_config.embedding_device,
+        'cache_dir': model_config.embedding_cache_dir,
+        'normalize_vectors': True,
+        'batch_size': 32
+    }

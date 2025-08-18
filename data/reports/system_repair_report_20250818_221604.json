@@ -1,0 +1,27 @@
+{
+  "timestamp": 1755548172.9234905,
+  "repair_date": "2025-08-18 22:16:12",
+  "actions_performed": [
+    "Verificación entorno Python",
+    "Instalación paquetes faltantes",
+    "Creación estructura directorios",
+    "Creación Embedding Service",
+    "Creación FAISS Store",
+    "Creación ChromaDB Store",
+    "Creación LLM Service",
+    "Creación archivos configuración",
+    "Actualización pipeline principal",
+    "Verificación reparaciones"
+  ],
+  "final_status": {
+    "pipeline_available": false,
+    "error": "'dict' object has no attribute 'cache_size'",
+    "repair_successful": false
+  },
+  "recommendations": [
+    "Instalar Ollama y descargar modelos: ollama pull llama3.2:3b",
+    "Configurar OpenAI API key en .env si quieres usar modelos cloud",
+    "Ejecutar scripts/test_rag_pipeline.py para testing completo",
+    "Revisar logs en logs/ para más detalles"
+  ]
+}
