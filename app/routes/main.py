@@ -1314,3 +1314,26 @@ def data_sources():
         logger.error(f"Error en pÃ¡gina de fuentes de datos: {e}")
         flash(f"Error cargando pÃ¡gina: {str(e)}", 'error')
         return redirect(url_for('main.index'))
+
+@main_bp.route('/documentos')
+def documentos():
+    """Página de gestión de documentos"""
+    try:
+        # Obtener configuraciones
+        app_config = get_app_config()
+        
+        # Contexto para el template
+        context = {
+            'app_name': getattr(app_config, 'name', 'Prototipo_chatbot'),
+            'app_version': getattr(app_config, 'version', '1.0.0'),
+            'app_description': 'Gestión de Fuentes de Documentos',
+            'page_title': 'Gestión de Documentos'
+        }
+        
+        logger.info("Página de gestión de documentos accedida")
+        return render_template('documentos.html', **context)
+        
+    except Exception as e:
+        logger.error(f"Error cargando página de documentos: {e}")
+        flash(f"Error cargando la página: {str(e)}", "error")
+        return redirect(url_for('main.index'))

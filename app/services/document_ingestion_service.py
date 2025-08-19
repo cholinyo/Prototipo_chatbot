@@ -16,7 +16,7 @@ from app.models.data_sources import (
     DocumentSource, ProcessedDocument, FileInfo, FileChange, 
     FileChangeType, ProcessingStatus, IngestionStats
 )
-from app.services.document_processor import DocumentProcessor
+from app.services.ingestion.document_processor import DocumentProcessor
 from app.services.vector_store_service import VectorStoreService
 
 
@@ -523,5 +523,8 @@ class DocumentIngestionService:
         return removed_count
 
 
-# Instancia global del servicio
+# Instancia singleton para uso global
 document_ingestion_service = DocumentIngestionService()
+
+# Exportar para importación
+__all__ = ['DocumentIngestionService', 'document_ingestion_service']

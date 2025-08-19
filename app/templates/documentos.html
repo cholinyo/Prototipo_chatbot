@@ -1,0 +1,1033 @@
+{% extends "base.html" %}
+
+{% block title %}{{ app_name or 'Prototipo_chatbot' }} - Gestión de Documentos{% endblock %}
+
+{% block extra_head %}
+<style>
+    :root {
+        --primary-color: #0d6efd;
+        --success-color: #198754;
+        --warning-color: #ffc107;
+        --danger-color: #dc3545;
+        --info-color: #0dcaf0;
+        --gradient-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+    
+    .card {
+        border: none;
+        border-radius: 10px;
+        box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+        transition: all 0.3s ease;
+    }
+    
+    .card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+    }
+    
+    .btn {
+        border-radius: 8px;
+        font-weight: 500;
+        transition: all 0.3s ease;
+    }
+    
+    .btn:hover {
+        transform: translateY(-1px);
+    }
+    
+    .source-card {
+        border-left: 4px solid var(--primary-color);
+    }
+    
+    .source-card.active {
+        border-left-color: var(--success-color);
+        background-color: #f8f9fa;
+    }
+    
+    .badge-status {
+        font-size: 0.75rem;
+        padding: 0.25rem 0.5rem;
+    }
+    
+    .file-item {
+        padding: 0.75rem;
+        border-bottom: 1px solid #e9ecef;
+        transition: background-color 0.2s ease;
+    }
+    
+    .file-item:hover {
+        background-color: #f8f9fa;
+    }
+    
+    .file-item:last-child {
+        border-bottom: none;
+    }
+    
+    .progress-container {
+        background-color: #f8f9fa;
+        border-radius: 8px;
+        padding: 1rem;
+        margin: 1rem 0;
+    }
+    
+    .status-indicator {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        display: inline-block;
+        margin-right: 0.5rem;
+    }
+    
+    .status-indicator.active { background-color: var(--success-color); }
+    .status-indicator.processing { background-color: var(--warning-color); }
+    .status-indicator.error { background-color: var(--danger-color); }
+    .status-indicator.inactive { background-color: #6c757d; }
+    
+    .directory-tag {
+        background-color: #e9ecef;
+        border-radius: 4px;
+        padding: 0.25rem 0.5rem;
+        margin: 0.25rem;
+        font-size: 0.875rem;
+        display: inline-block;
+    }
+    
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+        margin-bottom: 2rem;
+    }
+    
+    .stats-card {
+        text-align: center;
+        padding: 1.5rem;
+    }
+    
+    .stats-number {
+        font-size: 2rem;
+        font-weight: bold;
+        margin-bottom: 0.5rem;
+    }
+    
+    .modal-body {
+        max-height: 70vh;
+        overflow-y: auto;
+    }
+    
+    #directoryInput {
+        border: 2px dashed #dee2e6;
+        border-radius: 8px;
+        padding: 1rem;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+    
+    #directoryInput:hover {
+        border-color: var(--primary-color);
+        background-color: #f8f9fa;
+    }
+    
+    .loading-spinner {
+        display: none;
+        text-align: center;
+        padding: 2rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Header Section -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h1 class="h3 mb-1">
+                    <i class="fas fa-folder-open me-2 text-primary"></i>
+                    Gestión de Documentos
+                </h1>
+                <p class="text-muted mb-0">Administrar fuentes de documentos y sincronización automática</p>
+            </div>
+            <div>
+                <button class="btn btn-primary me-2" data-bs-toggle="modal" data-bs-target="#newSourceModal">
+                    <i class="fas fa-plus me-1"></i>
+                    Nueva Fuente
+                </button>
+                <button class="btn btn-outline-primary" onclick="refreshAllData()">
+                    <i class="fas fa-sync-alt me-1"></i>
+                    Actualizar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Statistics Overview -->
+<div class="stats-grid" id="statsContainer">
+    <div class="card stats-card border-primary">
+        <div class="stats-number text-primary" id="totalSources">0</div>
+        <div class="text-muted">Fuentes Configuradas</div>
+    </div>
+    <div class="card stats-card border-success">
+        <div class="stats-number text-success" id="totalDocuments">0</div>
+        <div class="text-muted">Documentos Procesados</div>
+    </div>
+    <div class="card stats-card border-info">
+        <div class="stats-number text-info" id="totalSize">0 MB</div>
+        <div class="text-muted">Tamaño Total</div>
+    </div>
+    <div class="card stats-card border-warning">
+        <div class="stats-number text-warning" id="pendingChanges">0</div>
+        <div class="text-muted">Cambios Pendientes</div>
+    </div>
+</div>
+
+<!-- Sources List -->
+<div class="row">
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header bg-light">
+                <h6 class="mb-0">
+                    <i class="fas fa-list me-2"></i>
+                    Fuentes de Documentos
+                </h6>
+            </div>
+            <div class="card-body p-0">
+                <div id="sourcesList">
+                    <div class="p-3 text-center text-muted">
+                        <i class="fas fa-folder-plus fa-2x mb-2"></i>
+                        <p class="mb-0">No hay fuentes configuradas</p>
+                        <small>Haz clic en "Nueva Fuente" para comenzar</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                <h6 class="mb-0">
+                    <i class="fas fa-file-alt me-2"></i>
+                    <span id="documentsTitle">Seleccionar una fuente</span>
+                </h6>
+                <div id="sourceActions" style="display: none;">
+                    <button class="btn btn-sm btn-outline-primary me-2" onclick="detectChanges()">
+                        <i class="fas fa-search me-1"></i>
+                        Detectar Cambios
+                    </button>
+                    <button class="btn btn-sm btn-success" onclick="syncSource()">
+                        <i class="fas fa-sync me-1"></i>
+                        Sincronizar
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div id="documentsContent">
+                    <div class="text-center text-muted py-5">
+                        <i class="fas fa-mouse-pointer fa-2x mb-2"></i>
+                        <p class="mb-0">Selecciona una fuente para ver sus documentos</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Nueva Fuente -->
+<div class="modal fade" id="newSourceModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-folder-plus me-2"></i>
+                    Nueva Fuente de Documentos
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="newSourceForm">
+                    <div class="mb-3">
+                        <label for="sourceName" class="form-label">Nombre de la Fuente</label>
+                        <input type="text" class="form-control" id="sourceName" required>
+                        <div class="form-text">Ej: "Ordenanzas Municipales", "Reglamentos Internos"</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Directorios</label>
+                        <div id="directoriesContainer">
+                            <div class="input-group mb-2">
+                                <input type="text" class="form-control" placeholder="/ruta/a/documentos" required>
+                                <button class="btn btn-outline-secondary" type="button" onclick="browseDirectory(this)">
+                                    <i class="fas fa-folder-open"></i>
+                                </button>
+                                <button class="btn btn-outline-danger" type="button" onclick="removeDirectory(this)" disabled>
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline-primary" onclick="addDirectory()">
+                            <i class="fas fa-plus me-1"></i>
+                            Añadir Directorio
+                        </button>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Extensiones de Archivo</label>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" value=".pdf" id="ext-pdf" checked>
+                                <label class="form-check-label" for="ext-pdf">PDF (.pdf)</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" value=".docx" id="ext-docx" checked>
+                                <label class="form-check-label" for="ext-docx">Word (.docx)</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" value=".txt" id="ext-txt" checked>
+                                <label class="form-check-label" for="ext-txt">Texto (.txt)</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" value=".md" id="ext-md">
+                                <label class="form-check-label" for="ext-md">Markdown (.md)</label>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Configuración</label>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="recursive" checked>
+                                <label class="form-check-label" for="recursive">
+                                    Buscar en subdirectorios
+                                </label>
+                            </div>
+                            <div class="mt-3">
+                                <label for="maxFileSize" class="form-label">Tamaño máximo (MB)</label>
+                                <input type="number" class="form-control" id="maxFileSize" value="100" min="1" max="1000">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="excludePatterns" class="form-label">Patrones de Exclusión</label>
+                        <input type="text" class="form-control" id="excludePatterns" 
+                               placeholder="temp, cache, .git" value="temp, cache, .git, __pycache__">
+                        <div class="form-text">Separar con comas. Archivos/carpetas que contengan estos textos serán ignorados.</div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="createSource()">
+                    <i class="fas fa-save me-1"></i>
+                    Crear Fuente
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Cambios Detectados -->
+<div class="modal fade" id="changesModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-search me-2"></i>
+                    Cambios Detectados
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="changesContent">
+                    <div class="loading-spinner">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Detectando cambios...</span>
+                        </div>
+                        <p class="mt-2">Analizando archivos...</p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                <button type="button" class="btn btn-success" id="processChangesBtn" onclick="processChanges()" disabled>
+                    <i class="fas fa-cog me-1"></i>
+                    Procesar Cambios
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Loading Overlay -->
+<div id="loadingOverlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999;">
+    <div class="d-flex justify-content-center align-items-center h-100">
+        <div class="text-center text-white">
+            <div class="spinner-border mb-3" role="status">
+                <span class="visually-hidden">Cargando...</span>
+            </div>
+            <p id="loadingMessage">Procesando...</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// =============================================================================
+// VARIABLES GLOBALES
+// =============================================================================
+
+let currentSourceId = null;
+let allSources = [];
+let detectedChanges = [];
+
+// =============================================================================
+// FUNCIONES DE INICIALIZACIÓN
+// =============================================================================
+
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('🚀 Iniciando gestión de documentos...');
+    refreshAllData();
+});
+
+async function refreshAllData() {
+    try {
+        await loadSources();
+        updateStatistics();
+    } catch (error) {
+        console.error('Error refrescando datos:', error);
+        showAlert('Error cargando datos: ' + error.message, 'danger');
+    }
+}
+
+// =============================================================================
+// GESTIÓN DE FUENTES
+// =============================================================================
+
+async function loadSources() {
+    try {
+        const response = await fetch('/api/data-sources');
+        const data = await response.json();
+        
+        if (data.success) {
+            allSources = data.sources;
+            renderSourcesList();
+            console.log(`✅ Cargadas ${allSources.length} fuentes`);
+        } else {
+            throw new Error(data.error || 'Error cargando fuentes');
+        }
+    } catch (error) {
+        console.error('Error cargando fuentes:', error);
+        throw error;
+    }
+}
+
+function renderSourcesList() {
+    const container = document.getElementById('sourcesList');
+    
+    if (allSources.length === 0) {
+        container.innerHTML = `
+            <div class="p-3 text-center text-muted">
+                <i class="fas fa-folder-plus fa-2x mb-2"></i>
+                <p class="mb-0">No hay fuentes configuradas</p>
+                <small>Haz clic en "Nueva Fuente" para comenzar</small>
+            </div>
+        `;
+        return;
+    }
+    
+    const sourcesHtml = allSources.map(source => {
+        const stats = source.stats || {};
+        const statusClass = getStatusClass(source.status);
+        const isActive = currentSourceId === source.id;
+        
+        return `
+            <div class="source-card card-body border-0 ${isActive ? 'active' : ''}" 
+                 style="cursor: pointer;" onclick="selectSource('${source.id}')">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <h6 class="mb-1">
+                        <span class="status-indicator ${statusClass}"></span>
+                        ${source.name}
+                    </h6>
+                    <div class="dropdown">
+                        <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="dropdown">
+                            <i class="fas fa-ellipsis-v"></i>
+                        </button>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="#" onclick="editSource('${source.id}')">
+                                <i class="fas fa-edit me-2"></i>Editar
+                            </a></li>
+                            <li><a class="dropdown-item" href="#" onclick="deleteSource('${source.id}')">
+                                <i class="fas fa-trash me-2"></i>Eliminar
+                            </a></li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="small text-muted mb-2">
+                    <i class="fas fa-folder me-1"></i>
+                    ${source.directories?.length || 0} directorios
+                </div>
+                <div class="small text-muted">
+                    <i class="fas fa-file me-1"></i>
+                    ${stats.processed_files || 0} archivos procesados
+                </div>
+                ${stats.total_size_mb ? `
+                    <div class="small text-muted">
+                        <i class="fas fa-weight me-1"></i>
+                        ${stats.total_size_mb.toFixed(1)} MB
+                    </div>
+                ` : ''}
+            </div>
+        `;
+    }).join('');
+    
+    container.innerHTML = sourcesHtml;
+}
+
+async function selectSource(sourceId) {
+    currentSourceId = sourceId;
+    const source = allSources.find(s => s.id === sourceId);
+    
+    if (!source) return;
+    
+    // Actualizar UI
+    renderSourcesList(); // Re-render para mostrar selección
+    document.getElementById('documentsTitle').textContent = source.name;
+    document.getElementById('sourceActions').style.display = 'block';
+    
+    // Cargar documentos de la fuente
+    await loadSourceDocuments(sourceId);
+}
+
+async function loadSourceDocuments(sourceId) {
+    try {
+        showLoading('Cargando documentos...');
+        
+        const response = await fetch(`/api/data-sources/${sourceId}`);
+        const data = await response.json();
+        
+        if (data.success) {
+            renderDocuments(data.source.documents || []);
+        } else {
+            throw new Error(data.error);
+        }
+    } catch (error) {
+        console.error('Error cargando documentos:', error);
+        showAlert('Error cargando documentos: ' + error.message, 'danger');
+    } finally {
+        hideLoading();
+    }
+}
+
+function renderDocuments(documents) {
+    const container = document.getElementById('documentsContent');
+    
+    if (documents.length === 0) {
+        container.innerHTML = `
+            <div class="text-center text-muted py-5">
+                <i class="fas fa-file-alt fa-2x mb-2"></i>
+                <p class="mb-0">No hay documentos procesados</p>
+                <small>Ejecuta una sincronización para procesar archivos</small>
+            </div>
+        `;
+        return;
+    }
+    
+    // Agrupar por estado
+    const grouped = documents.reduce((acc, doc) => {
+        const status = doc.status || 'unknown';
+        if (!acc[status]) acc[status] = [];
+        acc[status].push(doc);
+        return acc;
+    }, {});
+    
+    let html = '';
+    
+    // Renderizar cada grupo
+    Object.entries(grouped).forEach(([status, docs]) => {
+        const statusInfo = getStatusInfo(status);
+        html += `
+            <div class="mb-4">
+                <h6 class="text-${statusInfo.color} mb-3">
+                    <i class="fas fa-${statusInfo.icon} me-2"></i>
+                    ${statusInfo.label} (${docs.length})
+                </h6>
+                <div class="border rounded">
+                    ${docs.map(doc => renderDocumentItem(doc)).join('')}
+                </div>
+            </div>
+        `;
+    });
+    
+    container.innerHTML = html;
+}
+
+function renderDocumentItem(doc) {
+    const fileName = doc.file_path.split('/').pop();
+    const fileSize = doc.file_size ? (doc.file_size / 1024 / 1024).toFixed(2) + ' MB' : 'N/A';
+    const processedDate = doc.processed_at ? new Date(doc.processed_at).toLocaleString() : 'No procesado';
+    
+    return `
+        <div class="file-item">
+            <div class="d-flex justify-content-between align-items-start">
+                <div class="flex-grow-1">
+                    <div class="fw-medium">${fileName}</div>
+                    <div class="small text-muted">
+                        <i class="fas fa-folder me-1"></i>
+                        ${doc.file_path}
+                    </div>
+                    <div class="small text-muted mt-1">
+                        <i class="fas fa-weight me-1"></i>
+                        ${fileSize}
+                        <span class="ms-3">
+                            <i class="fas fa-clock me-1"></i>
+                            ${processedDate}
+                        </span>
+                        ${doc.chunks_count ? `
+                            <span class="ms-3">
+                                <i class="fas fa-puzzle-piece me-1"></i>
+                                ${doc.chunks_count} chunks
+                            </span>
+                        ` : ''}
+                    </div>
+                </div>
+                <div class="text-end">
+                    <span class="badge bg-${getStatusInfo(doc.status).color}">
+                        ${getStatusInfo(doc.status).label}
+                    </span>
+                </div>
+            </div>
+            ${doc.error_message ? `
+                <div class="mt-2 p-2 bg-danger bg-opacity-10 border border-danger rounded">
+                    <small class="text-danger">
+                        <i class="fas fa-exclamation-triangle me-1"></i>
+                        ${doc.error_message}
+                    </small>
+                </div>
+            ` : ''}
+        </div>
+    `;
+}
+
+// =============================================================================
+// CREAR NUEVA FUENTE
+// =============================================================================
+
+function addDirectory() {
+    const container = document.getElementById('directoriesContainer');
+    const newDir = document.createElement('div');
+    newDir.className = 'input-group mb-2';
+    newDir.innerHTML = `
+        <input type="text" class="form-control" placeholder="/ruta/a/documentos" required>
+        <button class="btn btn-outline-secondary" type="button" onclick="browseDirectory(this)">
+            <i class="fas fa-folder-open"></i>
+        </button>
+        <button class="btn btn-outline-danger" type="button" onclick="removeDirectory(this)">
+            <i class="fas fa-trash"></i>
+        </button>
+    `;
+    container.appendChild(newDir);
+    updateRemoveButtons();
+}
+
+function removeDirectory(button) {
+    button.closest('.input-group').remove();
+    updateRemoveButtons();
+}
+
+function updateRemoveButtons() {
+    const container = document.getElementById('directoriesContainer');
+    const groups = container.querySelectorAll('.input-group');
+    groups.forEach((group, index) => {
+        const removeBtn = group.querySelector('.btn-outline-danger');
+        removeBtn.disabled = groups.length === 1;
+    });
+}
+
+function browseDirectory(button) {
+    // En un entorno real, esto abriría un diálogo de selección de carpeta
+    // Por ahora, solo sugerimos rutas comunes
+    const suggestions = [
+        '/datos/documentos',
+        './data/documentos',
+        'C:\\Documentos',
+        '/home/usuario/documentos'
+    ];
+    
+    const input = button.previousElementSibling;
+    const suggestion = prompt('Introduce la ruta del directorio:', suggestions[0]);
+    if (suggestion) {
+        input.value = suggestion;
+    }
+}
+
+async function createSource() {
+    try {
+        const formData = getFormData();
+        if (!validateFormData(formData)) return;
+        
+        showLoading('Creando fuente...');
+        
+        const response = await fetch('/api/data-sources', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(formData)
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showAlert('Fuente creada exitosamente: ' + data.source.name, 'success');
+            bootstrap.Modal.getInstance(document.getElementById('newSourceModal')).hide();
+            document.getElementById('newSourceForm').reset();
+            await refreshAllData();
+        } else {
+            throw new Error(data.error);
+        }
+    } catch (error) {
+        console.error('Error creando fuente:', error);
+        showAlert('Error creando fuente: ' + error.message, 'danger');
+    } finally {
+        hideLoading();
+    }
+}
+
+function getFormData() {
+    const directories = Array.from(document.querySelectorAll('#directoriesContainer input'))
+        .map(input => input.value.trim())
+        .filter(dir => dir);
+    
+    const extensions = Array.from(document.querySelectorAll('input[type="checkbox"][id^="ext-"]:checked'))
+        .map(checkbox => checkbox.value);
+    
+    const excludePatterns = document.getElementById('excludePatterns').value
+        .split(',')
+        .map(pattern => pattern.trim())
+        .filter(pattern => pattern);
+    
+    return {
+        name: document.getElementById('sourceName').value.trim(),
+        directories: directories,
+        file_extensions: extensions,
+        recursive: document.getElementById('recursive').checked,
+        max_file_size: parseInt(document.getElementById('maxFileSize').value) * 1024 * 1024,
+        exclude_patterns: excludePatterns
+    };
+}
+
+function validateFormData(data) {
+    if (!data.name) {
+        showAlert('El nombre de la fuente es requerido', 'warning');
+        return false;
+    }
+    
+    if (data.directories.length === 0) {
+        showAlert('Debe especificar al menos un directorio', 'warning');
+        return false;
+    }
+    
+    if (data.file_extensions.length === 0) {
+        showAlert('Debe seleccionar al menos una extensión de archivo', 'warning');
+        return false;
+    }
+    
+    return true;
+}
+
+// =============================================================================
+// DETECCIÓN Y PROCESAMIENTO DE CAMBIOS
+// =============================================================================
+
+async function detectChanges() {
+    if (!currentSourceId) return;
+    
+    try {
+        // Mostrar modal con loading
+        const modal = new bootstrap.Modal(document.getElementById('changesModal'));
+        modal.show();
+        
+        document.querySelector('#changesContent .loading-spinner').style.display = 'block';
+        document.getElementById('processChangesBtn').disabled = true;
+        
+        const response = await fetch(`/api/data-sources/${currentSourceId}/changes`, {
+            method: 'POST'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            detectedChanges = data.changes;
+            renderChanges(data.changes, data.stats);
+        } else {
+            throw new Error(data.error);
+        }
+    } catch (error) {
+        console.error('Error detectando cambios:', error);
+        showAlert('Error detectando cambios: ' + error.message, 'danger');
+    } finally {
+        document.querySelector('#changesContent .loading-spinner').style.display = 'none';
+    }
+}
+
+function renderChanges(changes, stats) {
+    const container = document.getElementById('changesContent');
+    
+    if (changes.length === 0) {
+        container.innerHTML = `
+            <div class="text-center text-muted py-4">
+                <i class="fas fa-check-circle fa-3x text-success mb-3"></i>
+                <h5>No hay cambios</h5>
+                <p class="mb-0">Todos los archivos están actualizados</p>
+            </div>
+        `;
+        return;
+    }
+    
+    // Estadísticas
+    const statsHtml = `
+        <div class="row mb-4">
+            <div class="col-md-4 text-center">
+                <div class="h4 text-success">${stats.new}</div>
+                <div class="text-muted">Nuevos</div>
+            </div>
+            <div class="col-md-4 text-center">
+                <div class="h4 text-warning">${stats.modified}</div>
+                <div class="text-muted">Modificados</div>
+            </div>
+            <div class="col-md-4 text-center">
+                <div class="h4 text-danger">${stats.deleted}</div>
+                <div class="text-muted">Eliminados</div>
+            </div>
+        </div>
+    `;
+    
+    // Lista de cambios
+    const changesHtml = changes.map(change => {
+        const typeInfo = getChangeTypeInfo(change.type);
+        const fileName = change.file.path.split('/').pop();
+        const fileSize = (change.file.size / 1024 / 1024).toFixed(2) + ' MB';
+        
+        return `
+            <div class="border rounded p-3 mb-2">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div class="flex-grow-1">
+                        <div class="d-flex align-items-center mb-2">
+                            <span class="badge bg-${typeInfo.color} me-2">
+                                <i class="fas fa-${typeInfo.icon} me-1"></i>
+                                ${typeInfo.label}
+                            </span>
+                            <strong>${fileName}</strong>
+                        </div>
+                        <div class="small text-muted">
+                            <i class="fas fa-folder me-1"></i>
+                            ${change.file.path}
+                        </div>
+                        <div class="small text-muted mt-1">
+                            <i class="fas fa-weight me-1"></i>
+                            ${fileSize}
+                            <span class="ms-3">
+                                <i class="fas fa-clock me-1"></i>
+                                ${new Date(change.file.modified_time).toLocaleString()}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                ${change.previous ? `
+                    <div class="mt-2 p-2 bg-light rounded">
+                        <small class="text-muted">
+                            <strong>Anterior:</strong> 
+                            ${(change.previous.size / 1024 / 1024).toFixed(2)} MB
+                            ${change.previous.processed_at ? 
+                                ` - Procesado: ${new Date(change.previous.processed_at).toLocaleString()}` : 
+                                ' - No procesado'
+                            }
+                        </small>
+                    </div>
+                ` : ''}
+            </div>
+        `;
+    }).join('');
+    
+    container.innerHTML = statsHtml + changesHtml;
+    document.getElementById('processChangesBtn').disabled = false;
+}
+
+async function processChanges() {
+    if (!currentSourceId || detectedChanges.length === 0) return;
+    
+    try {
+        showLoading('Procesando cambios...');
+        
+        const response = await fetch(`/api/data-sources/${currentSourceId}/sync`, {
+            method: 'POST'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showAlert(`Cambios procesados exitosamente. ${data.processed || 0} archivos procesados.`, 'success');
+            bootstrap.Modal.getInstance(document.getElementById('changesModal')).hide();
+            await refreshAllData();
+            if (currentSourceId) {
+                await loadSourceDocuments(currentSourceId);
+            }
+        } else {
+            throw new Error(data.error);
+        }
+    } catch (error) {
+        console.error('Error procesando cambios:', error);
+        showAlert('Error procesando cambios: ' + error.message, 'danger');
+    } finally {
+        hideLoading();
+    }
+}
+
+async function syncSource() {
+    if (!currentSourceId) return;
+    
+    if (!confirm('¿Estás seguro de que quieres sincronizar esta fuente? Esto procesará todos los cambios detectados.')) {
+        return;
+    }
+    
+    await processChanges();
+}
+
+// =============================================================================
+// FUNCIONES DE UTILIDAD
+// =============================================================================
+
+function updateStatistics() {
+    let totalDocuments = 0;
+    let totalSize = 0;
+    let pendingChanges = 0;
+    
+    allSources.forEach(source => {
+        const stats = source.stats || {};
+        totalDocuments += stats.processed_files || 0;
+        totalSize += stats.total_size_mb || 0;
+        // pendingChanges sería calculado con cambios detectados
+    });
+    
+    document.getElementById('totalSources').textContent = allSources.length;
+    document.getElementById('totalDocuments').textContent = totalDocuments;
+    document.getElementById('totalSize').textContent = totalSize.toFixed(1) + ' MB';
+    document.getElementById('pendingChanges').textContent = pendingChanges;
+}
+
+function getStatusClass(status) {
+    const statusMap = {
+        'active': 'active',
+        'processing': 'processing', 
+        'error': 'error',
+        'inactive': 'inactive'
+    };
+    return statusMap[status] || 'inactive';
+}
+
+function getStatusInfo(status) {
+    const statusMap = {
+        'completed': { label: 'Completado', color: 'success', icon: 'check-circle' },
+        'processing': { label: 'Procesando', color: 'warning', icon: 'clock' },
+        'error': { label: 'Error', color: 'danger', icon: 'exclamation-triangle' },
+        'pending': { label: 'Pendiente', color: 'secondary', icon: 'clock' },
+        'skipped': { label: 'Omitido', color: 'info', icon: 'forward' }
+    };
+    return statusMap[status] || { label: 'Desconocido', color: 'secondary', icon: 'question' };
+}
+
+function getChangeTypeInfo(type) {
+    const typeMap = {
+        'new': { label: 'Nuevo', color: 'success', icon: 'plus' },
+        'modified': { label: 'Modificado', color: 'warning', icon: 'edit' },
+        'deleted': { label: 'Eliminado', color: 'danger', icon: 'trash' }
+    };
+    return typeMap[type] || { label: 'Desconocido', color: 'secondary', icon: 'question' };
+}
+
+function showLoading(message = 'Cargando...') {
+    document.getElementById('loadingMessage').textContent = message;
+    document.getElementById('loadingOverlay').style.display = 'block';
+}
+
+function hideLoading() {
+    document.getElementById('loadingOverlay').style.display = 'none';
+}
+
+function showAlert(message, type = 'info') {
+    // Crear alert temporal
+    const alertId = 'alert-' + Date.now();
+    const alertHtml = `
+        <div id="${alertId}" class="alert alert-${type} alert-dismissible fade show position-fixed" 
+             style="top: 20px; right: 20px; z-index: 9999; min-width: 300px;">
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', alertHtml);
+    
+    // Auto-remove después de 5 segundos
+    setTimeout(() => {
+        const alert = document.getElementById(alertId);
+        if (alert) {
+            alert.remove();
+        }
+    }, 5000);
+}
+
+// Funciones placeholder para futuras implementaciones
+async function editSource(sourceId) {
+    showAlert('Función de edición en desarrollo', 'info');
+}
+
+async function deleteSource(sourceId) {
+    if (!confirm('¿Estás seguro de que quieres eliminar esta fuente? Esta acción no se puede deshacer.')) {
+        return;
+    }
+    
+    try {
+        showLoading('Eliminando fuente...');
+        
+        const response = await fetch(`/api/data-sources/${sourceId}`, {
+            method: 'DELETE'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showAlert('Fuente eliminada exitosamente', 'success');
+            if (currentSourceId === sourceId) {
+                currentSourceId = null;
+                document.getElementById('documentsTitle').textContent = 'Seleccionar una fuente';
+                document.getElementById('sourceActions').style.display = 'none';
+                document.getElementById('documentsContent').innerHTML = `
+                    <div class="text-center text-muted py-5">
+                        <i class="fas fa-mouse-pointer fa-2x mb-2"></i>
+                        <p class="mb-0">Selecciona una fuente para ver sus documentos</p>
+                    </div>
+                `;
+            }
+            await refreshAllData();
+        } else {
+            throw new Error(data.error);
+        }
+    } catch (error) {
+        console.error('Error eliminando fuente:', error);
+        showAlert('Error eliminando fuente: ' + error.message, 'danger');
+    } finally {
+        hideLoading();
+    }
+}
+
+// Inicializar tooltips de Bootstrap
+document.addEventListener('DOMContentLoaded', function() {
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+});
+</script>
+{% endblock %}

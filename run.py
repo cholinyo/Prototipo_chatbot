@@ -119,7 +119,7 @@ def register_real_blueprints(app, logger):
         ('app.routes.chat', 'chat_bp', '/chat'),
         ('app.routes.admin', 'admin_bp', '/admin'),
         ('app.routes.api', 'api_bp', '/api'),
-        ('app.routes.data_sources', 'data_sources_bp', '/data-sources'),
+        ('app.routes.data_sources', 'data_sources_api', None),
         ('app.routes.llm_api', 'llm_api_bp', '/api/llm'),
         ('app.routes.rag_pipeline_api', 'rag_api_bp', '/api/rag')
     ]
