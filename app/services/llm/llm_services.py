@@ -10,6 +10,13 @@ from dataclasses import dataclass
 from datetime import datetime
 
 @dataclass
+
+class LLMRequest:
+    """Request para servicios LLM"""
+    query: str
+    context: List[Any] = None
+    temperature: float = 0.7
+    max_tokens: int = 1000 
 class LLMResponse:
     """Respuesta de modelo LLM"""
     content: str

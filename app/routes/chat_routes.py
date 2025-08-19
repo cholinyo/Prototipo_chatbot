@@ -12,20 +12,17 @@ from app.core.logger import get_logger
 
 # NUEVA INTEGRACIÓN: Pipeline RAG mejorado
 try:
-    from app.services.rag.pipeline import get_rag_pipeline
+    from app.services.rag_pipeline import get_rag_pipeline
     RAG_PIPELINE_AVAILABLE = True
 except ImportError:
-    # Fallback a versión anterior si existe
-    try:
-        from app.services.rag_pipeline import get_rag_pipeline, process_chat_query, compare_chat_providers
-        RAG_PIPELINE_AVAILABLE = True
-    except ImportError:
-        RAG_PIPELINE_AVAILABLE = False
-        get_rag_pipeline = None
+    # Fallback si no está disponible
+    RAG_PIPELINE_AVAILABLE = False
+    get_rag_pipeline = None
 
 # Blueprint para el chat
 chat_bp = Blueprint('chat', __name__)
 logger = get_logger("prototipo_chatbot.chat_routes")
+
 
 # Almacenamiento temporal de sesiones de chat (en producción usar Redis/DB)
 chat_sessions = {}

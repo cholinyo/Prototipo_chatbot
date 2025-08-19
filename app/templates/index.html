@@ -333,93 +333,12 @@
 
 {% block extra_scripts %}
 <script>
-// Funciones JavaScript específicas para la página de inicio
+// =============================================================================
+// FUNCIONES AUXILIARES
+// =============================================================================
+
 function showComingSoon(feature) {
     alert(feature + ' se implementará en el siguiente paso del desarrollo.');
-}
-
-// Función específica para el botón de la página index
-function checkIndexSystemStatus() {
-    console.log('🔘 Button clicked: checkIndexSystemStatus');
-    checkIndexPageStatus(); // Llamar a la función específica del index
-}
-
-async function checkIndexPageStatus() {
-    console.log('🔍 Index: Checking system status...');
-    
-    try {
-        // Mostrar estado "verificando..." en todos los elementos
-        updateIndexStatus('vectorstore-status', 'warning', 'Verificando...');
-        updateIndexStatus('local-models-status', 'warning', 'Verificando...');
-        updateIndexStatus('openai-status', 'warning', 'Verificando...');
-        
-        // Llamada real al endpoint /health
-        const response = await fetch('/health');
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        
-        const data = await response.json();
-        console.log('📊 Index: Health check response:', data);
-        
-        // Actualizar Vector Store
-        if (data.components && data.components.vector_store) {
-            const vectorStatus = data.components.vector_store;
-            if (vectorStatus === 'available') {
-                updateIndexStatus('vectorstore-status', 'success', 'Disponible');
-            } else {
-                updateIndexStatus('vectorstore-status', 'danger', 'No disponible');
-            }
-        } else {
-            updateIndexStatus('vectorstore-status', 'danger', 'Error');
-        }
-        
-        // Actualizar Modelos Locales (Ollama)
-        if (data.services && data.services.ollama) {
-            const ollamaStatus = data.services.ollama;
-            if (ollamaStatus === 'available') {
-                // Contar modelos disponibles
-                const modelCount = data.models && data.models.ollama ? 
-                    Object.keys(data.models.ollama).length : 0;
-                if (modelCount > 0) {
-                    updateIndexStatus('local-models-status', 'success', `Disponible (${modelCount} modelos)`);
-                } else {
-                    updateIndexStatus('local-models-status', 'warning', 'Sin modelos');
-                }
-            } else {
-                updateIndexStatus('local-models-status', 'danger', 'No disponible');
-            }
-        } else {
-            updateIndexStatus('local-models-status', 'danger', 'No configurado');
-        }
-        
-        // Actualizar OpenAI API
-        if (data.services && data.services.openai) {
-            const openaiStatus = data.services.openai;
-            if (openaiStatus === 'configured') {
-                updateIndexStatus('openai-status', 'success', 'Configurado');
-            } else if (openaiStatus === 'available') {
-                updateIndexStatus('openai-status', 'success', 'Disponible');
-            } else {
-                updateIndexStatus('openai-status', 'secondary', 'No configurado');
-            }
-        } else {
-            updateIndexStatus('openai-status', 'secondary', 'No configurado');
-        }
-        
-        // Actualizar estadísticas
-        updateStatistics(data);
-        
-        console.log('✅ Index: System status check completed successfully');
-        
-    } catch (error) {
-        console.error('❌ Index: Error checking system status:', error);
-        
-        // Mostrar error en todos los componentes
-        updateIndexStatus('vectorstore-status', 'danger', 'Error de conexión');
-        updateIndexStatus('local-models-status', 'danger', 'Error de conexión');
-        updateIndexStatus('openai-status', 'danger', 'Error de conexión');
-    }
 }
 
 function updateIndexStatus(elementId, status, text) {
@@ -496,6 +415,104 @@ async function updateStatistics(healthData) {
     }
 }
 
+// =============================================================================
+// FUNCIONES PRINCIPALES
+// =============================================================================
+
+// Función específica para el botón de la página index
+function checkIndexSystemStatus() {
+    console.log('🔘 Button clicked: checkIndexSystemStatus');
+    checkIndexPageStatus(); // Llamar a la función específica del index
+}
+
+// ✅ FUNCIÓN PRINCIPAL CORREGIDA - AL NIVEL GLOBAL
+async function checkIndexPageStatus() {
+    console.log('🔍 Index: Checking system status...');
+    
+    try {
+        // Mostrar estado "verificando..." en todos los elementos
+        updateIndexStatus('vectorstore-status', 'warning', 'Verificando...');
+        updateIndexStatus('local-models-status', 'warning', 'Verificando...');
+        updateIndexStatus('openai-status', 'warning', 'Verificando...');
+        
+        // ✅ CORRECCIÓN: Usar /api/status en lugar de /health
+        const response = await fetch('/api/status');
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        console.log('📊 Index: System status response:', data);
+        
+        // ✅ ACTUALIZAR Vector Store usando datos reales
+        if (data.services && data.services.rag) {
+            const ragStatus = data.services.rag.status;
+            const totalDocs = data.services.rag.total_documents || 0;
+            
+            if (ragStatus === 'healthy' && totalDocs > 0) {
+                updateIndexStatus('vectorstore-status', 'success', `${totalDocs} documentos`);
+            } else if (ragStatus === 'warning') {
+                updateIndexStatus('vectorstore-status', 'warning', 'Sin documentos');
+            } else {
+                updateIndexStatus('vectorstore-status', 'danger', 'Error');
+            }
+        } else {
+            updateIndexStatus('vectorstore-status', 'danger', 'No disponible');
+        }
+        
+        // ✅ ACTUALIZAR Modelos Locales (Ollama) usando datos reales
+        if (data.services && data.services.llm && data.services.llm.providers_available) {
+            const ollamaAvailable = data.services.llm.providers_available.ollama;
+            const ollamaModels = data.services.llm.total_models?.ollama || {};
+            const modelCount = Object.keys(ollamaModels).length;
+            
+            if (ollamaAvailable && modelCount > 0) {
+                updateIndexStatus('local-models-status', 'success', `${modelCount} modelos`);
+            } else if (ollamaAvailable) {
+                updateIndexStatus('local-models-status', 'warning', 'Sin modelos');
+            } else {
+                updateIndexStatus('local-models-status', 'danger', 'No disponible');
+            }
+        } else {
+            updateIndexStatus('local-models-status', 'danger', 'No configurado');
+        }
+        
+        // ✅ ACTUALIZAR OpenAI API usando datos reales
+        if (data.services && data.services.llm && data.services.llm.providers_available) {
+            const openaiAvailable = data.services.llm.providers_available.openai;
+            const openaiModels = data.services.llm.total_models?.openai || {};
+            const modelCount = Object.keys(openaiModels).length;
+            
+            if (openaiAvailable && modelCount > 0) {
+                updateIndexStatus('openai-status', 'success', `${modelCount} modelos`);
+            } else if (openaiAvailable) {
+                updateIndexStatus('openai-status', 'warning', 'Configurado');
+            } else {
+                updateIndexStatus('openai-status', 'secondary', 'No configurado');
+            }
+        } else {
+            updateIndexStatus('openai-status', 'secondary', 'No configurado');
+        }
+        
+        // Actualizar estadísticas
+        updateStatistics(data);
+        
+        console.log('✅ Index: System status check completed successfully');
+        
+    } catch (error) {
+        console.error('❌ Index: Error checking system status:', error);
+        
+        // Mostrar error en todos los componentes
+        updateIndexStatus('vectorstore-status', 'danger', 'Error de conexión');
+        updateIndexStatus('local-models-status', 'danger', 'Error de conexión');
+        updateIndexStatus('openai-status', 'danger', 'Error de conexión');
+    }
+}
+
+// =============================================================================
+// INICIALIZACIÓN
+// =============================================================================
+
 // Verificar estado al cargar la página - ESPECÍFICO PARA INDEX
 document.addEventListener('DOMContentLoaded', function() {
     // Esperar un poco más para asegurar que base.html termine de cargar
@@ -509,7 +526,9 @@ document.addEventListener('DOMContentLoaded', function() {
         
         if (vectorElement && modelsElement && openaiElement) {
             console.log('✅ Index status elements found, proceeding with health check');
-            checkIndexPageStatus(); // Llamar a la función específica del index
+            
+            // ✅ LLAMAR a la función (que ya está definida al nivel global)
+            checkIndexPageStatus();
             
             // Actualizar estado cada 30 segundos SOLO para la página index
             setInterval(checkIndexPageStatus, 30000);

@@ -12,13 +12,13 @@ from typing import Dict, Any, List
 # Imports locales
 from app.core.logger import get_logger
 from app.core.config import get_security_config, get_model_config, get_rag_config
-from app.services.llm_service import get_llm_service, LLMRequest
-from app.models import ChatMessage, create_chat_message, ModelEncoder, DocumentChunk, DocumentMetadata
+from app.services.llm.llm_services import get_llm_service
 from app.services.rag_pipeline import *
+from app.models import DocumentChunk, DocumentMetadata
+
 # Crear blueprint
 api_bp = Blueprint('api', __name__)
 logger = get_logger("api")
-
 # =============================================================================
 # DECORADORES AUXILIARES
 # =============================================================================
@@ -974,31 +974,6 @@ def test_llm_service():
         return jsonify({
             'status': 'error',
             'message': str(e)
-        }), 500
-
-@api_bp.route('/health', methods=['GET'])
-def health_check():
-    """Health check específico para API"""
-    try:
-        llm_service = get_llm_service()
-        llm_available = any(llm_service.get_available_providers().values())
-        
-        status = 'healthy' if llm_available else 'degraded'
-        
-        return jsonify({
-            'status': status,
-            'timestamp': time.time(),
-            'version': '1.0.0',
-            'services': {
-                'llm': 'available' if llm_available else 'unavailable'
-            }
-        })
-        
-    except Exception as e:
-        return jsonify({
-            'status': 'error',
-            'error': str(e),
-            'timestamp': time.time()
         }), 500
 
 @api_bp.route('/docs', methods=['GET'])

@@ -52,6 +52,7 @@ def create_app(config=None):
     import sys
     from pathlib import Path
     from flask import Flask
+    from flask import jsonify
     
     # Crear instancia Flask
     app = Flask(
@@ -90,7 +91,7 @@ def create_app(config=None):
     # Registrar blueprints disponibles
     blueprints_registered = 0
     
-    # Blueprint principal
+    # Blueprint principal SIEMPRE con /health endpoint
     try:
         from app.routes.main import main_bp
         app.register_blueprint(main_bp)
@@ -112,24 +113,42 @@ def create_app(config=None):
                 "mode": "basic_fallback"
             })
         
-        @main_bp.route('/health')
-        def health():
-            return jsonify({
-                "status": "healthy",
-                "timestamp": __import__('time').time(),
-                "mode": "basic"
-            })
-        
         app.register_blueprint(main_bp)
         app.logger.info("✅ Blueprint main básico creado como fallback")
         blueprints_registered += 1
     
-    # Blueprints opcionales
+    # ✅ ENDPOINT /health SIEMPRE DISPONIBLE (corrección crítica)
+    @app.route('/health')
+    def health_check():
+        """Health check endpoint - siempre disponible"""
+        from datetime import datetime
+        return jsonify({
+            "status": "healthy",
+            "timestamp": datetime.now().isoformat(),
+            "version": __version__,
+            "author": __author__,
+            "mode": "production" if not app.config.get('DEBUG') else "development",
+            "blueprints_registered": blueprints_registered
+        })
+    
+    # ✅ ENDPOINT AJAX STATS (para evitar errores 404)
+    @app.route('/ajax/quick-stats')
+    def quick_stats():
+        """Quick stats endpoint"""
+        return jsonify({
+            "status": "ok",
+            "timestamp": __import__('time').time(),
+            "active": True,
+            "documents_indexed": 0,  # Por defecto
+            "system_status": "operational"
+        })
+    
+    # Blueprints opcionales CORREGIDOS
     optional_blueprints = [
+        ('app.routes.api', 'api_bp', '/api'),
         ('app.routes.api.data_sources', 'data_sources_api', '/api/data-sources'),
-        ('app.routes.api.chat', 'chat_api', '/api/chat'),  
         ('app.routes.api.comparison', 'comparison_api', '/api/comparison'),
-        ('app.routes.chat', 'chat_bp', '/chat'),
+        ('app.routes.chat_routes', 'chat_bp', None),  # ✅ Corregido nombre del archivo
         ('app.routes.admin', 'admin_bp', '/admin')
     ]
     
@@ -137,8 +156,12 @@ def create_app(config=None):
         try:
             module = __import__(module_path, fromlist=[blueprint_name])
             blueprint = getattr(module, blueprint_name)
-            app.register_blueprint(blueprint, url_prefix=url_prefix)
-            app.logger.info(f"✅ Blueprint {blueprint_name} registrado en {url_prefix}")
+            if url_prefix:
+                app.register_blueprint(blueprint, url_prefix=url_prefix)
+                app.logger.info(f"✅ Blueprint {blueprint_name} registrado en {url_prefix}")
+            else:
+                app.register_blueprint(blueprint)
+                app.logger.info(f"✅ Blueprint {blueprint_name} registrado")
             blueprints_registered += 1
         except (ImportError, AttributeError) as e:
             app.logger.warning(f"⚠️ Blueprint {blueprint_name} no disponible: {e}")

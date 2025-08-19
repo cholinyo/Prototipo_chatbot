@@ -22,7 +22,8 @@ import time
 from typing import Dict, Any, List, Optional, Tuple
 from pathlib import Path
 
-from Prototipo_chatbot.app.services.ingestion import ingestion_service
+# ✅ LÍNEA CORREGIDA:
+from app.services.ingestion import ingestion_service
 from app.core.logger import get_logger
 
 class RAGPipeline:

@@ -1,0 +1,773 @@
+<!-- 
+ARCHIVO: app/templates/models/dashboard.html
+Dashboard principal de gestión de modelos
+-->
+
+{% extends "base.html" %}
+
+{% block title %}Gestión de Modelos - {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <h1 class="display-6">
+                <i class="fas fa-brain me-3"></i>
+                Gestión de Modelos IA
+            </h1>
+            <p class="lead">Administra modelos locales (Ollama) y externos (OpenAI)</p>
+        </div>
+    </div>
+
+    <!-- Estado de Conexiones -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card border-primary">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-server me-2"></i>
+                        Ollama (Local)
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <span>Estado:</span>
+                        <span class="badge bg-secondary" id="ollama-status">
+                            <i class="fas fa-clock me-1"></i>Verificando...
+                        </span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <span>Modelos disponibles:</span>
+                        <span id="ollama-models-count">-</span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span>Tiempo de respuesta:</span>
+                        <span id="ollama-response-time">-</span>
+                    </div>
+                    <hr>
+                    <div class="d-grid gap-2">
+                        <a href="{{ url_for('models.ollama_models') }}" class="btn btn-primary">
+                            <i class="fas fa-cog me-2"></i>Gestionar Ollama
+                        </a>
+                        <button class="btn btn-outline-primary" onclick="testOllamaConnection()">
+                            <i class="fas fa-plug me-2"></i>Probar Conexión
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="card border-info">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-cloud me-2"></i>
+                        OpenAI (Externo)
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <span>Estado:</span>
+                        <span class="badge bg-secondary" id="openai-status">
+                            <i class="fas fa-clock me-1"></i>Verificando...
+                        </span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <span>API Key:</span>
+                        <span id="openai-api-status">-</span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span>Modelos disponibles:</span>
+                        <span id="openai-models-count">-</span>
+                    </div>
+                    <hr>
+                    <div class="d-grid gap-2">
+                        <a href="{{ url_for('models.openai_models') }}" class="btn btn-info">
+                            <i class="fas fa-cog me-2"></i>Gestionar OpenAI
+                        </a>
+                        <button class="btn btn-outline-info" onclick="testOpenAIConnection()">
+                            <i class="fas fa-plug me-2"></i>Probar Conexión
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Acciones Rápidas -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-bolt me-2"></i>
+                        Acciones Rápidas
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3 mb-3">
+                            <button class="btn btn-success w-100" onclick="openFinetuneModal()">
+                                <i class="fas fa-magic me-2"></i>
+                                Fine-tune Modelo
+                            </button>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <button class="btn btn-warning w-100" onclick="runBenchmarks()">
+                                <i class="fas fa-chart-line me-2"></i>
+                                Ejecutar Benchmarks
+                            </button>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <button class="btn btn-info w-100" onclick="openComparisonTool()">
+                                <i class="fas fa-balance-scale me-2"></i>
+                                Comparar Modelos
+                            </button>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <button class="btn btn-secondary w-100" onclick="refreshAllStats()">
+                                <i class="fas fa-sync-alt me-2"></i>
+                                Actualizar Todo
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Estadísticas Generales -->
+    <div class="row">
+        <div class="col-md-3 mb-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <i class="fas fa-server fa-2x text-primary mb-3"></i>
+                    <h4 id="total-local-models">-</h4>
+                    <p class="text-muted">Modelos Locales</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <i class="fas fa-cloud fa-2x text-info mb-3"></i>
+                    <h4 id="total-openai-models">4</h4>
+                    <p class="text-muted">Modelos OpenAI</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <i class="fas fa-comments fa-2x text-success mb-3"></i>
+                    <h4 id="total-requests">-</h4>
+                    <p class="text-muted">Consultas Totales</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <i class="fas fa-tachometer-alt fa-2x text-warning mb-3"></i>
+                    <h4 id="avg-response-time">-</h4>
+                    <p class="text-muted">Tiempo Promedio (s)</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Fine-tuning -->
+<div class="modal fade" id="finetuneModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-magic me-2"></i>
+                    Fine-tune Modelo Local
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="finetuneForm">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Modelo Base</label>
+                            <select class="form-select" id="baseModel" required>
+                                <option value="">Seleccionar modelo...</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Nombre Nuevo Modelo</label>
+                            <input type="text" class="form-control" id="newModelName" 
+                                   placeholder="mi-modelo-personalizado" required>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">System Prompt Personalizado</label>
+                        <textarea class="form-control" id="systemPrompt" rows="3"
+                                  placeholder="Eres un asistente especializado en administración pública local..."></textarea>
+                    </div>
+                    
+                    <h6 class="mb-3">Parámetros del Modelo</h6>
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Temperature</label>
+                            <input type="range" class="form-range" id="temperature" 
+                                   min="0" max="1" step="0.1" value="0.7">
+                            <small class="text-muted">Valor: <span id="temperatureValue">0.7</span></small>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Top K</label>
+                            <input type="range" class="form-range" id="topK" 
+                                   min="1" max="100" value="40">
+                            <small class="text-muted">Valor: <span id="topKValue">40</span></small>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Top P</label>
+                            <input type="range" class="form-range" id="topP" 
+                                   min="0" max="1" step="0.1" value="0.9">
+                            <small class="text-muted">Valor: <span id="topPValue">0.9</span></small>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Context Length</label>
+                            <select class="form-select" id="numCtx">
+                                <option value="1024">1024 tokens</option>
+                                <option value="2048" selected>2048 tokens</option>
+                                <option value="4096">4096 tokens</option>
+                                <option value="8192">8192 tokens</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Max Tokens</label>
+                            <input type="number" class="form-control" id="numPredict" 
+                                   value="128" min="1" max="2048">
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-success" onclick="performFineTuning()">
+                    <i class="fas fa-magic me-2"></i>Iniciar Fine-tuning
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Variables globales
+let ollamaModels = [];
+let openaiModels = {};
+
+// Inicialización
+document.addEventListener('DOMContentLoaded', function() {
+    checkConnections();
+    loadModelsData();
+    setupEventListeners();
+});
+
+function setupEventListeners() {
+    // Actualizar valores de los sliders en tiempo real
+    document.getElementById('temperature').addEventListener('input', function() {
+        document.getElementById('temperatureValue').textContent = this.value;
+    });
+    
+    document.getElementById('topK').addEventListener('input', function() {
+        document.getElementById('topKValue').textContent = this.value;
+    });
+    
+    document.getElementById('topP').addEventListener('input', function() {
+        document.getElementById('topPValue').textContent = this.value;
+    });
+}
+
+async function checkConnections() {
+    try {
+        const response = await fetch('/models/api/connection/test');
+        const data = await response.json();
+        
+        // Actualizar estado Ollama
+        updateConnectionStatus('ollama', data.ollama);
+        
+        // Actualizar estado OpenAI
+        updateConnectionStatus('openai', data.openai);
+        
+    } catch (error) {
+        console.error('Error checking connections:', error);
+        updateConnectionStatus('ollama', {status: 'error', error: 'Connection failed'});
+        updateConnectionStatus('openai', {status: 'error', error: 'Connection failed'});
+    }
+}
+
+function updateConnectionStatus(service, status) {
+    const statusElement = document.getElementById(`${service}-status`);
+    
+    if (status.status === 'connected') {
+        statusElement.className = 'badge bg-success';
+        statusElement.innerHTML = '<i class="fas fa-check-circle me-1"></i>Conectado';
+        
+        if (service === 'ollama') {
+            document.getElementById('ollama-models-count').textContent = status.models_available || 0;
+            document.getElementById('ollama-response-time').textContent = 
+                status.response_time ? `${(status.response_time * 1000).toFixed(0)}ms` : '-';
+        } else {
+            document.getElementById('openai-api-status').innerHTML = 
+                '<span class="badge bg-success">Válida</span>';
+            document.getElementById('openai-models-count').textContent = status.models_available || 0;
+        }
+        
+    } else {
+        statusElement.className = 'badge bg-danger';
+        statusElement.innerHTML = '<i class="fas fa-times-circle me-1"></i>Error';
+        
+        if (service === 'openai' && status.error?.includes('API key')) {
+            document.getElementById('openai-api-status').innerHTML = 
+                '<span class="badge bg-danger">Inválida</span>';
+        }
+    }
+}
+
+async function loadModelsData() {
+    try {
+        // Cargar modelos Ollama
+        const ollamaResponse = await fetch('/models/api/ollama/models');
+        if (ollamaResponse.ok) {
+            ollamaModels = await ollamaResponse.json();
+            document.getElementById('total-local-models').textContent = ollamaModels.length;
+            populateBaseModelSelect();
+        }
+        
+        // Cargar modelos OpenAI
+        const openaiResponse = await fetch('/models/api/openai/models');
+        if (openaiResponse.ok) {
+            openaiModels = await openaiResponse.json();
+        }
+        
+    } catch (error) {
+        console.error('Error loading models data:', error);
+    }
+}
+
+function populateBaseModelSelect() {
+    const select = document.getElementById('baseModel');
+    select.innerHTML = '<option value="">Seleccionar modelo...</option>';
+    
+    ollamaModels.forEach(model => {
+        const option = document.createElement('option');
+        option.value = model.name;
+        option.textContent = `${model.name} (${model.size})`;
+        select.appendChild(option);
+    });
+}
+
+function openFinetuneModal() {
+    if (ollamaModels.length === 0) {
+        alert('No hay modelos Ollama disponibles. Descarga un modelo primero.');
+        return;
+    }
+    
+    const modal = new bootstrap.Modal(document.getElementById('finetuneModal'));
+    modal.show();
+}
+
+async function performFineTuning() {
+    const baseModel = document.getElementById('baseModel').value;
+    const newModelName = document.getElementById('newModelName').value;
+    const systemPrompt = document.getElementById('systemPrompt').value;
+    
+    if (!baseModel || !newModelName) {
+        alert('Por favor, completa los campos requeridos.');
+        return;
+    }
+    
+    const parameters = {
+        temperature: parseFloat(document.getElementById('temperature').value),
+        top_k: parseInt(document.getElementById('topK').value),
+        top_p: parseFloat(document.getElementById('topP').value),
+        num_ctx: parseInt(document.getElementById('numCtx').value),
+        num_predict: parseInt(document.getElementById('numPredict').value)
+    };
+    
+    const button = event.target;
+    const originalText = button.innerHTML;
+    button.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Procesando...';
+    button.disabled = true;
+    
+    try {
+        const response = await fetch('/models/api/ollama/fine-tune', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                base_model: baseModel,
+                new_model_name: newModelName,
+                parameters: parameters,
+                system_prompt: systemPrompt
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+            alert(`Fine-tuning completado: ${newModelName}`);
+            bootstrap.Modal.getInstance(document.getElementById('finetuneModal')).hide();
+            loadModelsData(); // Recargar lista de modelos
+        } else {
+            alert(`Error: ${result.error}`);
+        }
+        
+    } catch (error) {
+        console.error('Error en fine-tuning:', error);
+        alert('Error durante el fine-tuning. Consulta la consola.');
+    } finally {
+        button.innerHTML = originalText;
+        button.disabled = false;
+    }
+}
+
+async function testOllamaConnection() {
+    const button = event.target;
+    const originalText = button.innerHTML;
+    button.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Probando...';
+    button.disabled = true;
+    
+    try {
+        const response = await fetch('/models/api/connection/test');
+        const data = await response.json();
+        updateConnectionStatus('ollama', data.ollama);
+    } catch (error) {
+        updateConnectionStatus('ollama', {status: 'error', error: 'Connection test failed'});
+    } finally {
+        button.innerHTML = originalText;
+        button.disabled = false;
+    }
+}
+
+async function testOpenAIConnection() {
+    const button = event.target;
+    const originalText = button.innerHTML;
+    button.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Probando...';
+    button.disabled = true;
+    
+    try {
+        const response = await fetch('/models/api/connection/test');
+        const data = await response.json();
+        updateConnectionStatus('openai', data.openai);
+    } catch (error) {
+        updateConnectionStatus('openai', {status: 'error', error: 'Connection test failed'});
+    } finally {
+        button.innerHTML = originalText;
+        button.disabled = false;
+    }
+}
+
+function runBenchmarks() {
+    alert('Función de benchmarks en desarrollo. Se implementará próximamente.');
+}
+
+function openComparisonTool() {
+    window.location.href = '/comparar';
+}
+
+function refreshAllStats() {
+    checkConnections();
+    loadModelsData();
+}
+</script>
+
+<!-- 
+ARCHIVO: app/templates/models/ollama.html
+Página específica para gestión de modelos Ollama
+-->
+
+{% extends "base.html" %}
+
+{% block title %}Modelos Ollama - {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col-12">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{{ url_for('models.models_dashboard') }}">Modelos</a></li>
+                    <li class="breadcrumb-item active">Ollama</li>
+                </ol>
+            </nav>
+            
+            <h1 class="display-6">
+                <i class="fas fa-server me-3"></i>
+                Gestión de Modelos Ollama
+            </h1>
+        </div>
+    </div>
+
+    <!-- Estado de Conexión -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-md-8">
+                            <h5 class="mb-0">Estado de Ollama</h5>
+                            <p class="text-muted mb-0">
+                                {% if connection_status.status == 'connected' %}
+                                    <span class="badge bg-success me-2">Conectado</span>
+                                    Tiempo de respuesta: {{ "%.0f"|format(connection_status.response_time * 1000) }}ms
+                                {% else %}
+                                    <span class="badge bg-danger me-2">Desconectado</span>
+                                    {{ connection_status.error or 'Error de conexión' }}
+                                {% endif %}
+                            </p>
+                        </div>
+                        <div class="col-md-4 text-end">
+                            <button class="btn btn-outline-primary" onclick="refreshConnection()">
+                                <i class="fas fa-sync-alt me-2"></i>Actualizar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Acciones -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Acciones</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="modelToPull" 
+                                       placeholder="llama3.2:3b">
+                                <button class="btn btn-success" onclick="pullModel()">
+                                    <i class="fas fa-download me-2"></i>Descargar
+                                </button>
+                            </div>
+                            <small class="text-muted">Ejemplo: llama3.2:3b, mistral:7b, gemma2:2b</small>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <button class="btn btn-primary me-2" onclick="openFinetuneModal()">
+                                <i class="fas fa-magic me-2"></i>Fine-tune
+                            </button>
+                            <button class="btn btn-info" onclick="runModelTests()">
+                                <i class="fas fa-vial me-2"></i>Probar Todos
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Lista de Modelos -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        Modelos Disponibles ({{ models|length }})
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if models %}
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Nombre</th>
+                                        <th>Tamaño</th>
+                                        <th>Familia</th>
+                                        <th>Modificado</th>
+                                        <th>Estadísticas</th>
+                                        <th>Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for model in models %}
+                                    <tr>
+                                        <td>
+                                            <strong>{{ model.name }}</strong>
+                                            {% if model.family %}
+                                                <br><small class="text-muted">{{ model.family }}</small>
+                                            {% endif %}
+                                        </td>
+                                        <td>{{ model.size }}</td>
+                                        <td>{{ model.family or '-' }}</td>
+                                        <td>{{ model.modified[:10] if model.modified else '-' }}</td>
+                                        <td>
+                                            <div class="stats-container" id="stats-{{ loop.index0 }}">
+                                                <small class="text-muted">Cargando...</small>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <div class="btn-group btn-group-sm">
+                                                <button class="btn btn-outline-success" 
+                                                        onclick="testModel('{{ model.name }}')"
+                                                        title="Probar modelo">
+                                                    <i class="fas fa-play"></i>
+                                                </button>
+                                                <button class="btn btn-outline-info" 
+                                                        onclick="showModelDetails('{{ model.name }}')"
+                                                        title="Ver detalles">
+                                                    <i class="fas fa-info-circle"></i>
+                                                </button>
+                                                <button class="btn btn-outline-danger" 
+                                                        onclick="deleteModel('{{ model.name }}')"
+                                                        title="Eliminar modelo">
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-4">
+                            <i class="fas fa-robot fa-3x text-muted mb-3"></i>
+                            <h5>No hay modelos disponibles</h5>
+                            <p class="text-muted">Descarga tu primer modelo usando el campo de arriba.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Cargar estadísticas al inicializar
+document.addEventListener('DOMContentLoaded', function() {
+    loadAllModelStats();
+});
+
+async function loadAllModelStats() {
+    const models = {{ models|tojson }};
+    
+    for (let i = 0; i < models.length; i++) {
+        try {
+            const response = await fetch(`/models/api/ollama/stats/${models[i].name}`);
+            const stats = await response.json();
+            
+            const statsContainer = document.getElementById(`stats-${i}`);
+            statsContainer.innerHTML = `
+                <small>
+                    <div>Tiempo: ${stats.response_time.toFixed(2)}s</div>
+                    <div>CPU: ${stats.cpu_usage.toFixed(1)}%</div>
+                    <div>Requests: ${stats.total_requests}</div>
+                </small>
+            `;
+        } catch (error) {
+            console.error(`Error loading stats for ${models[i].name}:`, error);
+        }
+    }
+}
+
+async function testModel(modelName) {
+    const testPrompt = prompt('Introduce el prompt de prueba:', 'Hola, ¿cómo estás?');
+    if (!testPrompt) return;
+    
+    try {
+        const response = await fetch(`/models/api/ollama/test/${modelName}`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({prompt: testPrompt})
+        });
+        
+        const result = await response.json();
+        
+        if (result.status === 'success') {
+            alert(`Prueba exitosa!\n\nTiempo: ${result.response_time.toFixed(2)}s\nTokens/s: ${result.tokens_per_second.toFixed(1)}\nCPU: ${result.cpu_usage.toFixed(1)}%`);
+        } else {
+            alert(`Error: ${result.error}`);
+        }
+        
+        // Recargar estadísticas
+        loadAllModelStats();
+        
+    } catch (error) {
+        alert('Error durante la prueba. Consulta la consola.');
+        console.error(error);
+    }
+}
+
+async function pullModel() {
+    const modelName = document.getElementById('modelToPull').value.trim();
+    if (!modelName) {
+        alert('Introduce el nombre del modelo a descargar.');
+        return;
+    }
+    
+    if (!confirm(`¿Descargar el modelo ${modelName}? Esto puede tomar varios minutos.`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/models/api/ollama/pull', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({model_name: modelName})
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+            alert(`Descarga iniciada para ${modelName}. Revisa los logs para el progreso.`);
+            document.getElementById('modelToPull').value = '';
+            
+            // Recargar página después de un tiempo
+            setTimeout(() => location.reload(), 5000);
+        } else {
+            alert(`Error: ${result.error}`);
+        }
+        
+    } catch (error) {
+        alert('Error durante la descarga. Consulta la consola.');
+        console.error(error);
+    }
+}
+
+async function deleteModel(modelName) {
+    if (!confirm(`¿Eliminar el modelo ${modelName}? Esta acción no se puede deshacer.`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/models/api/ollama/delete', {
+            method: 'DELETE',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({model_name: modelName})
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+            alert(`Modelo ${modelName} eliminado correctamente.`);
+            location.reload();
+        } else {
+            alert(`Error: ${result.error}`);
+        }
+        
+    } catch (error) {
+        alert('Error durante la eliminación. Consulta la consola.');
+        console.error(error);
+    }
+}
+
+function refreshConnection() {
+    location.reload();
+}
+</script>
+{% endblock %}
