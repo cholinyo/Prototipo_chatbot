@@ -1,37 +1,34 @@
+#!/usr/bin/env python3
 """
-Prototipo_chatbot - TFM Vicente Caruncho Ramos
-Universitat Jaume I - Sistemas Inteligentes
-
-Sistema RAG para Administraciones Locales
+Quick Fix - Añadir create_app al app/__init__.py existente
+TFM Vicente Caruncho - Sistemas Inteligentes UJI
 """
+import os
+from pathlib import Path
 
-__version__ = "1.0.0"
-__author__ = "Vicente Caruncho Ramos"
-__university__ = "Universitat Jaume I"
-__project__ = "Prototipo de Chatbot RAG para Administraciones Locales"
-
-# Importaciones principales (con manejo de errores)
-try:
-    from .models.document import DocumentChunk, DocumentMetadata
-except ImportError:
-    DocumentChunk = None
-    DocumentMetadata = None
-
-try:
-    from .services.rag.embeddings import embedding_service
-except ImportError:
-    embedding_service = None
-
-def get_project_info():
-    """Informacion del proyecto"""
-    return {
-        "name": __project__,
-        "version": __version__,
-        "author": __author__,
-        "university": __university__,
-        "status": "TFM Development"
-    }
-
+def fix_app_init():
+    """Añadir función create_app al app/__init__.py existente"""
+    project_root = Path(__file__).parent.parent
+    app_init_path = project_root / "app" / "__init__.py"
+    
+    print("🔧 Quick Fix - Añadiendo create_app a app/__init__.py")
+    print("=" * 50)
+    
+    # Leer contenido actual
+    if app_init_path.exists():
+        current_content = app_init_path.read_text(encoding='utf-8')
+        print(f"📄 Archivo existente: {len(current_content.split())} líneas")
+    else:
+        current_content = '"""Rutas de la aplicacion"""\n'
+        print("📄 Archivo no existe, creando nuevo")
+    
+    # Verificar si ya tiene create_app
+    if 'def create_app' in current_content:
+        print("✅ create_app ya existe en app/__init__.py")
+        return True
+    
+    # Contenido adicional para añadir
+    create_app_function = '''
 
 # =============================================================================
 # APPLICATION FACTORY
@@ -183,3 +180,53 @@ def create_app(config=None):
 def get_app():
     """Obtener instancia de la aplicación (para compatibilidad)"""
     return create_app()
+'''
+    
+    # Combinar contenido actual + nueva función
+    new_content = current_content + create_app_function
+    
+    # Crear backup
+    backup_path = project_root / "backup_reorganization" / "app_init_original.py"
+    backup_path.parent.mkdir(exist_ok=True)
+    backup_path.write_text(current_content, encoding='utf-8')
+    
+    # Escribir nuevo contenido
+    app_init_path.write_text(new_content, encoding='utf-8')
+    
+    print(f"💾 Backup original: {backup_path}")
+    print(f"✅ create_app añadida a app/__init__.py")
+    print(f"📊 Líneas añadidas: {len(create_app_function.split('\\n'))}")
+    
+    return True
+
+def main():
+    """Función principal del quick fix"""
+    print("🎓 TFM Vicente Caruncho - Quick Fix create_app")
+    
+    try:
+        success = fix_app_init()
+        
+        if success:
+            print("\\n🎉 ¡Quick fix completado!")
+            print("\\n💡 Próximos pasos:")
+            print("   1. Probar aplicación: python run.py")
+            print("   2. Verificar funcionamiento en: http://localhost:5000")
+            print("   3. Si funciona, continuar con siguientes fases")
+            return True
+        else:
+            return False
+            
+    except Exception as e:
+        print(f"❌ Error en quick fix: {e}")
+        return False
+
+if __name__ == "__main__":
+    success = main()
+    if success:
+        print("\\n🚀 ¡Listo para probar run.py!")
+        import sys
+        sys.exit(0)
+    else:
+        print("\\n⚠️ Quick fix falló.")
+        import sys
+        sys.exit(1)
