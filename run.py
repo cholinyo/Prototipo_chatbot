@@ -188,7 +188,7 @@ def create_fallback_template(app_config):
     """
 
 
-def register_blueprints(app, logger):
+def register_blueprints(app):
     """Registrar blueprints de la aplicación MEJORADO"""
     logger.info("Registrando blueprints...")
 
@@ -1106,7 +1106,7 @@ def main():
         app.start_time = time.time()
 
         # Registrar blueprints
-        registered_blueprints = register_blueprints(app, logger)
+        registered_blueprints = register_blueprints(app)
 
         # Configurar rutas principales
         setup_routes(app, app_config, logger)
@@ -1157,6 +1157,88 @@ def main():
         print("   6. Revisar logs en logs/ para más detalles")
         sys.exit(1)
 
+# Actualizar la función register_blueprints en run.py
+
+def register_blueprints(app):
+    """Registrar blueprints de la aplicación"""
+    try:
+        # Blueprint principal
+        from app.routes.main import main_bp
+        app.register_blueprint(main_bp)
+        print("✅ Blueprint main registrado")
+        
+        # Blueprint API para fuentes de datos
+        try:
+            from app.routes.api.data_sources import data_sources_api
+            app.register_blueprint(data_sources_api)
+            print("✅ Blueprint data_sources_api registrado")
+        except ImportError as e:
+            print(f"⚠️ Blueprint data_sources_api no disponible: {e}")
+        
+        # Blueprint API para chat (si existe)
+        try:
+            from app.routes.api.chat import chat_api
+            app.register_blueprint(chat_api)
+            print("✅ Blueprint chat_api registrado")
+        except ImportError as e:
+            print(f"⚠️ Blueprint chat_api no disponible: {e}")
+        
+        # Blueprint API para comparación (si existe)
+        try:
+            from app.routes.api.comparison import comparison_api
+            app.register_blueprint(comparison_api)
+            print("✅ Blueprint comparison_api registrado")
+        except ImportError as e:
+            print(f"⚠️ Blueprint comparison_api no disponible: {e}")
+            
+    except Exception as e:
+        print(f"❌ Error registrando blueprints: {e}")
+        # Registrar solo main como fallback
+        try:
+            from app.routes.main import main_bp
+            app.register_blueprint(main_bp)
+            print("✅ Blueprint main registrado como fallback")
+        except Exception as fallback_error:
+            print(f"❌ Error crítico registrando blueprint main: {fallback_error}")
+
+# También agregar la creación de directorios necesarios en create_missing_files():
+
+def create_missing_files():
+    """Crear archivos y directorios faltantes"""
+    try:
+        # Directorios necesarios
+        directories = [
+            'app', 'app/routes', 'app/routes/api', 'app/core', 'app/services', 
+            'app/models', 'app/templates', 'app/static', 'app/static/css', 
+            'app/static/js', 'config', 'data', 'data/vectorstore', 
+            'data/vectorstore/faiss', 'data/vectorstore/chromadb',
+            'data/ingestion',  # <- Nuevo directorio para almacenar datos de ingesta
+            'data/cache', 'data/cache/embeddings', 'logs', 'tests'
+        ]
+        
+        for directory in directories:
+            dir_path = project_root / directory
+            dir_path.mkdir(parents=True, exist_ok=True)
+        
+        # Archivos __init__.py necesarios
+        init_files = [
+            'app/__init__.py',
+            'app/routes/__init__.py', 
+            'app/routes/api/__init__.py',
+            'app/core/__init__.py',
+            'app/services/__init__.py',
+            'app/models/__init__.py'
+        ]
+        
+        for init_file in init_files:
+            init_path = project_root / init_file
+            if not init_path.exists():
+                init_path.write_text('"""Package initialization"""')
+        
+        print("✅ Directorios y archivos necesarios creados")
+        
+    except Exception as e:
+        print(f"⚠️ Error creando archivos: {e}")
 
 if __name__ == "__main__":
     main()

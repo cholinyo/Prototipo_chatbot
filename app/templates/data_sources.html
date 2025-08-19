@@ -1,634 +1,989 @@
-{% extends "base.html" %}
-
-{% block title %}{{ app_name or 'Prototipo_chatbot' }} - Configuración de Fuentes de Datos{% endblock %}
-
-{% block extra_head %}
-<style>
-    .stats-dashboard {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        border-radius: 15px;
-        color: white;
-        margin-bottom: 2rem;
-    }
+<!DOCTYPE html>
+<html lang="es" data-bs-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fuentes de Datos - Prototipo Chatbot TFM</title>
     
-    .stats-card {
-        background: rgba(255, 255, 255, 0.1);
-        border-radius: 10px;
-        backdrop-filter: blur(10px);
-        border: 1px solid rgba(255, 255, 255, 0.2);
-        transition: all 0.3s ease;
-    }
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/custom.css') }}">
     
-    .stats-card:hover {
-        background: rgba(255, 255, 255, 0.15);
-        transform: translateY(-2px);
-    }
-    
-    .source-tabs .nav-link {
-        border-radius: 8px 8px 0 0;
-        margin-right: 0.25rem;
-        font-weight: 500;
-    }
-    
-    .source-tabs .nav-link.active {
-        background-color: #f8f9fa;
-        border-color: #dee2e6 #dee2e6 #f8f9fa;
-    }
-    
-    .source-section {
-        border: 1px solid #dee2e6;
-        border-radius: 0 10px 10px 10px;
-        background: #fff;
-        box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
-    }
-    
-    .source-table {
-        margin-bottom: 0;
-    }
-    
-    .source-table th {
-        background-color: #f8f9fa;
-        border-bottom: 2px solid #dee2e6;
-        font-weight: 600;
-    }
-    
-    .status-badge {
-        font-size: 0.75rem;
-        padding: 0.25rem 0.5rem;
-    }
-    
-    .action-buttons .btn {
-        margin-right: 0.25rem;
-        margin-bottom: 0.25rem;
-    }
-    
-    .add-source-form {
-        background: #f8f9fa;
-        border-radius: 10px;
-        border: 2px dashed #dee2e6;
-        margin-top: 1rem;
-        transition: all 0.3s ease;
-    }
-    
-    .add-source-form:hover {
-        border-color: #0d6efd;
-        background: #e7f3ff;
-    }
-    
-    .source-type-icon {
-        font-size: 2rem;
-        margin-bottom: 1rem;
-    }
-    
-    .connection-test {
-        min-width: 120px;
-    }
-    
-    .sync-progress {
-        height: 4px;
-        border-radius: 2px;
-        overflow: hidden;
-        background: #e9ecef;
-    }
-    
-    .sync-progress-bar {
-        height: 100%;
-        background: linear-gradient(45deg, #28a745, #20c997);
-        animation: syncAnimation 2s ease-in-out infinite;
-    }
-    
-    @keyframes syncAnimation {
-        0%, 100% { width: 0%; }
-        50% { width: 100%; }
-    }
-    
-    .source-preview {
-        max-height: 200px;
-        overflow-y: auto;
-        background: #f8f9fa;
-        border-radius: 5px;
-        font-family: 'Courier New', monospace;
-        font-size: 0.875rem;
-    }
-</style>
-{% endblock %}
-
-{% block content %}
-<div class="container-fluid">
-    <!-- Dashboard de Estadísticas -->
-    <div class="stats-dashboard p-4 mb-4">
+    <style>
+        .source-card {
+            transition: all 0.3s ease;
+            border-left: 4px solid #dee2e6;
+        }
+        
+        .source-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        
+        .source-card.status-active {
+            border-left-color: #198754;
+        }
+        
+        .source-card.status-processing {
+            border-left-color: #fd7e14;
+        }
+        
+        .source-card.status-error {
+            border-left-color: #dc3545;
+        }
+        
+        .source-card.status-inactive {
+            border-left-color: #6c757d;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+        
+        .stat-item {
+            text-align: center;
+            padding: 1rem;
+            background: var(--bs-light);
+            border-radius: 8px;
+            border: 1px solid var(--bs-border-color);
+        }
+        
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--bs-primary);
+        }
+        
+        .stat-label {
+            font-size: 0.875rem;
+            color: var(--bs-secondary);
+            margin-top: 0.25rem;
+        }
+        
+        .progress-wrapper {
+            position: relative;
+            margin-bottom: 0.5rem;
+        }
+        
+        .progress-text {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 0.75rem;
+            font-weight: 500;
+            z-index: 10;
+            color: #000;
+        }
+        
+        .directory-list {
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        
+        .file-browser {
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid var(--bs-border-color);
+            border-radius: 6px;
+            padding: 0.5rem;
+        }
+        
+        .file-item {
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        
+        .file-item:hover {
+            background-color: var(--bs-light);
+        }
+        
+        .file-item.selected {
+            background-color: var(--bs-primary);
+            color: white;
+        }
+        
+        .extension-chip {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            margin: 0.125rem;
+            background-color: var(--bs-light);
+            border: 1px solid var(--bs-border-color);
+            border-radius: 12px;
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .extension-chip.selected {
+            background-color: var(--bs-primary);
+            color: white;
+            border-color: var(--bs-primary);
+        }
+        
+        .logs-container {
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 0.875rem;
+        }
+        
+        .log-entry {
+            padding: 0.5rem;
+            border-bottom: 1px solid var(--bs-border-color);
+            display: flex;
+            align-items: flex-start;
+            gap: 0.5rem;
+        }
+        
+        .log-timestamp {
+            color: var(--bs-secondary);
+            white-space: nowrap;
+            font-size: 0.75rem;
+        }
+        
+        .log-status {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-top: 0.5rem;
+            flex-shrink: 0;
+        }
+        
+        .log-status.success { background-color: #198754; }
+        .log-status.error { background-color: #dc3545; }
+        .log-status.processing { background-color: #fd7e14; }
+        .log-status.skipped { background-color: #6c757d; }
+        
+        .modal-lg {
+            max-width: 900px;
+        }
+        
+        .sync-animation {
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
         <div class="container">
-            <div class="row align-items-center">
-                <div class="col-md-8">
-                    <h1 class="h3 mb-3">
-                        <i class="fas fa-database me-2"></i>
-                        Configuración de Fuentes de Datos
-                    </h1>
-                    <p class="mb-0 opacity-75">
-                        Gestiona y configura las fuentes de datos para tu sistema RAG
-                    </p>
-                </div>
-                <div class="col-md-4 text-md-end">
-                    <button class="btn btn-light me-2" id="sync-all-sources">
-                        <i class="fas fa-sync-alt me-1"></i>Sincronizar Todo
-                    </button>
-                    <button class="btn btn-outline-light" id="export-config">
-                        <i class="fas fa-download me-1"></i>Exportar Config
-                    </button>
+            <a class="navbar-brand" href="{{ url_for('main.index') }}">
+                <i class="fas fa-robot me-2"></i>Prototipo Chatbot TFM
+            </a>
+            
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('main.index') }}">
+                            <i class="fas fa-home me-1"></i>Inicio
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="{{ url_for('main.data_sources') }}">
+                            <i class="fas fa-database me-1"></i>Fuentes de Datos
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('main.chat') }}">
+                            <i class="fas fa-comments me-1"></i>Chat
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('main.comparison') }}">
+                            <i class="fas fa-balance-scale me-1"></i>Comparación
+                        </a>
+                    </li>
+                </ul>
+                
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <button class="btn btn-outline-light btn-sm" id="theme-toggle">
+                            <i class="fas fa-moon" id="theme-icon"></i>
+                        </button>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="container mt-4">
+        <!-- Header -->
+        <div class="row mb-4">
+            <div class="col">
+                <h1 class="h2 mb-3">
+                    <i class="fas fa-database text-primary me-2"></i>
+                    Gestión de Fuentes de Datos
+                </h1>
+                <p class="text-muted">
+                    Configure y gestione las fuentes de datos para el sistema RAG. 
+                    Agregue directorios de documentos para indexación automática.
+                </p>
+            </div>
+            <div class="col-auto">
+                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createSourceModal">
+                    <i class="fas fa-plus me-2"></i>Nueva Fuente
+                </button>
+            </div>
+        </div>
+
+        <!-- Global Stats -->
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="fas fa-chart-bar me-2"></i>Estadísticas Globales
+                </h5>
+                <button class="btn btn-outline-primary btn-sm" id="refreshGlobalStats">
+                    <i class="fas fa-sync-alt"></i>
+                </button>
+            </div>
+            <div class="card-body">
+                <div class="stats-grid" id="globalStatsGrid">
+                    <!-- Estadísticas se cargan dinámicamente -->
                 </div>
             </div>
-            
-            <div class="row g-3 mt-3">
-                <div class="col-md-3">
-                    <div class="stats-card p-3 text-center">
-                        <i class="fas fa-plug fa-2x mb-2"></i>
-                        <h4 class="mb-1" id="total-sources">0</h4>
-                        <small class="opacity-75">Fuentes Activas</small>
+        </div>
+
+        <!-- Sources List -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="fas fa-list me-2"></i>Fuentes de Datos
+                        </h5>
+                        <div class="btn-group">
+                            <button class="btn btn-outline-secondary btn-sm" id="refreshSources">
+                                <i class="fas fa-sync-alt"></i> Actualizar
+                            </button>
+                            <button class="btn btn-outline-info btn-sm" data-bs-toggle="modal" data-bs-target="#logsModal">
+                                <i class="fas fa-file-alt"></i> Ver Logs
+                            </button>
+                        </div>
                     </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="stats-card p-3 text-center">
-                        <i class="fas fa-file-alt fa-2x mb-2"></i>
-                        <h4 class="mb-1" id="total-documents">0</h4>
-                        <small class="opacity-75">Documentos Procesados</small>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="stats-card p-3 text-center">
-                        <i class="fas fa-clock fa-2x mb-2"></i>
-                        <h4 class="mb-1" id="last-sync">-</h4>
-                        <small class="opacity-75">Última Sincronización</small>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="stats-card p-3 text-center">
-                        <i class="fas fa-chart-line fa-2x mb-2"></i>
-                        <h4 class="mb-1" id="sync-status">100%</h4>
-                        <small class="opacity-75">Estado de Sincronización</small>
+                    <div class="card-body">
+                        <div id="sourcesContainer">
+                            <!-- Fuentes se cargan dinámicamente -->
+                            <div class="text-center py-5" id="loadingSources">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Cargando...</span>
+                                </div>
+                                <p class="text-muted mt-3">Cargando fuentes de datos...</p>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Navegación por Pestañas -->
-    <ul class="nav nav-tabs source-tabs mb-0" id="sourceTypeTabs" role="tablist">
-        <li class="nav-item" role="presentation">
-            <button class="nav-link active" id="documents-tab" data-bs-toggle="tab" data-bs-target="#documents" type="button" role="tab">
-                <i class="fas fa-file-pdf me-1"></i>Documentos
-            </button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link" id="databases-tab" data-bs-toggle="tab" data-bs-target="#databases" type="button" role="tab">
-                <i class="fas fa-database me-1"></i>Bases de Datos
-            </button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link" id="apis-tab" data-bs-toggle="tab" data-bs-target="#apis" type="button" role="tab">
-                <i class="fas fa-cloud me-1"></i>APIs REST
-            </button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link" id="webscraping-tab" data-bs-toggle="tab" data-bs-target="#webscraping" type="button" role="tab">
-                <i class="fas fa-globe me-1"></i>Web Scraping
-            </button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link" id="files-tab" data-bs-toggle="tab" data-bs-target="#files" type="button" role="tab">
-                <i class="fas fa-table me-1"></i>Archivos
-            </button>
-        </li>
-    </ul>
-
-    <!-- Contenido de las Pestañas -->
-    <div class="tab-content source-section" id="sourceTypeTabContent">
-        
-        <!-- Pestaña Documentos -->
-        <div class="tab-pane fade show active" id="documents" role="tabpanel">
-            <div class="p-4">
-                <!-- Estadísticas específicas -->
-                <div class="row g-3 mb-4">
-                    <div class="col-md-3">
-                        <div class="card bg-primary text-white">
-                            <div class="card-body text-center">
-                                <i class="fas fa-file-pdf fa-2x mb-2"></i>
-                                <h5 class="mb-1" id="doc-pdfs">0</h5>
-                                <small>PDFs</small>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="card bg-info text-white">
-                            <div class="card-body text-center">
-                                <i class="fas fa-file-word fa-2x mb-2"></i>
-                                <h5 class="mb-1" id="doc-word">0</h5>
-                                <small>Word/TXT</small>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="card bg-success text-white">
-                            <div class="card-body text-center">
-                                <i class="fas fa-folder fa-2x mb-2"></i>
-                                <h5 class="mb-1" id="doc-folders">0</h5>
-                                <small>Carpetas</small>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="card bg-warning text-dark">
-                            <div class="card-body text-center">
-                                <i class="fas fa-sync-alt fa-2x mb-2"></i>
-                                <h5 class="mb-1" id="doc-processing">0</h5>
-                                <small>Procesando</small>
-                            </div>
-                        </div>
-                    </div>
+    <!-- Modal: Crear/Editar Fuente -->
+    <div class="modal fade" id="createSourceModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-plus me-2"></i>
+                        <span id="modalTitle">Nueva Fuente de Documentos</span>
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
-
-                <!-- Tabla de fuentes configuradas -->
-                <div class="card">
-                    <div class="card-header">
-                        <h5 class="mb-0">
-                            <i class="fas fa-list me-2"></i>Fuentes de Documentos Configuradas
-                        </h5>
-                    </div>
-                    <div class="card-body p-0">
-                        <div class="table-responsive">
-                            <table class="table source-table">
-                                <thead>
-                                    <tr>
-                                        <th>Nombre</th>
-                                        <th>Tipo</th>
-                                        <th>Ruta/URL</th>
-                                        <th>Estado</th>
-                                        <th>Documentos</th>
-                                        <th>Última Actualización</th>
-                                        <th>Acciones</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="documents-table-body">
-                                    <tr>
-                                        <td><strong>Documentos Legales</strong></td>
-                                        <td><span class="badge bg-primary">PDF</span></td>
-                                        <td><code>/data/legal/*.pdf</code></td>
-                                        <td><span class="badge bg-success status-badge">Activo</span></td>
-                                        <td>127</td>
-                                        <td>Hace 2 horas</td>
-                                        <td class="action-buttons">
-                                            <button class="btn btn-sm btn-outline-primary" title="Editar">
-                                                <i class="fas fa-edit"></i>
-                                            </button>
-                                            <button class="btn btn-sm btn-outline-success" title="Sincronizar">
-                                                <i class="fas fa-sync"></i>
-                                            </button>
-                                            <button class="btn btn-sm btn-outline-warning" title="Pausar">
-                                                <i class="fas fa-pause"></i>
-                                            </button>
-                                            <button class="btn btn-sm btn-outline-danger" title="Eliminar">
-                                                <i class="fas fa-trash"></i>
-                                            </button>
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td><strong>Manuales Técnicos</strong></td>
-                                        <td><span class="badge bg-info">Word</span></td>
-                                        <td><code>/data/manuals/</code></td>
-                                        <td><span class="badge bg-warning status-badge">Sincronizando</span></td>
-                                        <td>45</td>
-                                        <td>Hace 10 minutos</td>
-                                        <td class="action-buttons">
-                                            <button class="btn btn-sm btn-outline-primary" title="Editar">
-                                                <i class="fas fa-edit"></i>
-                                            </button>
-                                            <button class="btn btn-sm btn-outline-success" title="Sincronizar" disabled>
-                                                <i class="fas fa-spinner fa-spin"></i>
-                                            </button>
-                                            <button class="btn btn-sm btn-outline-warning" title="Pausar">
-                                                <i class="fas fa-pause"></i>
-                                            </button>
-                                            <button class="btn btn-sm btn-outline-danger" title="Eliminar">
-                                                <i class="fas fa-trash"></i>
-                                            </button>
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Formulario para añadir nueva fuente -->
-                <div class="add-source-form p-4">
-                    <div class="text-center source-type-icon">
-                        <i class="fas fa-plus-circle text-primary"></i>
-                    </div>
-                    <h5 class="text-center mb-4">Añadir Nueva Fuente de Documentos</h5>
-                    
-                    <form id="add-document-source-form">
-                        <div class="row g-3">
-                            <div class="col-md-6">
-                                <label for="doc-name" class="form-label">Nombre de la Fuente</label>
-                                <input type="text" class="form-control" id="doc-name" placeholder="Ej: Documentos Administrativos">
-                            </div>
-                            <div class="col-md-6">
-                                <label for="doc-type" class="form-label">Tipo de Documento</label>
-                                <select class="form-select" id="doc-type">
-                                    <option value="pdf">PDF</option>
-                                    <option value="word">Word (DOC/DOCX)</option>
-                                    <option value="text">Texto (TXT/MD)</option>
-                                    <option value="mixed">Mixto</option>
-                                </select>
-                            </div>
-                            <div class="col-md-8">
-                                <label for="doc-path" class="form-label">Ruta o URL</label>
-                                <div class="input-group">
-                                    <input type="text" class="form-control" id="doc-path" placeholder="/ruta/a/documentos/ o https://...">
-                                    <button class="btn btn-outline-secondary" type="button" id="browse-path">
-                                        <i class="fas fa-folder-open"></i>
-                                    </button>
-                                </div>
-                            </div>
-                            <div class="col-md-4">
-                                <label for="doc-recursive" class="form-label">Configuración</label>
-                                <div class="form-check form-switch">
-                                    <input class="form-check-input" type="checkbox" id="doc-recursive" checked>
-                                    <label class="form-check-label" for="doc-recursive">
-                                        Incluir subcarpetas
-                                    </label>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <label for="doc-pattern" class="form-label">Patrón de Archivos</label>
-                                <input type="text" class="form-control" id="doc-pattern" placeholder="*.pdf,*.docx" value="*.*">
-                            </div>
-                            <div class="col-md-6">
-                                <label for="doc-encoding" class="form-label">Codificación</label>
-                                <select class="form-select" id="doc-encoding">
-                                    <option value="utf-8" selected>UTF-8</option>
-                                    <option value="latin1">Latin1</option>
-                                    <option value="cp1252">Windows-1252</option>
-                                </select>
-                            </div>
+                <div class="modal-body">
+                    <form id="sourceForm">
+                        <input type="hidden" id="sourceId">
+                        
+                        <!-- Información Básica -->
+                        <div class="row mb-3">
                             <div class="col-12">
-                                <div class="d-flex gap-2">
-                                    <button type="button" class="btn btn-outline-primary connection-test" id="test-doc-connection">
-                                        <i class="fas fa-plug me-1"></i>Probar Acceso
+                                <label for="sourceName" class="form-label">
+                                    <i class="fas fa-tag me-1"></i>Nombre de la Fuente *
+                                </label>
+                                <input type="text" class="form-control" id="sourceName" required 
+                                       placeholder="Ej: Documentos Municipales">
+                                <div class="form-text">Nombre descriptivo para identificar esta fuente</div>
+                            </div>
+                        </div>
+
+                        <!-- Directorios -->
+                        <div class="row mb-3">
+                            <div class="col-12">
+                                <label class="form-label">
+                                    <i class="fas fa-folder me-1"></i>Directorios a Monitorear *
+                                </label>
+                                <div class="input-group mb-2">
+                                    <input type="text" class="form-control" id="directoryInput" 
+                                           placeholder="/ruta/a/documentos">
+                                    <button class="btn btn-outline-secondary" type="button" id="browseDirectory">
+                                        <i class="fas fa-search"></i>
                                     </button>
-                                    <button type="button" class="btn btn-success" id="add-doc-source">
-                                        <i class="fas fa-plus me-1"></i>Añadir Fuente
+                                    <button class="btn btn-primary" type="button" id="addDirectory">
+                                        <i class="fas fa-plus"></i> Agregar
                                     </button>
-                                    <button type="button" class="btn btn-outline-secondary" id="preview-doc-source">
-                                        <i class="fas fa-eye me-1"></i>Vista Previa
+                                </div>
+                                <div class="directory-list" id="directoryList">
+                                    <!-- Directorios agregados aparecen aquí -->
+                                </div>
+                                <div class="form-text">
+                                    Especifique los directorios que contienen documentos para indexar
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Configuración Avanzada -->
+                        <div class="accordion mb-3" id="advancedConfig">
+                            <div class="accordion-item">
+                                <h2 class="accordion-header">
+                                    <button class="accordion-button collapsed" type="button" 
+                                            data-bs-toggle="collapse" data-bs-target="#advancedPanel">
+                                        <i class="fas fa-cog me-2"></i>Configuración Avanzada
                                     </button>
+                                </h2>
+                                <div id="advancedPanel" class="accordion-collapse collapse">
+                                    <div class="accordion-body">
+                                        <!-- Extensiones de Archivo -->
+                                        <div class="row mb-3">
+                                            <div class="col-12">
+                                                <label class="form-label">
+                                                    <i class="fas fa-file me-1"></i>Extensiones de Archivo
+                                                </label>
+                                                <div id="extensionsContainer">
+                                                    <div class="extension-chip selected" data-ext=".pdf">.pdf</div>
+                                                    <div class="extension-chip selected" data-ext=".docx">.docx</div>
+                                                    <div class="extension-chip selected" data-ext=".txt">.txt</div>
+                                                    <div class="extension-chip" data-ext=".doc">.doc</div>
+                                                    <div class="extension-chip" data-ext=".md">.md</div>
+                                                    <div class="extension-chip" data-ext=".rtf">.rtf</div>
+                                                    <div class="extension-chip" data-ext=".csv">.csv</div>
+                                                    <div class="extension-chip" data-ext=".xlsx">.xlsx</div>
+                                                </div>
+                                                <div class="form-text mt-2">
+                                                    Click para seleccionar/deseleccionar tipos de archivo
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Opciones de Búsqueda -->
+                                        <div class="row mb-3">
+                                            <div class="col-md-6">
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="checkbox" 
+                                                           id="recursiveSearch" checked>
+                                                    <label class="form-check-label" for="recursiveSearch">
+                                                        <i class="fas fa-sitemap me-1"></i>
+                                                        Búsqueda recursiva en subdirectorios
+                                                    </label>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label for="maxFileSize" class="form-label">
+                                                    Tamaño máximo (MB)
+                                                </label>
+                                                <input type="number" class="form-control" id="maxFileSize" 
+                                                       value="100" min="1" max="1000">
+                                            </div>
+                                        </div>
+
+                                        <!-- Patrones de Exclusión -->
+                                        <div class="row mb-3">
+                                            <div class="col-12">
+                                                <label for="excludePatterns" class="form-label">
+                                                    <i class="fas fa-ban me-1"></i>Patrones de Exclusión
+                                                </label>
+                                                <textarea class="form-control" id="excludePatterns" rows="2"
+                                                          placeholder="temp, __pycache__, .git, node_modules"></textarea>
+                                                <div class="form-text">
+                                                    Patrones separados por comas para excluir archivos/carpetas
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     </form>
                 </div>
-            </div>
-        </div>
-
-        <!-- Pestaña Bases de Datos -->
-        <div class="tab-pane fade" id="databases" role="tabpanel">
-            <div class="p-4">
-                <!-- Estadísticas específicas -->
-                <div class="row g-3 mb-4">
-                    <div class="col-md-3">
-                        <div class="card bg-success text-white">
-                            <div class="card-body text-center">
-                                <i class="fas fa-database fa-2x mb-2"></i>
-                                <h5 class="mb-1" id="db-mysql">0</h5>
-                                <small>MySQL</small>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="card bg-primary text-white">
-                            <div class="card-body text-center">
-                                <i class="fas fa-elephant fa-2x mb-2"></i>
-                                <h5 class="mb-1" id="db-postgres">0</h5>
-                                <small>PostgreSQL</small>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="card bg-info text-white">
-                            <div class="card-body text-center">
-                                <i class="fas fa-cube fa-2x mb-2"></i>
-                                <h5 class="mb-1" id="db-sqlite">0</h5>
-                                <small>SQLite</small>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="card bg-warning text-dark">
-                            <div class="card-body text-center">
-                                <i class="fas fa-table fa-2x mb-2"></i>
-                                <h5 class="mb-1" id="db-records">0</h5>
-                                <small>Registros</small>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Tabla de bases de datos configuradas -->
-                <div class="card">
-                    <div class="card-header">
-                        <h5 class="mb-0">
-                            <i class="fas fa-list me-2"></i>Bases de Datos Configuradas
-                        </h5>
-                    </div>
-                    <div class="card-body p-0">
-                        <div class="table-responsive">
-                            <table class="table source-table">
-                                <thead>
-                                    <tr>
-                                        <th>Nombre</th>
-                                        <th>Tipo</th>
-                                        <th>Host/Archivo</th>
-                                        <th>Base de Datos</th>
-                                        <th>Estado</th>
-                                        <th>Registros</th>
-                                        <th>Última Sincronización</th>
-                                        <th>Acciones</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="databases-table-body">
-                                    <tr>
-                                        <td colspan="8" class="text-center text-muted py-4">
-                                            <i class="fas fa-database fa-3x mb-3 opacity-25"></i>
-                                            <p class="mb-0">No hay bases de datos configuradas</p>
-                                            <small>Añade tu primera base de datos usando el formulario inferior</small>
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Formulario para añadir nueva base de datos -->
-                <div class="add-source-form p-4">
-                    <div class="text-center source-type-icon">
-                        <i class="fas fa-plus-circle text-success"></i>
-                    </div>
-                    <h5 class="text-center mb-4">Añadir Nueva Base de Datos</h5>
-                    
-                    <form id="add-database-source-form">
-                        <div class="row g-3">
-                            <div class="col-md-6">
-                                <label for="db-name" class="form-label">Nombre de la Conexión</label>
-                                <input type="text" class="form-control" id="db-name" placeholder="Ej: Base de Datos Principal">
-                            </div>
-                            <div class="col-md-6">
-                                <label for="db-type-select" class="form-label">Tipo de Base de Datos</label>
-                                <select class="form-select" id="db-type-select">
-                                    <option value="mysql">MySQL</option>
-                                    <option value="postgresql">PostgreSQL</option>
-                                    <option value="sqlite">SQLite</option>
-                                    <option value="mariadb">MariaDB</option>
-                                </select>
-                            </div>
-                            <div class="col-md-4">
-                                <label for="db-host" class="form-label">Host</label>
-                                <input type="text" class="form-control" id="db-host" placeholder="localhost" value="localhost">
-                            </div>
-                            <div class="col-md-2">
-                                <label for="db-port" class="form-label">Puerto</label>
-                                <input type="number" class="form-control" id="db-port" placeholder="3306" value="3306">
-                            </div>
-                            <div class="col-md-6">
-                                <label for="db-database" class="form-label">Nombre de la Base de Datos</label>
-                                <input type="text" class="form-control" id="db-database" placeholder="mi_base_datos">
-                            </div>
-                            <div class="col-md-6">
-                                <label for="db-username" class="form-label">Usuario</label>
-                                <input type="text" class="form-control" id="db-username" placeholder="usuario">
-                            </div>
-                            <div class="col-md-6">
-                                <label for="db-password" class="form-label">Contraseña</label>
-                                <div class="input-group">
-                                    <input type="password" class="form-control" id="db-password" placeholder="••••••••">
-                                    <button class="btn btn-outline-secondary" type="button" id="toggle-db-password">
-                                        <i class="fas fa-eye"></i>
-                                    </button>
-                                </div>
-                            </div>
-                            <div class="col-12">
-                                <label for="db-query" class="form-label">Consulta SQL</label>
-                                <textarea class="form-control font-monospace" id="db-query" rows="4" placeholder="SELECT id, titulo, contenido, fecha FROM documentos WHERE activo = 1"></textarea>
-                            </div>
-                            <div class="col-12">
-                                <div class="d-flex gap-2">
-                                    <button type="button" class="btn btn-outline-primary connection-test" id="test-db-connection">
-                                        <i class="fas fa-plug me-1"></i>Probar Conexión
-                                    </button>
-                                    <button type="button" class="btn btn-success" id="add-db-source">
-                                        <i class="fas fa-plus me-1"></i>Añadir Base de Datos
-                                    </button>
-                                    <button type="button" class="btn btn-outline-secondary" id="preview-db-query">
-                                        <i class="fas fa-eye me-1"></i>Previsualizar Datos
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </form>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        Cancelar
+                    </button>
+                    <button type="button" class="btn btn-primary" id="saveSource">
+                        <i class="fas fa-save me-2"></i>Guardar Fuente
+                    </button>
                 </div>
             </div>
         </div>
+    </div>
 
-        <!-- Pestaña APIs REST -->
-        <div class="tab-pane fade" id="apis" role="tabpanel">
-            <div class="p-4">
-                <!-- Estadísticas específicas -->
-                <div class="row g-3 mb-4">
-                    <div class="col-md-3">
-                        <div class="card bg-info text-white">
-                            <div class="card-body text-center">
-                                <i class="fas fa-cloud fa-2x mb-2"></i>
-                                <h5 class="mb-1" id="api-total">0</h5>
-                                <small>APIs Activas</small>
+    <!-- Modal: Detalles de Fuente -->
+    <div class="modal fade" id="sourceDetailsModal" tabindex="-1">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <span id="sourceDetailsTitle">Detalles de Fuente</span>
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <!-- Información General -->
+                        <div class="col-md-4">
+                            <div class="card h-100">
+                                <div class="card-header">
+                                    <h6 class="mb-0">
+                                        <i class="fas fa-info me-1"></i>Información General
+                                    </h6>
+                                </div>
+                                <div class="card-body" id="sourceInfoContent">
+                                    <!-- Contenido dinámico -->
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Estadísticas -->
+                        <div class="col-md-4">
+                            <div class="card h-100">
+                                <div class="card-header">
+                                    <h6 class="mb-0">
+                                        <i class="fas fa-chart-pie me-1"></i>Estadísticas
+                                    </h6>
+                                </div>
+                                <div class="card-body" id="sourceStatsContent">
+                                    <!-- Contenido dinámico -->
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Acciones -->
+                        <div class="col-md-4">
+                            <div class="card h-100">
+                                <div class="card-header">
+                                    <h6 class="mb-0">
+                                        <i class="fas fa-tools me-1"></i>Acciones
+                                    </h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="d-grid gap-2">
+                                        <button class="btn btn-primary" id="scanSourceBtn">
+                                            <i class="fas fa-search me-2"></i>Escanear Archivos
+                                        </button>
+                                        <button class="btn btn-success" id="syncSourceBtn">
+                                            <i class="fas fa-sync-alt me-2"></i>Sincronizar
+                                        </button>
+                                        <button class="btn btn-info" id="detectChangesBtn">
+                                            <i class="fas fa-file-search me-2"></i>Detectar Cambios
+                                        </button>
+                                        <button class="btn btn-warning" id="cleanupBtn">
+                                            <i class="fas fa-broom me-2"></i>Limpiar Eliminados
+                                        </button>
+                                        <hr>
+                                        <button class="btn btn-secondary" id="editSourceBtn">
+                                            <i class="fas fa-edit me-2"></i>Editar
+                                        </button>
+                                        <button class="btn btn-danger" id="deleteSourceBtn">
+                                            <i class="fas fa-trash me-2"></i>Eliminar
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
-                    <div class="col-md-3">
-                        <div class="card bg-success text-white">
-                            <div class="card-body text-center">
-                                <i class="fas fa-check-circle fa-2x mb-2"></i>
-                                <h5 class="mb-1" id="api-success">0</h5>
-                                <small>Respuestas OK</small>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="card bg-warning text-dark">
-                            <div class="card-body text-center">
-                                <i class="fas fa-clock fa-2x mb-2"></i>
-                                <h5 class="mb-1" id="api-latency">0ms</h5>
-                                <small>Latencia Media</small>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="card bg-danger text-white">
-                            <div class="card-body text-center">
-                                <i class="fas fa-exclamation-triangle fa-2x mb-2"></i>
-                                <h5 class="mb-1" id="api-errors">0</h5>
-                                <small>Errores</small>
+
+                    <!-- Tabs para detalles -->
+                    <div class="row mt-4">
+                        <div class="col-12">
+                            <ul class="nav nav-tabs" id="sourceDetailsTabs">
+                                <li class="nav-item">
+                                    <button class="nav-link active" data-bs-toggle="tab" 
+                                            data-bs-target="#documentsTab">
+                                        <i class="fas fa-file-alt me-1"></i>Documentos
+                                    </button>
+                                </li>
+                                <li class="nav-item">
+                                    <button class="nav-link" data-bs-toggle="tab" 
+                                            data-bs-target="#logsTab">
+                                        <i class="fas fa-list me-1"></i>Logs
+                                    </button>
+                                </li>
+                                <li class="nav-item">
+                                    <button class="nav-link" data-bs-toggle="tab" 
+                                            data-bs-target="#configTab">
+                                        <i class="fas fa-cog me-1"></i>Configuración
+                                    </button>
+                                </li>
+                            </ul>
+
+                            <div class="tab-content border border-top-0 p-3">
+                                <!-- Tab: Documentos -->
+                                <div class="tab-pane fade show active" id="documentsTab">
+                                    <div class="d-flex justify-content-between align-items-center mb-3">
+                                        <h6 class="mb-0">Documentos Procesados</h6>
+                                        <div class="btn-group btn-group-sm">
+                                            <button class="btn btn-outline-secondary" id="refreshDocuments">
+                                                <i class="fas fa-sync-alt"></i>
+                                            </button>
+                                            <select class="form-select form-select-sm" id="statusFilter">
+                                                <option value="">Todos los estados</option>
+                                                <option value="completed">Completados</option>
+                                                <option value="error">Con errores</option>
+                                                <option value="processing">Procesando</option>
+                                                <option value="pending">Pendientes</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div id="documentsTable">
+                                        <!-- Tabla dinámica -->
+                                    </div>
+                                </div>
+
+                                <!-- Tab: Logs -->
+                                <div class="tab-pane fade" id="logsTab">
+                                    <div class="d-flex justify-content-between align-items-center mb-3">
+                                        <h6 class="mb-0">Logs de Procesamiento</h6>
+                                        <button class="btn btn-outline-secondary btn-sm" id="refreshLogs">
+                                            <i class="fas fa-sync-alt"></i> Actualizar
+                                        </button>
+                                    </div>
+                                    <div class="logs-container" id="sourceLogsContainer">
+                                        <!-- Logs dinámicos -->
+                                    </div>
+                                </div>
+
+                                <!-- Tab: Configuración -->
+                                <div class="tab-pane fade" id="configTab">
+                                    <h6 class="mb-3">Configuración Actual</h6>
+                                    <div id="sourceConfigContent">
+                                        <!-- Configuración dinámica -->
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        Cerrar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 
-                <!-- Tabla de APIs configuradas -->
-                <div class="card">
-                    <div class="card-header">
-                        <h5 class="mb-0">
-                            <i class="fas fa-list me-2"></i>APIs REST Configuradas
-                        </h5>
+    <!-- Modal: Logs Globales -->
+    <div class="modal fade" id="logsModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-file-alt me-2"></i>Logs de Procesamiento
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <small class="text-muted">Últimos eventos de procesamiento</small>
+                        <button class="btn btn-outline-secondary btn-sm" id="refreshGlobalLogs">
+                            <i class="fas fa-sync-alt"></i> Actualizar
+                        </button>
                     </div>
-                    <div class="card-body p-0">
-                        <div class="table-responsive">
-                            <table class="table source-table">
-                                <thead>
-                                    <tr>
-                                        <th>Nombre</th>
-                                        <th>URL Base</th>
-                                        <th>Método</th>
-                                        <th>Autenticación</th>
-                                        <th>Estado</th>
-                                        <th>Última Llamada</th>
-                                        <th>Registros</th>
-                                        <th>Acciones</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="apis-table-body">
-                                    <tr>
-                                        <td colspan="8" class="text-center text-muted py-4">
-                                            <i class="fas fa-cloud fa-3x mb-3 opacity-25"></i>
-                                            <p class="mb-0">No hay APIs configuradas</p>
-                                            <small>Añade tu primera API usando el formulario inferior</small>
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
+                    <div class="logs-container" id="globalLogsContainer">
+                        <!-- Logs globales -->
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
 
-                <!-- Formulario para añadir nueva API -->
-                <div class="add-source-form p-4">
-                    <div class="text-center source-type-icon">
-                        <i class="fas fa-plus-circle text-info"></i>
+    <!-- Toast Container -->
+    <div class="toast-container position-fixed bottom-0 end-0 p-3" id="toastContainer">
+        <!-- Toasts dinámicos -->
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    
+    <script>
+        // Estado global de la aplicación
+        const AppState = {
+            sources: [],
+            globalStats: {},
+            currentSourceId: null,
+            refreshInterval: null
+        };
+
+        // Configuración
+        const CONFIG = {
+            refreshInterval: 30000, // 30 segundos
+            apiBase: '/api/data-sources'
+        };
+
+        // Utilidades
+        const Utils = {
+            formatBytes: (bytes) => {
+                if (bytes === 0) return '0 B';
+                const k = 1024;
+                const sizes = ['B', 'KB', 'MB', 'GB'];
+                const i = Math.floor(Math.log(bytes) / Math.log(k));
+                return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+            },
+
+            formatDate: (dateString) => {
+                if (!dateString) return 'Nunca';
+                const date = new Date(dateString);
+                return date.toLocaleString('es-ES');
+            },
+
+            showToast: (message, type = 'info') => {
+                const toastContainer = document.getElementById('toastContainer');
+                const toastId = 'toast-' + Date.now();
+                
+                const toastHtml = `
+                    <div id="${toastId}" class="toast" role="alert">
+                        <div class="toast-header">
+                            <i class="fas fa-${type === 'success' ? 'check-circle text-success' : 
+                                              type === 'error' ? 'exclamation-circle text-danger' : 
+                                              'info-circle text-info'} me-2"></i>
+                            <strong class="me-auto">Sistema</strong>
+                            <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+                        </div>
+                        <div class="toast-body">${message}</div>
                     </div>
-                    <h5 class="text-center mb-4">Añadir Nueva API REST</h5>
+                `;
+                
+                toastContainer.insertAdjacentHTML('beforeend', toastHtml);
+                const toast = new bootstrap.Toast(document.getElementById(toastId));
+                toast.show();
+                
+                // Limpiar después de que se oculte
+                document.getElementById(toastId).addEventListener('hidden.bs.toast', () => {
+                    document.getElementById(toastId).remove();
+                });
+            },
+
+            showSpinner: (element, show = true) => {
+                if (show) {
+                    element.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Procesando...';
+                    element.disabled = true;
+                } else {
+                    element.disabled = false;
+                }
+            },
+
+            confirm: (message) => {
+                return new Promise((resolve) => {
+                    if (confirm(message)) {
+                        resolve(true);
+                    } else {
+                        resolve(false);
+                    }
+                });
+            }
+        };
+
+        // API Client
+        const API = {
+            get: async (endpoint) => {
+                try {
+                    const response = await fetch(CONFIG.apiBase + endpoint);
+                    const data = await response.json();
+                    if (!data.success) {
+                        throw new Error(data.error || 'Error en la API');
+                    }
+                    return data;
+                } catch (error) {
+                    console.error('API Error:', error);
+                    Utils.showToast('Error de conexión: ' + error.message, 'error');
+                    throw error;
+                }
+            },
+
+            post: async (endpoint, data = null) => {
+                try {
+                    const options = {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' }
+                    };
+                    if (data) {
+                        options.body = JSON.stringify(data);
+                    }
                     
-                    <form id="add-api-source-form">
-                        <div class="row g-3">
-                            <div class="col-md-6">
-                                <label for="api-name" class="form-label">Nombre de la API</label>
-                                <input type="text" class="form-control" id="api-name" placeholder="Ej: API de Documentos Oficiales">
+                    const response = await fetch(CONFIG.apiBase + endpoint, options);
+                    const result = await response.json();
+                    if (!result.success) {
+                        throw new Error(result.error || 'Error en la API');
+                    }
+                    return result;
+                } catch (error) {
+                    console.error('API Error:', error);
+                    Utils.showToast('Error: ' + error.message, 'error');
+                    throw error;
+                }
+            },
+
+            put: async (endpoint, data) => {
+                try {
+                    const response = await fetch(CONFIG.apiBase + endpoint, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(data)
+                    });
+                    const result = await response.json();
+                    if (!result.success) {
+                        throw new Error(result.error || 'Error en la API');
+                    }
+                    return result;
+                } catch (error) {
+                    console.error('API Error:', error);
+                    Utils.showToast('Error actualizando: ' + error.message, 'error');
+                    throw error;
+                }
+            },
+
+            delete: async (endpoint) => {
+                try {
+                    const response = await fetch(CONFIG.apiBase + endpoint, {
+                        method: 'DELETE'
+                    });
+                    const result = await response.json();
+                    if (!result.success) {
+                        throw new Error(result.error || 'Error en la API');
+                    }
+                    return result;
+                } catch (error) {
+                    console.error('API Error:', error);
+                    Utils.showToast('Error eliminando: ' + error.message, 'error');
+                    throw error;
+                }
+            }
+        };
+
+        // Funciones principales
+        async function loadGlobalStats() {
+            try {
+                const result = await API.get('/stats');
+                AppState.globalStats = result.global_stats;
+                renderGlobalStats();
+            } catch (error) {
+                console.error('Error cargando estadísticas:', error);
+            }
+        }
+
+        function renderGlobalStats() {
+            const container = document.getElementById('globalStatsGrid');
+            const stats = AppState.globalStats;
+            
+            container.innerHTML = `
+                <div class="stat-item">
+                    <div class="stat-value">${stats.total_sources || 0}</div>
+                    <div class="stat-label">Fuentes</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">${stats.total_files || 0}</div>
+                    <div class="stat-label">Archivos</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">${stats.processed_files || 0}</div>
+                    <div class="stat-label">Procesados</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">${stats.total_chunks || 0}</div>
+                    <div class="stat-label">Chunks</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">${(stats.total_size_mb || 0).toFixed(1)} MB</div>
+                    <div class="stat-label">Tamaño Total</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">${(stats.overall_success_rate || 0).toFixed(1)}%</div>
+                    <div class="stat-label">Éxito</div>
+                </div>
+            `;
+        }
+
+        async function loadSources() {
+            try {
+                document.getElementById('loadingSources').style.display = 'block';
+                const result = await API.get('');
+                AppState.sources = result.sources;
+                renderSources();
+            } catch (error) {
+                console.error('Error cargando fuentes:', error);
+            } finally {
+                document.getElementById('loadingSources').style.display = 'none';
+            }
+        }
+
+        function renderSources() {
+            const container = document.getElementById('sourcesContainer');
+            
+            if (AppState.sources.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-5">
+                        <i class="fas fa-database fa-3x text-muted mb-3"></i>
+                        <h5 class="text-muted">No hay fuentes configuradas</h5>
+                        <p class="text-muted">Haga clic en "Nueva Fuente" para comenzar</p>
+                    </div>
+                `;
+                return;
+            }
+
+            const sourcesHtml = AppState.sources.map(source => {
+                const stats = source.stats || {};
+                const progressPercent = stats.total_files > 0 ? 
+                    (stats.processed_files / stats.total_files * 100).toFixed(1) : 0;
+                
+                return `
+                    <div class="source-card card mb-3 status-${source.status}" data-source-id="${source.id}">
+                        <div class="card-body">
+                            <div class="row align-items-center">
+                                <div class="col-md-6">
+                                    <h6 class="card-title mb-2">
+                                        <i class="fas fa-folder me-2"></i>${source.name}
+                                        <span class="badge bg-${getStatusColor(source.status)} ms-2">${getStatusText(source.status)}</span>
+                                    </h6>
+                                    <small class="text-muted">
+                                        <i class="fas fa-clock me-1"></i>
+                                        Última sincronización: ${Utils.formatDate(source.last_sync)}
+                                    </small>
+                                    <br>
+                                    <small class="text-muted">
+                                        <i class="fas fa-folder-open me-1"></i>
+                                        ${source.config?.directories?.length || 0} director${source.config?.directories?.length === 1 ? 'io' : 'ios'}
+                                    </small>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="progress-wrapper">
+                                        <div class="progress">
+                                            <div class="progress-bar" style="width: ${progressPercent}%"></div>
+                                        </div>
+                                        <div class="progress-text">${stats.processed_files || 0}/${stats.total_files || 0}</div>
+                                    </div>
+                                    <small class="text-muted">
+                                        ${stats.total_chunks || 0} chunks • ${(stats.total_size_mb || 0).toFixed(1)} MB
+                                    </small>
+                                </div>
+                                <div class="col-md-2 text-end">
+                                    <div class="btn-group">
+                                        <button class="btn btn-outline-primary btn-sm" onclick="showSourceDetails('${source.id}')">
+                                            <i class="fas fa-eye"></i>
+                                        </button>
+                                        <button class="btn btn-outline-success btn-sm" onclick="syncSource('${source.id}')">
+                                            <i class="fas fa-sync-alt"></i>
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
-                            <div class="col-md-6">
-                                <label for="api-method" class="form-
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            container.innerHTML = sourcesHtml;
+        }
+
+        function getStatusColor(status) {
+            const colors = {
+                'active': 'success',
+                'processing': 'warning',
+                'error': 'danger',
+                'inactive': 'secondary',
+                'pending': 'info'
+            };
+            return colors[status] || 'secondary';
+        }
+
+        function getStatusText(status) {
+            const texts = {
+                'active': 'Activa',
+                'processing': 'Procesando',
+                'error': 'Error',
+                'inactive': 'Inactiva',
+                'pending': 'Pendiente'
+            };
+            return texts[status] || 'Desconocido';
+        }
+
+        // Event Handlers
+        async function showSourceDetails(sourceId) {
+            try {
+                const result = await API.get(`/${sourceId}`);
+                AppState.currentSourceId = sourceId;
+                
+                // Mostrar modal
+                const modal = new bootstrap.Modal(document.getElementById('sourceDetailsModal'));
+                modal.show();
+                
+                // Poblar información
+                populateSourceDetails(result.source);
+                
+            } catch (error) {
+                console.error('Error cargando detalles:', error);
+            }
+        }
+
+        function populateSourceDetails(source) {
+            document.getElementById('sourceDetailsTitle').textContent = source.name;
+            
+            // Información general
+            const infoContent = document.getElementById('sourceInfoContent');
+            infoContent.innerHTML = `
+                <p><strong>ID:</strong> <code class="small">${source.id}</code></p>
+                <p><strong>Estado:</strong> <span class="badge bg-${getStatusColor(source.status)}">${getStatusText(source.status)}</span></p>
+                <p><strong>Creada:</strong> ${Utils.formatDate(source.created_at)}</p>
+                <p><strong>Última sincronización:</strong> ${Utils.formatDate(source.last_sync)}</p>
+                <p><strong>Directorios:</strong> ${source.config?.directories?.length || 0}</p>
+                <p><strong>Extensiones:</strong> ${(source.config?.file_extensions || []).join(', ')}</p>
+            `;
+            
+            // Estadísticas
+            const stats = source.stats || {};
+            const statsContent = document.getElementById('sourceStatsContent');
+            statsContent.innerHTML = `
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between">
+                        <span>Archivos totales:</span>
+                        <span>${stats.total_files || 0}</span>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <span>Archivos procesados:</span>
+                        <span>${stats.processed_files || 0}</span>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <span>Archivos ignorados:</span>
+                        <span>${stats.ignored_files || 0}</span>
+                    </div>
+                </div>
+            `;
+            
+            // Documentos
+            const documentsContent = document.getElementById('sourceDocumentsContent');
+            documentsContent.innerHTML = source.documents.map(doc => `
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between">
+                        <span>${doc.name}</span>
+                        <span>${Utils.formatDate(doc.created_at)}</span>
+                    </div>
+                    <div class="text-muted">${doc.content}</div>
+                </div>
+            `).join('');
+        }

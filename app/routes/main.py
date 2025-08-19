@@ -1268,3 +1268,53 @@ def ajax_pipeline_metrics():
             'available': False,
             'error': str(e)
         }), 500
+
+@main_bp.route('/data-sources')
+def data_sources():
+    """Página de gestión de fuentes de datos"""
+    try:
+        # Obtener configuraciones
+        app_config = get_app_config()
+        
+        # Obtener estadísticas básicas para la página
+        from app.services.document_ingestion_service import document_ingestion_service
+        
+        # Información del procesador de documentos
+        try:
+            from app.services.document_processor import DocumentProcessor
+            processor = DocumentProcessor()
+            processor_info = processor.get_processor_info()
+        except Exception as e:
+            logger.warning(f"Error obteniendo info del procesador: {e}")
+            processor_info = {
+                'supported_extensions': ['.pdf', '.docx', '.txt'],
+                'processors_available': {
+                    'pdf': False,
+                    'docx': False,
+                    'pandas': False
+                }
+            }
+        
+        # Estadísticas globales básicas
+        try:
+            global_stats = {
+                'total_sources': len(document_ingestion_service.list_sources()),
+                'system_ready': True
+            }
+        except Exception as e:
+            logger.warning(f"Error obteniendo estadísticas: {e}")
+            global_stats = {
+                'total_sources': 0,
+                'system_ready': False
+            }
+        
+        return render_template('data_sources.html',
+                             app_config=app_config,
+                             processor_info=processor_info,
+                             global_stats=global_stats,
+                             page_title="Fuentes de Datos")
+                             
+    except Exception as e:
+        logger.error(f"Error en página de fuentes de datos: {e}")
+        flash(f"Error cargando página: {str(e)}", 'error')
+        return redirect(url_for('main.index'))
