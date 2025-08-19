@@ -5,7 +5,8 @@ TFM Vicente Caruncho - Sistemas Inteligentes
 
 from typing import List, Dict, Any, Optional
 from app.core.logger import get_logger
-from app.services.document_processor import DocumentChunk
+from app.services.ingestion.document_processor import DocumentChunk
+
 
 
 class VectorStoreService:
