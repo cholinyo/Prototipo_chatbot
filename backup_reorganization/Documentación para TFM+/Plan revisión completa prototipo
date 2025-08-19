@@ -1,0 +1,736 @@
+# 📋 Plan de Revisión Completa del Prototipo TFM
+## Chatbot RAG para Administraciones Locales
+
+> **Vicente Caruncho Ramos - TFM Sistemas Inteligentes**  
+> **Universitat Jaume I - Curso 2024-2025**  
+> **Fecha de revisión**: Agosto 2025
+
+---
+
+## 🎯 Objetivos de la Revisión
+
+### **Objetivo Principal**
+Verificar funcionalmente todos los componentes del prototipo, documentar su rendimiento y generar evidencia empírica para la memoria del TFM.
+
+### **Objetivos Específicos**
+1. **Validar funcionamiento** de cada componente arquitectónico
+2. **Generar métricas cuantitativas** para comparación académica
+3. **Documentar decisiones técnicas** con justificación científica
+4. **Preparar material visual** (screenshots, gráficos, tablas) para TFM
+5. **Identificar optimizaciones** y áreas de mejora
+
+---
+
+## 📊 Metodología de Revisión
+
+### **Enfoque por Capas Arquitectónicas**
+```
+Capa de Datos (Embeddings) 
+    ↓
+Capa de Almacenamiento (Vector Stores)
+    ↓
+Capa de Inteligencia (LLMs + RAG)
+    ↓
+Capa de Aplicación (Web Interface)
+    ↓
+Capa de Evaluación (Benchmarking)
+```
+
+### **Criterios de Evaluación**
+- ✅ **Funcionalidad**: ¿El componente funciona según especificaciones?
+- 📊 **Rendimiento**: ¿Qué métricas cuantitativas obtenemos?
+- 🔧 **Calidad técnica**: ¿El código es mantenible y escalable?
+- 📝 **Documentación**: ¿Está preparado para replicación académica?
+
+---
+
+## 🧪 Fase 1: Sistema de Embeddings
+### **Duración estimada**: 1-2 días
+
+#### **Pruebas Funcionales**
+
+##### **1.1 Verificación de Inicialización**
+```python
+# Prueba: Carga correcta del modelo
+from app.services.rag.embeddings import embedding_service
+
+# Test 1: Modelo cargado correctamente
+assert embedding_service.model is not None
+print(f"✅ Modelo cargado: {embedding_service.model_name}")
+
+# Test 2: Dimensiones correctas
+test_text = "Ejemplo de texto para prueba"
+embedding = embedding_service.encode(test_text)
+assert embedding.shape[0] == 384  # all-MiniLM-L6-v2
+print(f"✅ Dimensión embeddings: {embedding.shape}")
+```
+
+##### **1.2 Performance de Cache LRU**
+```python
+# Prueba: Eficiencia del cache
+import time
+
+texts = [f"Texto de prueba {i}" for i in range(1000)]
+
+# Primera ejecución (sin cache)
+start_time = time.time()
+embeddings_1 = embedding_service.encode_batch(texts)
+time_without_cache = time.time() - start_time
+
+# Segunda ejecución (con cache)
+start_time = time.time()
+embeddings_2 = embedding_service.encode_batch(texts)
+time_with_cache = time.time() - start_time
+
+cache_speedup = time_without_cache / time_with_cache
+print(f"✅ Speedup con cache: {cache_speedup:.2f}x")
+print(f"✅ Cache hit rate: {embedding_service.cache_hit_rate:.2%}")
+```
+
+##### **1.3 Batch Processing Efficiency**
+```python
+# Prueba: Comparar procesamiento individual vs batch
+import numpy as np
+
+texts = [f"Documento administrativo {i}" for i in range(100)]
+
+# Procesamiento individual
+start_time = time.time()
+individual_embeddings = [embedding_service.encode(text) for text in texts]
+individual_time = time.time() - start_time
+
+# Procesamiento batch
+start_time = time.time()
+batch_embeddings = embedding_service.encode_batch(texts, batch_size=32)
+batch_time = time.time() - start_time
+
+batch_speedup = individual_time / batch_time
+print(f"✅ Speedup batch processing: {batch_speedup:.2f}x")
+```
+
+#### **Métricas a Documentar para TFM**
+- **Tiempo de inicialización** del modelo
+- **Throughput** (textos/segundo) individual vs batch
+- **Cache hit rate** bajo diferentes cargas
+- **Uso de memoria** durante operaciones
+- **Speedup factor** con optimizaciones
+
+#### **Resultado Esperado**
+- ✅ Documento técnico: `docs/evaluacion_embeddings.md`
+- ✅ Gráficos de rendimiento para TFM
+- ✅ Justificación técnica de decisiones arquitectónicas
+
+---
+
+## 🗄️ Fase 2: Vector Stores Comparison
+### **Duración estimada**: 2-3 días
+
+#### **Pruebas Comparativas FAISS vs ChromaDB**
+
+##### **2.1 Benchmark de Inserción**
+```python
+# Prueba: Velocidad de indexación de documentos
+from app.services.rag.faiss_store import FAISSStore
+from app.services.rag.chromadb_store import ChromaDBStore
+import time
+
+# Preparar datos de prueba
+chunks = load_test_documents(1000)  # 1000 documentos administrativos
+
+# Test FAISS
+faiss_store = FAISSStore()
+start_time = time.time()
+faiss_store.add_documents(chunks)
+faiss_insertion_time = time.time() - start_time
+
+# Test ChromaDB
+chromadb_store = ChromaDBStore()
+start_time = time.time()
+chromadb_store.add_documents(chunks)
+chromadb_insertion_time = time.time() - start_time
+
+print(f"FAISS inserción: {faiss_insertion_time:.2f}s")
+print(f"ChromaDB inserción: {chromadb_insertion_time:.2f}s")
+print(f"FAISS es {chromadb_insertion_time/faiss_insertion_time:.2f}x más rápido")
+```
+
+##### **2.2 Benchmark de Búsqueda**
+```python
+# Prueba: Latencia y precisión de búsquedas
+queries = [
+    "¿Cómo solicitar una licencia de obra?",
+    "Procedimiento para empadronamiento",
+    "Horarios de atención al ciudadano",
+    "Requisitos para licencia de actividad",
+    "Trámites online disponibles"
+]
+
+# Medir latencia
+faiss_times = []
+chromadb_times = []
+
+for query in queries:
+    query_embedding = embedding_service.encode(query)
+    
+    # FAISS
+    start_time = time.time()
+    faiss_results = faiss_store.search(query_embedding, k=5)
+    faiss_times.append(time.time() - start_time)
+    
+    # ChromaDB
+    start_time = time.time()
+    chromadb_results = chromadb_store.search(query_embedding, k=5)
+    chromadb_times.append(time.time() - start_time)
+
+avg_faiss_time = np.mean(faiss_times)
+avg_chromadb_time = np.mean(chromadb_times)
+
+print(f"Latencia promedio FAISS: {avg_faiss_time*1000:.2f}ms")
+print(f"Latencia promedio ChromaDB: {avg_chromadb_time*1000:.2f}ms")
+```
+
+##### **2.3 Uso de Memoria**
+```python
+# Prueba: Consumo de memoria y almacenamiento
+import psutil
+import os
+
+# Medir memoria antes
+memory_before = psutil.Process().memory_info().rss / 1024 / 1024  # MB
+
+# Cargar vector stores con datos
+faiss_store.load_index()
+faiss_memory = psutil.Process().memory_info().rss / 1024 / 1024 - memory_before
+
+chromadb_store.load_collection()
+chromadb_memory = psutil.Process().memory_info().rss / 1024 / 1024 - faiss_memory
+
+# Medir almacenamiento en disco
+faiss_disk_size = get_directory_size("data/vectorstore/faiss")
+chromadb_disk_size = get_directory_size("data/vectorstore/chromadb")
+
+print(f"FAISS - RAM: {faiss_memory:.1f}MB, Disco: {faiss_disk_size:.1f}MB")
+print(f"ChromaDB - RAM: {chromadb_memory:.1f}MB, Disco: {chromadb_disk_size:.1f}MB")
+```
+
+##### **2.4 Persistencia y Recuperación**
+```python
+# Prueba: Robustez de persistencia
+# Test 1: Guardar estado
+faiss_store.save_index()
+chromadb_store.persist()
+
+# Test 2: Simular reinicio (limpiar memoria)
+del faiss_store, chromadb_store
+
+# Test 3: Cargar desde disco
+faiss_store_recovered = FAISSStore()
+faiss_store_recovered.load_index()
+assert faiss_store_recovered.get_document_count() > 0
+
+chromadb_store_recovered = ChromaDBStore()
+chromadb_store_recovered.load_collection()
+assert chromadb_store_recovered.get_document_count() > 0
+
+print("✅ Persistencia verificada para ambos stores")
+```
+
+#### **Métricas a Documentar para TFM**
+- **Velocidad de inserción** (docs/segundo)
+- **Latencia de búsqueda** (ms/query)
+- **Throughput de consultas** (queries/segundo)
+- **Uso de memoria RAM** (MB)
+- **Almacenamiento en disco** (MB)
+- **Tiempo de recuperación** post-reinicio
+- **Precision@K** para consultas test
+
+#### **Resultado Esperado**
+- ✅ Tabla comparativa completa para TFM
+- ✅ Gráficos de rendimiento por métrica
+- ✅ Matriz de decisión: cuándo usar cada tecnología
+- ✅ Análisis estadístico de significancia
+
+---
+
+## 🤖 Fase 3: Integración LLM Dual
+### **Duración estimada**: 2-3 días
+
+#### **Pruebas de Modelos Locales (Ollama)**
+
+##### **3.1 Verificación de Conectividad Ollama**
+```python
+# Prueba: Conexión con servidor Ollama local
+from app.services.llm_service import LLMService
+
+llm_service = LLMService()
+
+# Test conexión
+try:
+    response = llm_service.test_ollama_connection()
+    print("✅ Ollama server conectado")
+    
+    # Listar modelos disponibles
+    models = llm_service.list_ollama_models()
+    print(f"✅ Modelos locales disponibles: {models}")
+    
+except Exception as e:
+    print(f"❌ Error conectando Ollama: {e}")
+```
+
+##### **3.2 Pruebas de Generación Local**
+```python
+# Prueba: Generación con modelos locales
+test_query = "¿Cuáles son los horarios de atención al ciudadano?"
+test_context = [
+    DocumentChunk(
+        content="El Ayuntamiento atiende de lunes a viernes de 9:00 a 14:00",
+        metadata={"source": "web_municipal", "type": "horarios"}
+    )
+]
+
+for model in ["llama3.2:3b", "mistral:7b", "gemma2:2b"]:
+    try:
+        start_time = time.time()
+        response = llm_service.generate_local(
+            query=test_query,
+            context=test_context,
+            model=model
+        )
+        generation_time = time.time() - start_time
+        
+        print(f"✅ {model}: {generation_time:.2f}s")
+        print(f"   Respuesta: {response.content[:100]}...")
+        print(f"   Tokens: {response.tokens_used}")
+        
+    except Exception as e:
+        print(f"❌ {model}: Error - {e}")
+```
+
+#### **Pruebas de Modelos Cloud (OpenAI)**
+
+##### **3.3 Verificación de API OpenAI**
+```python
+# Prueba: Conexión con API OpenAI
+try:
+    response = llm_service.test_openai_connection()
+    print("✅ OpenAI API conectada")
+    
+    # Test con diferentes modelos
+    openai_models = ["gpt-4o", "gpt-4o-mini", "gpt-3.5-turbo"]
+    
+    for model in openai_models:
+        try:
+            start_time = time.time()
+            response = llm_service.generate_openai(
+                query=test_query,
+                context=test_context,
+                model=model
+            )
+            generation_time = time.time() - start_time
+            
+            print(f"✅ {model}: {generation_time:.2f}s")
+            print(f"   Respuesta: {response.content[:100]}...")
+            print(f"   Costo estimado: ${response.estimated_cost:.4f}")
+            
+        except Exception as e:
+            print(f"❌ {model}: Error - {e}")
+            
+except Exception as e:
+    print(f"❌ Error OpenAI API: {e}")
+```
+
+##### **3.4 Comparación Dual Automática**
+```python
+# Prueba: Sistema de comparación automática
+comparison_queries = [
+    "¿Cómo solicitar el certificado de empadronamiento?",
+    "¿Qué documentos necesito para la licencia de obra menor?",
+    "¿Cuál es el procedimiento para darse de alta como autónomo?",
+    "¿Dónde puedo consultar el estado de mi expediente?",
+    "¿Qué ayudas sociales están disponibles este año?"
+]
+
+for query in comparison_queries:
+    print(f"\n🔍 Query: {query}")
+    
+    # Obtener contexto relevante del RAG
+    context = rag_service.retrieve_context(query, k=3)
+    
+    # Generar respuestas con ambos tipos de modelo
+    comparison = llm_service.generate_dual_comparison(
+        query=query,
+        context=context,
+        local_model="llama3.2:3b",
+        openai_model="gpt-4o-mini"
+    )
+    
+    print(f"🏠 Local ({comparison.local_time:.2f}s): {comparison.local_response[:150]}...")
+    print(f"☁️ Cloud ({comparison.openai_time:.2f}s): {comparison.openai_response[:150]}...")
+    print(f"💰 Costo: ${comparison.openai_cost:.4f}")
+    print(f"⚡ Speedup: {comparison.openai_time/comparison.local_time:.2f}x")
+```
+
+#### **Métricas a Documentar para TFM**
+- **Latencia de generación** por modelo (segundos)
+- **Throughput** (tokens/segundo)
+- **Calidad de respuestas** (evaluación manual/automática)
+- **Costos operativos** por consulta
+- **Disponibilidad** y robustez de conexión
+- **Escalabilidad** bajo carga
+
+#### **Resultado Esperado**
+- ✅ Matriz comparativa completa Local vs Cloud
+- ✅ Análisis de costos y escalabilidad
+- ✅ Recomendaciones de uso por escenario
+- ✅ Justificación técnica para administraciones públicas
+
+---
+
+## 🔗 Fase 4: Sistema RAG End-to-End
+### **Duración estimada**: 2 días
+
+#### **Pruebas de Pipeline Completo**
+
+##### **4.1 Ingesta Multimodal**
+```python
+# Prueba: Pipeline completo de ingesta
+from app.services.data_ingestion import DataIngestionService
+
+ingestion_service = DataIngestionService()
+
+# Test 1: Documentos PDF
+pdf_results = ingestion_service.ingest_pdf(
+    "test_documents/reglamento_municipal.pdf"
+)
+print(f"✅ PDF procesado: {len(pdf_results.chunks)} chunks")
+
+# Test 2: Documentos DOCX
+docx_results = ingestion_service.ingest_docx(
+    "test_documents/procedimientos_administrativos.docx"
+)
+print(f"✅ DOCX procesado: {len(docx_results.chunks)} chunks")
+
+# Test 3: Web Scraping
+web_results = ingestion_service.ingest_url(
+    "https://ejemplo-ayuntamiento.es/tramites"
+)
+print(f"✅ Web procesada: {len(web_results.chunks)} chunks")
+
+# Test 4: API Data
+api_results = ingestion_service.ingest_api(
+    endpoint="https://api-municipal.es/servicios",
+    auth_token="test_token"
+)
+print(f"✅ API procesada: {len(api_results.chunks)} chunks")
+```
+
+##### **4.2 Pipeline RAG Completo**
+```python
+# Prueba: Flujo RAG end-to-end
+from app.services.rag_service import RAGService
+
+rag_service = RAGService()
+
+test_scenarios = [
+    {
+        "query": "¿Cómo solicitar una licencia de apertura?",
+        "expected_sources": ["reglamento_municipal", "web_tramites"]
+    },
+    {
+        "query": "¿Cuáles son los impuestos municipales vigentes?",
+        "expected_sources": ["ordenanza_fiscal", "web_municipal"]
+    },
+    {
+        "query": "¿Dónde está ubicado el registro civil?",
+        "expected_sources": ["directorio_servicios", "web_contacto"]
+    }
+]
+
+for scenario in test_scenarios:
+    print(f"\n🔍 Testing: {scenario['query']}")
+    
+    # 1. Retrieve (búsqueda semántica)
+    start_time = time.time()
+    retrieved_docs = rag_service.retrieve(scenario['query'], k=5)
+    retrieve_time = time.time() - start_time
+    
+    # 2. Augment (preparar contexto)
+    context = rag_service.prepare_context(retrieved_docs)
+    
+    # 3. Generate (respuesta con LLM)
+    start_time = time.time()
+    response = rag_service.generate(scenario['query'], context)
+    generate_time = time.time() - start_time
+    
+    # Validar resultados
+    found_sources = [doc.metadata['source'] for doc in retrieved_docs]
+    expected_found = any(exp in found_sources for exp in scenario['expected_sources'])
+    
+    print(f"✅ Retrieve: {retrieve_time*1000:.1f}ms, {len(retrieved_docs)} docs")
+    print(f"✅ Generate: {generate_time*1000:.1f}ms")
+    print(f"✅ Sources found: {expected_found}")
+    print(f"✅ Response: {response.content[:100]}...")
+```
+
+##### **4.3 Trazabilidad y Transparencia**
+```python
+# Prueba: Sistema de trazabilidad
+query = "¿Qué documentos necesito para renovar el DNI?"
+
+# Generar respuesta con trazabilidad completa
+traced_response = rag_service.generate_with_traceability(query)
+
+print("🔍 Consulta:", traced_response.query)
+print("📊 Métricas:")
+print(f"  - Tiempo total: {traced_response.total_time:.3f}s")
+print(f"  - Docs recuperados: {len(traced_response.sources)}")
+print(f"  - Modelo usado: {traced_response.model_used}")
+print(f"  - Tokens: {traced_response.tokens_used}")
+
+print("\n📚 Fuentes utilizadas:")
+for i, source in enumerate(traced_response.sources, 1):
+    print(f"  {i}. {source.title}")
+    print(f"     Relevancia: {source.relevance_score:.3f}")
+    print(f"     Fragmento: {source.content[:100]}...")
+
+print(f"\n💬 Respuesta: {traced_response.content}")
+```
+
+#### **Métricas a Documentar para TFM**
+- **Tiempo de respuesta total** (retrieve + generate)
+- **Precisión de recuperación** (documentos relevantes encontrados)
+- **Cobertura de fuentes** por tipo de consulta
+- **Calidad de respuestas** con contexto RAG vs sin contexto
+- **Trazabilidad** y transparencia del sistema
+
+#### **Resultado Esperado**
+- ✅ Demostración funcional del sistema completo
+- ✅ Métricas de rendimiento end-to-end
+- ✅ Validación de casos de uso reales
+- ✅ Evidencia de transparencia y trazabilidad
+
+---
+
+## 🌐 Fase 5: Interface Web y UX
+### **Duración estimada**: 1 día
+
+#### **Pruebas de Interfaz de Usuario**
+
+##### **5.1 Dashboard Principal**
+```python
+# Prueba: Métricas del dashboard
+# Verificar que todas las métricas se muestran correctamente
+
+# Test en navegador:
+# 1. Abrir http://localhost:5000
+# 2. Verificar métricas del sistema
+# 3. Comprobar gráficos de rendimiento
+# 4. Validar estado de servicios
+
+dashboard_tests = [
+    "✅ Métricas de embeddings actualizadas",
+    "✅ Estado vector stores mostrado",
+    "✅ Estadísticas de uso visibles",
+    "✅ Gráficos de rendimiento funcionando",
+    "✅ Links de navegación operativos"
+]
+```
+
+##### **5.2 Chat Interface**
+```python
+# Prueba: Funcionalidad del chat
+chat_tests = [
+    {
+        "input": "¿Cuáles son los horarios de atención?",
+        "expected": "Debe mostrar horarios municipales",
+        "sources_expected": True
+    },
+    {
+        "input": "¿Cómo solicitar certificado de empadronamiento?",
+        "expected": "Procedimiento paso a paso",
+        "sources_expected": True
+    },
+    {
+        "input": "¿Qué tiempo hace hoy?",
+        "expected": "Información no disponible en documentos",
+        "sources_expected": False
+    }
+]
+
+# Test manual en navegador:
+# 1. Abrir http://localhost:5000/chat
+# 2. Probar cada query de test
+# 3. Verificar respuestas y fuentes citadas
+# 4. Comprobar historial de conversación
+```
+
+##### **5.3 Sistema de Comparación**
+```python
+# Prueba: Comparación lado a lado
+# Test en navegador:
+# 1. Abrir interfaz de comparación
+# 2. Ingresar query de prueba
+# 3. Verificar respuestas de ambos modelos
+# 4. Comprobar métricas mostradas (tiempo, costo)
+# 5. Validar interfaz responsive
+
+comparison_tests = [
+    "✅ Respuesta local generada",
+    "✅ Respuesta cloud generada", 
+    "✅ Métricas de tiempo mostradas",
+    "✅ Costos calculados correctamente",
+    "✅ Fuentes citadas en ambas respuestas"
+]
+```
+
+#### **Documentación Visual para TFM**
+- **Screenshots** de todas las interfaces
+- **Flujos de usuario** documentados
+- **Análisis de UX** para técnicos municipales
+- **Métricas de usabilidad** (tiempo de tarea, tasa de éxito)
+
+#### **Resultado Esperado**
+- ✅ Interface completamente funcional
+- ✅ Material visual para TFM (screenshots, videos)
+- ✅ Validación de UX con casos reales
+- ✅ Documentación de diseño centrado en usuario
+
+---
+
+## 📈 Fase 6: Benchmarking Académico Final
+### **Duración estimada**: 2-3 días
+
+#### **Ejecutar Framework Científico Completo**
+
+##### **6.1 Benchmark Reproducible**
+```python
+# Ejecutar script de benchmarking académico
+from scripts.comparison_faiss_vs_chromadb import run_comprehensive_benchmark
+
+# Configuración de benchmark
+benchmark_config = {
+    "dataset_sizes": [100, 500, 1000, 2000],
+    "query_sets": ["administrativos", "ciudadanos", "tecnicos"],
+    "embedding_models": ["all-MiniLM-L6-v2"],
+    "vector_stores": ["faiss", "chromadb"],
+    "metrics": ["latency", "throughput", "memory", "accuracy"],
+    "repetitions": 5,  # Para significancia estadística
+    "output_format": ["csv", "json", "latex"]
+}
+
+# Ejecutar benchmark completo
+results = run_comprehensive_benchmark(benchmark_config)
+
+# Generar reportes automáticos
+generate_academic_report(results, output_path="reports/benchmark_tfm.pdf")
+```
+
+##### **6.2 Análisis Estadístico**
+```python
+# Análisis de significancia estadística
+from scipy import stats
+import pandas as pd
+
+# Cargar resultados del benchmark
+results_df = pd.read_csv("data/reports/benchmark_results.csv")
+
+# Test de hipótesis: FAISS vs ChromaDB
+faiss_latency = results_df[results_df['store'] == 'faiss']['latency_ms']
+chromadb_latency = results_df[results_df['store'] == 'chromadb']['latency_ms']
+
+# T-test para diferencias significativas
+t_stat, p_value = stats.ttest_ind(faiss_latency, chromadb_latency)
+
+print(f"T-statistic: {t_stat:.4f}")
+print(f"P-value: {p_value:.6f}")
+print(f"Significativo (p<0.05): {p_value < 0.05}")
+
+# Calcular effect size (Cohen's d)
+effect_size = (faiss_latency.mean() - chromadb_latency.mean()) / \
+              np.sqrt(((faiss_latency.std()**2 + chromadb_latency.std()**2) / 2))
+print(f"Effect size (Cohen's d): {effect_size:.4f}")
+```
+
+##### **6.3 Generación de Material TFM**
+```python
+# Script para generar automáticamente material del TFM
+from utils.tfm_generator import TFMContentGenerator
+
+generator = TFMContentGenerator()
+
+# Generar tablas LaTeX
+generator.generate_comparison_table(
+    data=results_df,
+    output="tables/tabla_comparativa_stores.tex"
+)
+
+# Generar gráficos académicos
+generator.generate_performance_plots(
+    data=results_df,
+    output_dir="figures/",
+    formats=["pdf", "png"]
+)
+
+# Generar análisis textual
+generator.generate_results_analysis(
+    data=results_df,
+    template="templates/analisis_resultados.md",
+    output="docs/analisis_empirico_tfm.md"
+)
+```
+
+#### **Métricas Finales para TFM**
+- **Análisis comparativo completo** con significancia estadística
+- **Gráficos de rendimiento** en calidad de publicación
+- **Tablas de resultados** formateadas para LaTeX
+- **Análisis de trade-offs** técnicos y económicos
+- **Recomendaciones** basadas en evidencia empírica
+
+#### **Resultado Esperado**
+- ✅ Evidencia empírica robusta para TFM
+- ✅ Material gráfico y tabular académico
+- ✅ Análisis estadístico riguroso
+- ✅ Conclusiones fundamentadas en datos
+
+---
+
+## 📋 Checklist de Deliverables
+
+### **Documentación Técnica**
+- [ ] `docs/evaluacion_embeddings.md` - Análisis del sistema de embeddings
+- [ ] `docs/comparativa_vector_stores.md` - FAISS vs ChromaDB
+- [ ] `docs/integracion_llm_dual.md` - Local vs Cloud
+- [ ] `docs/evaluacion_rag_completo.md` - Sistema end-to-end
+- [ ] `docs/analisis_empirico_tfm.md` - Resultados estadísticos
+
+### **Material Visual TFM**
+- [ ] `figures/performance_embeddings.pdf` - Gráficos de rendimiento
+- [ ] `figures/comparison_vector_stores.pdf` - Comparativas visuales
+- [ ] `figures/architecture_diagram.pdf` - Diagrama arquitectónico
+- [ ] `screenshots/interface_screenshots/` - Capturas de interfaz
+- [ ] `tables/` - Tablas LaTeX para memoria
+
+### **Resultados Empíricos**
+- [ ] `data/reports/benchmark_results.csv` - Datos crudos
+- [ ] `data/reports/statistical_analysis.json` - Análisis estadístico
+- [ ] `data/reports/tfm_summary_report.pdf` - Reporte ejecutivo
+
+### **Código Verificado**
+- [ ] Todos los tests unitarios pasando (✅ 100%)
+- [ ] Integración LLM dual funcional
+- [ ] Pipeline RAG end-to-end operativo
+- [ ] Interface web completamente funcional
+- [ ] Scripts de benchmarking ejecutados
+
+---
+
+## 🗓️ Cronograma Estimado
+
+| Fase | Duración | Entregables | Estado |
+|------|----------|-------------|---------|
+| **Fase 1**: Embeddings | 1-2 días | Análisis técnico + métricas | ⏳ Pendiente |
+| **Fase 2**: Vector Stores | 2-3 días | Comparativa empírica | ⏳ Pendiente |
+| **Fase 3**: LLM Integration | 2-3 días | Evaluación dual | ⏳ Pendiente |
+| **Fase 4**: RAG End-to-End | 2 días | Validación completa | ⏳ Pendiente |
+| **Fase 5**: Interface Web | 1 día | Material visual TFM | ⏳ Pendiente |
+| **

@@ -57,26 +57,9 @@ def setup_basic_routes(app, config, logger):
         """Status de la API"""
         try:
             # Verificación rápida de servicios críticos
-            services_status = {
-                "timestamp": time.time(),
-                "status": "healthy",
-                "services": {}
-            }
-            
-            # Verificar LLM Service si está disponible
-            try:
-                from app.services.llm.llm_services import LLMService
-                llm_service = LLMService()
-                health = llm_service.health_check()
-                services_status["services"]["llm_service"] = health
-            except Exception as e:
-                services_status["services"]["llm_service"] = {
-                    "status": "error", 
-                    "error": str(e)
-                }
-            
-            return jsonify(services_status)
-            
+            from scripts.health_check import quick_health_check
+            status = quick_health_check()
+            return jsonify(status)
         except Exception as e:
             logger.error(f"Error en status check: {e}")
             return jsonify({

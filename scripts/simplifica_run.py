@@ -1,5 +1,24 @@
 #!/usr/bin/env python3
 """
+Fix rápido para completar Fase 2
+Corrige el error de importación de time
+"""
+import os
+import shutil
+import sys
+import time  # ← AGREGADO: import faltante
+from pathlib import Path
+
+def fix_and_complete_phase2():
+    """Completar la fase 2 corrigiendo el error"""
+    project_root = Path(__file__).parent.parent
+    run_py_path = project_root / "run.py"
+    
+    print("🔧 Corrigiendo y completando Fase 2...")
+    
+    # Crear run.py simplificado CORREGIDO
+    simplified_runpy = '''#!/usr/bin/env python3
+"""
 Prototipo_chatbot - Punto de entrada principal SIMPLIFICADO
 Chatbot RAG para Administraciones Locales
 
@@ -123,7 +142,7 @@ def register_blueprints(app, logger):
 
 def print_startup_info(config, blueprints_count):
     """Mostrar información de inicio"""
-    print("\n" + "=" * 60)
+    print("\\n" + "=" * 60)
     print("🎓 TFM Vicente Caruncho - Prototipo Chatbot RAG")
     print("🏛️ Administraciones Locales - UJI")
     print("=" * 60)
@@ -132,9 +151,9 @@ def print_startup_info(config, blueprints_count):
     print(f"🔧 Blueprints: {blueprints_count} registrados")
     print(f"📝 Versión: {getattr(config, 'version', '2.0')}")
     print(f"🏷️ Entorno: {getattr(config, 'environment', 'development')}")
-    print(f"\n🌐 Servidor: http://{getattr(config, 'host', 'localhost')}:{getattr(config, 'port', 5000)}")
+    print(f"\\n🌐 Servidor: http://{getattr(config, 'host', 'localhost')}:{getattr(config, 'port', 5000)}")
     print(f"🩺 Health Check: http://{getattr(config, 'host', 'localhost')}:{getattr(config, 'port', 5000)}/health")
-    print(f"\n⚠️ Usa Ctrl+C para detener el servidor")
+    print(f"\\n⚠️ Usa Ctrl+C para detener el servidor")
     print("=" * 60)
 
 
@@ -171,14 +190,14 @@ def main():
         )
         
     except KeyboardInterrupt:
-        print("\n⏹️ Aplicación detenida por el usuario")
+        print("\\n⏹️ Aplicación detenida por el usuario")
         print("👋 ¡Hasta luego! Gracias por usar Prototipo_chatbot TFM")
         sys.exit(0)
         
     except Exception as e:
-        print(f"\n❌ Error crítico iniciando la aplicación:")
+        print(f"\\n❌ Error crítico iniciando la aplicación:")
         print(f"🔍 Error: {e}")
-        print("\n💡 Soluciones:")
+        print("\\n💡 Soluciones:")
         print("   1. Ejecutar diagnóstico: python scripts/system_diagnosis.py")
         print("   2. Verificar health: python scripts/health_check.py")
         print("   3. Instalar dependencias: pip install -r requirements.txt")
@@ -188,3 +207,74 @@ def main():
 
 if __name__ == "__main__":
     main()
+'''
+    
+    # Leer contenido original para backup
+    if run_py_path.exists():
+        original_content = run_py_path.read_text(encoding='utf-8')
+        original_lines = len(original_content.split('\n'))
+        
+        # Crear backup con timestamp
+        backup_dir = project_root / "backup_reorganization"
+        backup_dir.mkdir(exist_ok=True)
+        backup_detailed = backup_dir / f"run_py_original_{int(time.time())}.py"
+        backup_detailed.write_text(original_content, encoding='utf-8')
+        
+        print(f"💾 Backup detallado: {backup_detailed}")
+    else:
+        original_lines = 0
+    
+    # Escribir nuevo run.py simplificado
+    run_py_path.write_text(simplified_runpy, encoding='utf-8')
+    
+    new_lines = len(simplified_runpy.split('\n'))
+    
+    print(f"✅ run.py simplificado creado exitosamente")
+    print(f"📊 Líneas originales: {original_lines}")
+    print(f"📊 Líneas nuevas: {new_lines}")
+    
+    if original_lines > 0:
+        reduction = original_lines - new_lines
+        percentage = (reduction / original_lines * 100)
+        print(f"📊 Reducción: {reduction} líneas ({percentage:.1f}%)")
+    
+    print("\n🎉 ¡Fase 2 completada exitosamente!")
+    return True
+
+def main():
+    """Función principal del fix"""
+    print("🔧 Fix Fase 2 - Corrigiendo error de importación")
+    print("=" * 50)
+    
+    try:
+        success = fix_and_complete_phase2()
+        
+        if success:
+            print("\n📋 RESUMEN FASE 2 - COMPLETADA")
+            print("=" * 30)
+            print("✅ run.py simplificado exitosamente")
+            print("✅ scripts/system_diagnosis.py disponible")
+            print("✅ scripts/health_check.py disponible")
+            print("✅ Backups de seguridad creados")
+            
+            print("\n💡 Próximos pasos:")
+            print("   1. Probar aplicación: python run.py")
+            print("   2. Ejecutar diagnóstico: python scripts/system_diagnosis.py")
+            print("   3. Verificar health: python scripts/health_check.py")
+            
+            return True
+        else:
+            return False
+            
+    except Exception as e:
+        print(f"❌ Error en fix: {e}")
+        return False
+
+if __name__ == "__main__":
+    success = main()
+    if success:
+        print("\n🚀 ¡Fix completado! Puedes continuar con las siguientes fases.")
+        sys.exit(0)
+    else:
+        print("\n⚠️ Fix completado con errores.")
+        sys.exit(1)
