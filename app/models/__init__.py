@@ -1,6 +1,12 @@
 """Package initialization"""
 
 # =============================================================================
+# IMPORTS PRINCIPALES - MODELOS DE DOCUMENTOS
+# =============================================================================
+
+from .document import DocumentChunk, DocumentMetadata, create_chunk, create_chunks_from_text
+
+# =============================================================================
 # SISTEMA DE ESTADÍSTICAS
 # =============================================================================
 
@@ -171,3 +177,33 @@ class ServiceHealth:
     last_check: datetime = field(default_factory=datetime.now)
     details: Dict[str, Any] = field(default_factory=dict)
     uptime_percent: float = 100.0
+
+@dataclass
+class IngestionJob:
+    """Job de ingesta de documentos"""
+    id: str
+    file_path: str
+    source_type: str
+    status: str = "pending"
+    created_at: datetime = field(default_factory=datetime.now)
+    completed_at: Optional[datetime] = None
+    error_message: Optional[str] = None
+
+# =============================================================================
+# EXPORTACIONES
+# =============================================================================
+
+__all__ = [
+    # Modelos de documentos
+    'DocumentChunk',
+    'DocumentMetadata', 
+    'create_chunk',
+    'create_chunks_from_text',
+    
+    # Estadísticas del sistema
+    'SystemStats',
+    'QueryMetrics',
+    'DocumentMetrics',
+    'ServiceHealth',
+    'IngestionJob',
+]

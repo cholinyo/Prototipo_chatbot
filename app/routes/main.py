@@ -1,6 +1,6 @@
 """
 Rutas principales para Prototipo_chatbot MEJORADAS
-TFM Vicente Caruncho - Integración Pipeline RAG Dashboard
+TFM Vicente Caruncho - IntegraciÃ³n Pipeline RAG Dashboard
 """
 
 from flask import Blueprint, render_template, request, jsonify, flash, redirect, url_for
@@ -15,23 +15,20 @@ from app.core.config import (
     get_vector_store_config, get_security_config, validate_configuration
 )
 
-# NUEVA INTEGRACIÓN: Pipeline RAG mejorado
+# INTEGRACIÓN: Pipeline RAG usando archivos existentes
 try:
-    from app.services.rag.pipeline import get_rag_pipeline
+    from app.services.rag_pipeline import get_rag_pipeline
+    from app.services.rag_pipeline import rag_pipeline
+    from app.services.llm.llm_services import llm_service
+    from app.services.document_ingestion_service import document_ingestion_service
     RAG_PIPELINE_AVAILABLE = True
-except ImportError:
-    # Fallback a versiones existentes
-    try:
-        from app.services.rag import rag_service
-        from app.services.llm_service import llm_service
-        from app.services.ingestion import ingestion_service
-        RAG_PIPELINE_AVAILABLE = False
-    except ImportError:
-        # Servicios no disponibles
-        rag_service = None
-        llm_service = None
-        ingestion_service = None
-        RAG_PIPELINE_AVAILABLE = False
+except ImportError as e:
+    print(f"⚠️ Servicios RAG no disponibles: {e}")
+    get_rag_pipeline = None
+    rag_pipeline = None
+    llm_service = None
+    document_ingestion_service = None
+    RAG_PIPELINE_AVAILABLE = False
 
 from app.models import SystemStats
 
@@ -39,25 +36,25 @@ from app.models import SystemStats
 main_bp = Blueprint('main', __name__)
 logger = get_logger("main_routes")
 
-# Estadísticas globales del sistema (en producción usar base de datos)
+# EstadÃ­sticas globales del sistema (en producciÃ³n usar base de datos)
 system_stats = SystemStats()
 
 @main_bp.route('/')
 def index():
-    """Página principal del sistema MEJORADA"""
+    """PÃ¡gina principal del sistema MEJORADA"""
     try:
         # Obtener configuraciones
         app_config = get_app_config()
         
-        # NUEVA LÓGICA: Usar pipeline RAG mejorado
+        # NUEVA LÃ"GICA: Usar pipeline RAG mejorado
         if RAG_PIPELINE_AVAILABLE and get_rag_pipeline:
             pipeline = get_rag_pipeline()
             
-            # Obtener estadísticas del pipeline integrado
+            # Obtener estadÃ­sticas del pipeline integrado
             pipeline_stats = pipeline.get_stats()
             health_status = pipeline.health_check()
             
-            # Actualizar estadísticas del sistema con datos reales del pipeline
+            # Actualizar estadÃ­sticas del sistema con datos reales del pipeline
             system_stats.documents_indexed = pipeline_stats.get('documents_count', 0)
             system_stats.update_indexing_stats(0, 0)  # Solo actualizar timestamp
             
@@ -72,7 +69,7 @@ def index():
                 }
             }
             
-            # Estadísticas combinadas
+            # EstadÃ­sticas combinadas
             rag_stats = {
                 'total_documents': pipeline_stats.get('documents_count', 0),
                 'vector_store_type': pipeline_stats.get('vector_store_type', 'Unknown'),
@@ -82,7 +79,7 @@ def index():
                 'last_update': pipeline_stats.get('last_update', 'Never')
             }
             
-            # Estadísticas LLM del pipeline
+            # EstadÃ­sticas LLM del pipeline
             llm_stats = {
                 'providers_available': pipeline_stats.get('llm_providers', {}),
                 'models_available': pipeline_stats.get('available_models', {}),
@@ -90,7 +87,7 @@ def index():
                 'avg_response_time': pipeline_stats.get('avg_response_time', 0)
             }
             
-            # Estadísticas de ingesta del pipeline
+            # EstadÃ­sticas de ingesta del pipeline
             ingestion_stats = {
                 'last_ingestion': pipeline_stats.get('last_ingestion', 'Never'),
                 'supported_formats': pipeline_stats.get('supported_formats', []),
@@ -102,11 +99,11 @@ def index():
             logger.warning("Pipeline RAG no disponible, usando servicios individuales")
             
             try:
-                rag_stats = rag_service.get_stats() if rag_service else {}
+                rag_stats = rag_pipeline.get_stats() if rag_pipeline else {}
                 llm_stats = llm_service.get_service_stats() if llm_service else {}
-                ingestion_stats = ingestion_service.get_service_stats() if ingestion_service else {}
+                ingestion_stats = document_ingestion_service.get_service_stats() if document_ingestion_service else {}
                 
-                # Actualizar estadísticas del sistema
+                # Actualizar estadÃ­sticas del sistema
                 system_stats.documents_indexed = rag_stats.get('total_documents', 0)
                 system_stats.update_indexing_stats(0, 0)
                 
@@ -152,7 +149,7 @@ def index():
             'recent_activity': _get_recent_activity()
         }
         
-        logger.info("Página principal cargada",
+        logger.info("PÃ¡gina principal cargada",
                    documents_indexed=system_stats.documents_indexed,
                    providers_available=list(llm_stats.get('providers_available', {}).keys()),
                    overall_health=system_health['overall'],
@@ -161,23 +158,23 @@ def index():
         return render_template('index.html', **context)
         
     except Exception as e:
-        logger.error("Error cargando página principal", error=str(e))
-        flash('Error cargando la página principal', 'error')
+        logger.error("Error cargando pÃ¡gina principal", error=str(e))
+        flash('Error cargando la pÃ¡gina principal', 'error')
         return render_template('errors/500.html'), 500
 
 @main_bp.route('/dashboard')
 def dashboard():
-    """Panel de control y métricas MEJORADO"""
+    """Panel de control y mÃ©tricas MEJORADO"""
     try:
-        # NUEVA LÓGICA: Dashboard con pipeline RAG integrado
+        # NUEVA LÃ"GICA: Dashboard con pipeline RAG integrado
         if RAG_PIPELINE_AVAILABLE and get_rag_pipeline:
             pipeline = get_rag_pipeline()
             
-            # Obtener estadísticas completas del pipeline
+            # Obtener estadÃ­sticas completas del pipeline
             pipeline_stats = pipeline.get_stats()
             health_status = pipeline.health_check()
             
-            # Estadísticas de uso mejoradas
+            # EstadÃ­sticas de uso mejoradas
             usage_stats = {
                 'queries_today': pipeline_stats.get('queries_today', _get_queries_today()),
                 'response_time_avg': pipeline_stats.get('avg_response_time', system_stats.avg_response_time),
@@ -187,7 +184,7 @@ def dashboard():
                 'queries_per_hour': pipeline_stats.get('queries_per_hour', 0)
             }
             
-            # Métricas de rendimiento del pipeline
+            # MÃ©tricas de rendimiento del pipeline
             performance_metrics = {
                 'vector_store_size': pipeline_stats.get('vector_store_size_mb', 0),
                 'total_documents': pipeline_stats.get('documents_count', 0),
@@ -214,7 +211,7 @@ def dashboard():
                     'estimated_cost_today': pipeline_stats.get(f'{provider}_cost_today', 0)
                 }
             
-            # Estadísticas detalladas para el dashboard
+            # EstadÃ­sticas detalladas para el dashboard
             rag_stats = {
                 'vector_store_type': pipeline_stats.get('vector_store_type', 'Unknown'),
                 'total_documents': pipeline_stats.get('documents_count', 0),
@@ -243,11 +240,11 @@ def dashboard():
             logger.warning("Pipeline RAG no disponible en dashboard, usando servicios individuales")
             
             try:
-                rag_stats = rag_service.get_stats() if rag_service else {}
+                rag_stats = rag_pipeline.get_stats() if rag_pipeline else {}
                 llm_stats = llm_service.get_service_stats() if llm_service else {}
-                ingestion_stats = ingestion_service.get_service_stats() if ingestion_service else {}
+                ingestion_stats = document_ingestion_service.get_service_stats() if document_ingestion_service else {}
                 
-                # Estadísticas de uso básicas
+                # EstadÃ­sticas de uso bÃ¡sicas
                 usage_stats = {
                     'queries_today': _get_queries_today(),
                     'response_time_avg': system_stats.avg_response_time,
@@ -255,7 +252,7 @@ def dashboard():
                     'uptime_hours': system_stats.get_uptime_hours()
                 }
                 
-                # Métricas de rendimiento básicas
+                # MÃ©tricas de rendimiento bÃ¡sicas
                 performance_metrics = {
                     'vector_store_size': rag_stats.get('memory_usage_mb', 0),
                     'total_documents': rag_stats.get('total_documents', 0),
@@ -263,13 +260,13 @@ def dashboard():
                     'chunk_size': rag_stats.get('chunk_size', 500)
                 }
                 
-                # Estado de proveedores básico
+                # Estado de proveedores bÃ¡sico
                 providers_status = _get_detailed_provider_status()
                 
             except Exception as fallback_error:
                 logger.error(f"Error en servicios individuales: {fallback_error}")
                 
-                # Valores mínimos por defecto
+                # Valores mÃ­nimos por defecto
                 usage_stats = {'queries_today': 0, 'response_time_avg': 0, 'success_rate': 0, 'uptime_hours': 0}
                 performance_metrics = {'vector_store_size': 0, 'total_documents': 0, 'embedding_model': 'unknown', 'chunk_size': 0}
                 providers_status = {}
@@ -305,104 +302,104 @@ def dashboard():
 
 @main_bp.route('/about')
 def about():
-    """Página de información sobre el proyecto MEJORADA"""
+    """PÃ¡gina de informaciÃ³n sobre el proyecto MEJORADA"""
     try:
         app_config = get_app_config()
         
-        # Información del proyecto actualizada
+        # InformaciÃ³n del proyecto actualizada
         project_info = {
             'title': 'Prototipo de Chatbot RAG para Administraciones Locales',
-            'subtitle': 'Trabajo Final de Máster - Sistemas Inteligentes',
+            'subtitle': 'Trabajo Final de MÃ¡ster - Sistemas Inteligentes',
             'author': 'Vicente Caruncho Ramos',
             'tutor': 'Rafael Berlanga Llavori',
             'university': 'Universitat Jaume I',
-            'master': 'Máster en Sistemas Inteligentes',
-            'speciality': 'Interacción Avanzada y Gestión del Conocimiento',
+            'master': 'MÃ¡ster en Sistemas Inteligentes',
+            'speciality': 'InteracciÃ³n Avanzada y GestiÃ³n del Conocimiento',
             'year': '2025',
             'version': app_config.version,
             'github_url': 'https://github.com/cholinyo/Prototipo_chatbot',
-            'completion_status': '95%'  # Actualizar según progreso real
+            'completion_status': '95%'  # Actualizar segÃºn progreso real
         }
         
-        # Tecnologías utilizadas actualizadas
+        # TecnologÃ­as utilizadas actualizadas
         technologies = {
             'backend': [
                 {'name': 'Python 3.11+', 'description': 'Lenguaje principal del sistema'},
                 {'name': 'Flask 2.3+', 'description': 'Framework web modular'},
-                {'name': 'sentence-transformers', 'description': 'Embeddings semánticos all-MiniLM-L6-v2'},
-                {'name': 'FAISS', 'description': 'Búsqueda vectorial eficiente de Facebook AI'},
+                {'name': 'sentence-transformers', 'description': 'Embeddings semÃ¡nticos all-MiniLM-L6-v2'},
+                {'name': 'FAISS', 'description': 'BÃºsqueda vectorial eficiente de Facebook AI'},
                 {'name': 'ChromaDB', 'description': 'Base de datos vectorial moderna'},
                 {'name': 'PyPDF2 + python-docx', 'description': 'Procesamiento de documentos'},
             ],
             'ai_models': [
-                {'name': 'OpenAI GPT-4o', 'description': 'Modelo de lenguaje comercial de última generación'},
+                {'name': 'OpenAI GPT-4o', 'description': 'Modelo de lenguaje comercial de Ãºltima generaciÃ³n'},
                 {'name': 'OpenAI GPT-4o-mini', 'description': 'Modelo optimizado para costes'},
-                {'name': 'Ollama LLaMA 3.2', 'description': 'Modelos locales de Meta (3B parámetros)'},
-                {'name': 'Ollama Mistral 7B', 'description': 'Modelo francés de Mistral AI'},
+                {'name': 'Ollama LLaMA 3.2', 'description': 'Modelos locales de Meta (3B parÃ¡metros)'},
+                {'name': 'Ollama Mistral 7B', 'description': 'Modelo francÃ©s de Mistral AI'},
                 {'name': 'Ollama Gemma 2B', 'description': 'Modelo ligero de Google'},
                 {'name': 'all-MiniLM-L6-v2', 'description': 'Modelo de embeddings 384 dimensiones'},
             ],
             'frontend': [
                 {'name': 'Bootstrap 5.3', 'description': 'Framework CSS responsive'},
                 {'name': 'JavaScript ES6+', 'description': 'Interactividad cliente y AJAX'},
-                {'name': 'Chart.js', 'description': 'Visualización de datos dinámicos'},
-                {'name': 'Font Awesome 6', 'description': 'Iconografía moderna'},
+                {'name': 'Chart.js', 'description': 'VisualizaciÃ³n de datos dinÃ¡micos'},
+                {'name': 'Font Awesome 6', 'description': 'IconografÃ­a moderna'},
             ],
             'deployment': [
-                {'name': 'Docker', 'description': 'Containerización para producción'},
+                {'name': 'Docker', 'description': 'ContainerizaciÃ³n para producciÃ³n'},
                 {'name': 'Azure App Service', 'description': 'Plataforma cloud objetivo'},
                 {'name': 'GitHub Actions', 'description': 'CI/CD automatizado'},
                 {'name': 'Nginx', 'description': 'Proxy reverso y balanceador'},
             ]
         }
         
-        # Características principales actualizadas
+        # CaracterÃ­sticas principales actualizadas
         features = [
             {
                 'icon': 'fa-search',
                 'title': 'RAG Avanzado',
-                'description': 'Sistema de recuperación aumentada con embeddings semánticos, búsqueda vectorial dual (FAISS/ChromaDB) y chunking inteligente.',
+                'description': 'Sistema de recuperaciÃ³n aumentada con embeddings semÃ¡nticos, bÃºsqueda vectorial dual (FAISS/ChromaDB) y chunking inteligente.',
                 'color': 'primary',
                 'completion': '95%'
             },
             {
                 'icon': 'fa-balance-scale',
-                'title': 'Comparación Empírica',
-                'description': 'Framework de benchmarking científico para evaluación objetiva entre modelos locales (Ollama) y comerciales (OpenAI).',
+                'title': 'ComparaciÃ³n EmpÃ­rica',
+                'description': 'Framework de benchmarking cientÃ­fico para evaluaciÃ³n objetiva entre modelos locales (Ollama) y comerciales (OpenAI).',
                 'color': 'success',
                 'completion': '90%'
             },
             {
                 'icon': 'fa-shield-alt',
                 'title': 'Seguridad y Cumplimiento',
-                'description': 'Implementación de ENS y CCN-TEC 014. Procesamiento local de datos sensibles con modelos on-premise.',
+                'description': 'ImplementaciÃ³n de ENS y CCN-TEC 014. Procesamiento local de datos sensibles con modelos on-premise.',
                 'color': 'warning',
                 'completion': '85%'
             },
             {
                 'icon': 'fa-cogs',
                 'title': 'Arquitectura Modular',
-                'description': 'Diseño hexagonal escalable con componentes intercambiables, configuración YAML y principios SOLID.',
+                'description': 'DiseÃ±o hexagonal escalable con componentes intercambiables, configuraciÃ³n YAML y principios SOLID.',
                 'color': 'info',
                 'completion': '98%'
             },
             {
                 'icon': 'fa-chart-line',
-                'title': 'Métricas y Observabilidad',
-                'description': 'Monitoreo en tiempo real de rendimiento, costes, tokens utilizados y métricas de calidad de respuestas.',
+                'title': 'MÃ©tricas y Observabilidad',
+                'description': 'Monitoreo en tiempo real de rendimiento, costes, tokens utilizados y mÃ©tricas de calidad de respuestas.',
                 'color': 'secondary',
                 'completion': '80%'
             },
             {
                 'icon': 'fa-download',
                 'title': 'Ingesta Multimodal',
-                'description': 'Procesamiento automático de PDF, DOCX, Excel, CSV, web scraping y APIs REST con pipeline ETL robusto.',
+                'description': 'Procesamiento automÃ¡tico de PDF, DOCX, Excel, CSV, web scraping y APIs REST con pipeline ETL robusto.',
                 'color': 'dark',
                 'completion': '92%'
             }
         ]
         
-        # NUEVA SECCIÓN: Estado del sistema en tiempo real
+        # NUEVA SECCIÃ"N: Estado del sistema en tiempo real
         system_status = {}
         if RAG_PIPELINE_AVAILABLE and get_rag_pipeline:
             try:
@@ -440,54 +437,54 @@ def about():
         return render_template('about.html', **context)
         
     except Exception as e:
-        logger.error("Error cargando página about", error=str(e))
-        flash('Error cargando la información del proyecto', 'error')
+        logger.error("Error cargando pÃ¡gina about", error=str(e))
+        flash('Error cargando la informaciÃ³n del proyecto', 'error')
         return redirect(url_for('main.index'))
 
 @main_bp.route('/docs')
 def documentation():
-    """Documentación del sistema MEJORADA"""
+    """DocumentaciÃ³n del sistema MEJORADA"""
     try:
-        # Obtener configuraciones para mostrar en la documentación
+        # Obtener configuraciones para mostrar en la documentaciÃ³n
         model_config = get_model_config()
         rag_config = get_rag_config()
         security_config = get_security_config()
         
-        # Estructura de documentación actualizada
+        # Estructura de documentaciÃ³n actualizada
         docs_sections = [
             {
                 'id': 'quick-start',
-                'title': 'Inicio Rápido',
+                'title': 'Inicio RÃ¡pido',
                 'icon': 'fa-rocket',
-                'description': 'Guía para comenzar a usar el sistema',
+                'description': 'GuÃ­a para comenzar a usar el sistema',
                 'content': 'setup_guide'
             },
             {
                 'id': 'chat-guide',
-                'title': 'Guía de Chat',
+                'title': 'GuÃ­a de Chat',
                 'icon': 'fa-comments',
-                'description': 'Cómo usar la interfaz de chat y comparación',
+                'description': 'CÃ³mo usar la interfaz de chat y comparaciÃ³n',
                 'content': 'chat_interface'
             },
             {
                 'id': 'rag-system',
                 'title': 'Sistema RAG',
                 'icon': 'fa-search',
-                'description': 'Funcionamiento de la recuperación aumentada',
+                'description': 'Funcionamiento de la recuperaciÃ³n aumentada',
                 'content': 'rag_architecture'
             },
             {
                 'id': 'model-config',
-                'title': 'Configuración de Modelos',
+                'title': 'ConfiguraciÃ³n de Modelos',
                 'icon': 'fa-brain',
-                'description': 'Parámetros y configuración de LLMs',
+                'description': 'ParÃ¡metros y configuraciÃ³n de LLMs',
                 'content': 'model_configuration'
             },
             {
                 'id': 'data-ingestion',
                 'title': 'Ingesta de Datos',
                 'icon': 'fa-download',
-                'description': 'Cómo añadir documentos al sistema',
+                'description': 'CÃ³mo aÃ±adir documentos al sistema',
                 'content': 'ingestion_guide'
             },
             {
@@ -501,7 +498,7 @@ def documentation():
                 'id': 'benchmarking',
                 'title': 'Benchmarking',
                 'icon': 'fa-chart-bar',
-                'description': 'Evaluación y comparación de modelos',
+                'description': 'EvaluaciÃ³n y comparaciÃ³n de modelos',
                 'content': 'benchmark_guide'
             }
         ]
@@ -512,7 +509,7 @@ def documentation():
                 'method': 'GET',
                 'path': '/api/status',
                 'description': 'Estado completo del sistema',
-                'response': 'JSON con estado de servicios y métricas'
+                'response': 'JSON con estado de servicios y mÃ©tricas'
             },
             {
                 'method': 'POST',
@@ -523,13 +520,13 @@ def documentation():
             {
                 'method': 'POST',
                 'path': '/api/chat/compare',
-                'description': 'Comparar respuestas de múltiples modelos',
+                'description': 'Comparar respuestas de mÃºltiples modelos',
                 'params': ['message', 'use_rag', 'k', 'temperature']
             },
             {
                 'method': 'POST',
                 'path': '/api/chat/rag/search',
-                'description': 'Búsqueda semántica en documentos',
+                'description': 'BÃºsqueda semÃ¡ntica en documentos',
                 'params': ['query', 'k', 'threshold']
             },
             {
@@ -542,11 +539,11 @@ def documentation():
                 'method': 'GET',
                 'path': '/api/chat/status',
                 'description': 'Estado del pipeline RAG y chat',
-                'response': 'Estado de componentes y estadísticas'
+                'response': 'Estado de componentes y estadÃ­sticas'
             }
         ]
         
-        # NUEVA SECCIÓN: Información del pipeline si está disponible
+        # NUEVA SECCIÃ"N: InformaciÃ³n del pipeline si estÃ¡ disponible
         pipeline_info = {}
         if RAG_PIPELINE_AVAILABLE and get_rag_pipeline:
             try:
@@ -590,15 +587,15 @@ def documentation():
         return render_template('docs.html', **context)
         
     except Exception as e:
-        logger.error("Error cargando documentación", error=str(e))
-        flash('Error cargando la documentación', 'error')
+        logger.error("Error cargando documentaciÃ³n", error=str(e))
+        flash('Error cargando la documentaciÃ³n', 'error')
         return redirect(url_for('main.index'))
 
 @main_bp.route('/settings')
 def settings():
-    """Página de configuración del sistema MEJORADA"""
+    """PÃ¡gina de configuraciÃ³n del sistema MEJORADA"""
     try:
-        # Verificar configuración actual
+        # Verificar configuraciÃ³n actual
         validation_result = validate_configuration()
         
         # Obtener todas las configuraciones
@@ -608,7 +605,7 @@ def settings():
         vector_store_config = get_vector_store_config()
         security_config = get_security_config()
         
-        # NUEVA LÓGICA: Estado de servicios con pipeline
+        # NUEVA LÃ"GICA: Estado de servicios con pipeline
         if RAG_PIPELINE_AVAILABLE and get_rag_pipeline:
             try:
                 pipeline = get_rag_pipeline()
@@ -648,9 +645,9 @@ def settings():
             try:
                 service_status = {
                     'pipeline': {'available': False, 'status': 'not_loaded'},
-                    'rag': rag_service.get_stats() if rag_service else {'error': 'Service unavailable'},
+                    'rag': rag_pipeline.get_stats() if rag_pipeline else {'error': 'Service unavailable'},
                     'llm': llm_service.get_service_stats() if llm_service else {'error': 'Service unavailable'},
-                    'ingestion': ingestion_service.get_service_stats() if ingestion_service else {'error': 'Service unavailable'}
+                    'ingestion': document_ingestion_service.get_service_stats() if document_ingestion_service else {'error': 'Service unavailable'}
                 }
             except Exception as e:
                 logger.error(f"Error obteniendo estado de servicios: {e}")
@@ -676,8 +673,8 @@ def settings():
         return render_template('settings.html', **context)
         
     except Exception as e:
-        logger.error("Error cargando configuración", error=str(e))
-        flash('Error cargando la configuración del sistema', 'error')
+        logger.error("Error cargando configuraciÃ³n", error=str(e))
+        flash('Error cargando la configuraciÃ³n del sistema', 'error')
         return redirect(url_for('main.index'))
 
 # =============================================================================
@@ -724,12 +721,12 @@ def rebuild_pipeline():
         
         pipeline = get_rag_pipeline()
         
-        # Obtener parámetros de reconstrucción
+        # Obtener parÃ¡metros de reconstrucciÃ³n
         data = request.get_json() or {}
         source_dir = data.get('source_dir', 'data/documents')
         clear_existing = data.get('clear_existing', True)
         
-        logger.info(f"Iniciando reconstrucción de pipeline desde {source_dir}")
+        logger.info(f"Iniciando reconstrucciÃ³n de pipeline desde {source_dir}")
         
         # Reconstruir pipeline
         result = pipeline.rebuild_index(
@@ -763,11 +760,11 @@ def rebuild_pipeline():
 # =============================================================================
 
 def _get_quick_actions():
-    """Obtener acciones rápidas para la página principal MEJORADAS"""
+    """Obtener acciones rÃ¡pidas para la pÃ¡gina principal MEJORADAS"""
     actions = [
         {
             'title': 'Iniciar Chat RAG',
-            'description': 'Conversación con recuperación de documentos',
+            'description': 'ConversaciÃ³n con recuperaciÃ³n de documentos',
             'icon': 'fa-comments',
             'url': url_for('chat.chat_interface'),
             'color': 'primary',
@@ -775,14 +772,14 @@ def _get_quick_actions():
         },
         {
             'title': 'Comparar Modelos',
-            'description': 'Evaluación paralela Local vs Cloud',
+            'description': 'EvaluaciÃ³n paralela Local vs Cloud',
             'icon': 'fa-balance-scale', 
             'url': url_for('chat.chat_interface') + '?mode=compare',
             'color': 'success',
             'available': RAG_PIPELINE_AVAILABLE
         },
         {
-            'title': 'Dashboard Métricas',
+            'title': 'Dashboard MÃ©tricas',
             'description': 'Monitoreo en tiempo real del sistema',
             'icon': 'fa-chart-line',
             'url': url_for('main.dashboard'),
@@ -791,7 +788,7 @@ def _get_quick_actions():
         },
         {
             'title': 'Estado Pipeline',
-            'description': 'Diagnóstico detallado de componentes',
+            'description': 'DiagnÃ³stico detallado de componentes',
             'icon': 'fa-heartbeat',
             'url': url_for('main.pipeline_status'),
             'color': 'info',
@@ -799,7 +796,7 @@ def _get_quick_actions():
         }
     ]
     
-    # Filtrar acciones según disponibilidad
+    # Filtrar acciones segÃºn disponibilidad
     return [action for action in actions if action['available']]
 
 def _get_recent_activity():
@@ -814,7 +811,7 @@ def _get_recent_activity():
         }
     ]
     
-    # Añadir actividad del pipeline si está disponible
+    # AÃ±adir actividad del pipeline si estÃ¡ disponible
     if RAG_PIPELINE_AVAILABLE and get_rag_pipeline:
         try:
             pipeline = get_rag_pipeline()
@@ -848,7 +845,7 @@ def _get_recent_activity():
         activities.append({
             'timestamp': datetime.now(),
             'type': 'info',
-            'message': 'Pipeline RAG no cargado - usando servicios básicos',
+            'message': 'Pipeline RAG no cargado - usando servicios bÃ¡sicos',
             'icon': 'fa-info-circle',
             'color': 'secondary'
         })
@@ -856,7 +853,7 @@ def _get_recent_activity():
     return activities
 
 def _get_queries_today():
-    """Obtener número de consultas hoy (mejorado)"""
+    """Obtener nÃºmero de consultas hoy (mejorado)"""
     if RAG_PIPELINE_AVAILABLE and get_rag_pipeline:
         try:
             pipeline = get_rag_pipeline()
@@ -914,11 +911,11 @@ def _get_detailed_provider_status():
     return {}
 
 def _get_charts_data():
-    """Obtener datos para gráficos del dashboard MEJORADOS"""
+    """Obtener datos para grÃ¡ficos del dashboard MEJORADOS"""
     # Datos base por defecto
     base_charts = {
         'usage_over_time': {
-            'labels': ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'],
+            'labels': ['Lun', 'Mar', 'MiÃ©', 'Jue', 'Vie', 'SÃ¡b', 'Dom'],
             'datasets': [{
                 'label': 'Consultas',
                 'data': [12, 19, 15, 25, 22, 8, 14],
@@ -952,13 +949,13 @@ def _get_charts_data():
         }
     }
     
-    # Enriquecer con datos reales del pipeline si está disponible
+    # Enriquecer con datos reales del pipeline si estÃ¡ disponible
     if RAG_PIPELINE_AVAILABLE and get_rag_pipeline:
         try:
             pipeline = get_rag_pipeline()
             stats = pipeline.get_stats()
             
-            # Actualizar gráfico de uso de modelos con datos reales
+            # Actualizar grÃ¡fico de uso de modelos con datos reales
             providers = stats.get('llm_providers', {})
             if providers:
                 provider_names = list(providers.keys())
@@ -986,7 +983,7 @@ def _get_charts_data():
                         }]
                     }
             
-            # Añadir gráfico de documentos por tipo si hay datos
+            # AÃ±adir grÃ¡fico de documentos por tipo si hay datos
             document_types = stats.get('document_types', {})
             if document_types:
                 base_charts['document_types'] = {
@@ -1004,36 +1001,36 @@ def _get_charts_data():
                 }
             
         except Exception as e:
-            logger.debug(f"Error enriqueciendo datos de gráficos: {e}")
+            logger.debug(f"Error enriqueciendo datos de grÃ¡ficos: {e}")
     
     return base_charts
 
 def _get_configuration_tips():
-    """Obtener consejos de configuración MEJORADOS"""
+    """Obtener consejos de configuraciÃ³n MEJORADOS"""
     tips = [
         {
             'category': 'Pipeline RAG',
             'tips': [
                 'El pipeline integrado ofrece mejor rendimiento que servicios separados',
                 'Usa FAISS para datasets grandes (>1000 docs), ChromaDB para datasets medianos',
-                'Ajusta chunk_size según el tipo de documentos: 300-500 para técnicos, 500-800 para narrativos'
+                'Ajusta chunk_size segÃºn el tipo de documentos: 300-500 para tÃ©cnicos, 500-800 para narrativos'
             ]
         },
         {
             'category': 'Modelos LLM',
             'tips': [
-                'Ollama LLaMA 3.2:3b es óptimo para respuestas rápidas y precisas',
-                'Mistral 7B ofrece mejor comprensión contextual para textos largos',
-                'OpenAI GPT-4o-mini tiene la mejor relación calidad/precio para producción',
-                'Usa temperature 0.1-0.3 para respuestas técnicas, 0.5-0.7 para creativas'
+                'Ollama LLaMA 3.2:3b es Ã³ptimo para respuestas rÃ¡pidas y precisas',
+                'Mistral 7B ofrece mejor comprensiÃ³n contextual para textos largos',
+                'OpenAI GPT-4o-mini tiene la mejor relaciÃ³n calidad/precio para producciÃ³n',
+                'Usa temperature 0.1-0.3 para respuestas tÃ©cnicas, 0.5-0.7 para creativas'
             ]
         },
         {
             'category': 'Rendimiento',
             'tips': [
                 'Incrementa k gradualmente: empezar con 3-5, subir hasta 10 si es necesario',
-                'Similarity threshold 0.5-0.7 funciona bien para la mayoría de casos',
-                'El vector store FAISS es 3-5x más rápido que ChromaDB en búsquedas',
+                'Similarity threshold 0.5-0.7 funciona bien para la mayorÃ­a de casos',
+                'El vector store FAISS es 3-5x mÃ¡s rÃ¡pido que ChromaDB en bÃºsquedas',
                 'Procesa documentos en lotes de 10-20 para optimal ingestion speed'
             ]
         },
@@ -1042,21 +1039,21 @@ def _get_configuration_tips():
             'tips': [
                 'Usa exclusivamente modelos locales (Ollama) para datos clasificados',
                 'Implementa rate limiting por IP: 60 requests/hora para usuarios normales',
-                'Revisa logs de acceso semanalmente para detectar patrones anómalos',
-                'Configura backup automático del vector store cada 24 horas'
+                'Revisa logs de acceso semanalmente para detectar patrones anÃ³malos',
+                'Configura backup automÃ¡tico del vector store cada 24 horas'
             ]
         }
     ]
     
-    # Añadir tips específicos si el pipeline está disponible
+    # AÃ±adir tips especÃ­ficos si el pipeline estÃ¡ disponible
     if RAG_PIPELINE_AVAILABLE and get_rag_pipeline:
         try:
             pipeline = get_rag_pipeline()
             stats = pipeline.get_stats()
             
-            # Tips personalizados según el estado actual
+            # Tips personalizados segÃºn el estado actual
             if stats.get('documents_count', 0) < 10:
-                tips[0]['tips'].append('Considera añadir más documentos para mejorar la cobertura de respuestas')
+                tips[0]['tips'].append('Considera aÃ±adir mÃ¡s documentos para mejorar la cobertura de respuestas')
             
             if stats.get('avg_response_time', 0) > 5:
                 tips[2]['tips'].append('Tiempo de respuesta elevado: considera reducir k o usar FAISS en lugar de ChromaDB')
@@ -1065,7 +1062,7 @@ def _get_configuration_tips():
             if 'chromadb' in vector_store_type.lower():
                 tips[2]['tips'].append('ChromaDB activo: ideal para metadata rica y filtros complejos')
             elif 'faiss' in vector_store_type.lower():
-                tips[2]['tips'].append('FAISS activo: excelente para búsquedas rápidas en volúmenes grandes')
+                tips[2]['tips'].append('FAISS activo: excelente para bÃºsquedas rÃ¡pidas en volÃºmenes grandes')
                 
         except Exception as e:
             logger.debug(f"Error generando tips personalizados: {e}")
@@ -1079,11 +1076,11 @@ def _get_configuration_tips():
 @main_bp.before_request
 def before_main_request():
     """Hook antes de cada request principal MEJORADO"""
-    # Actualizar estadísticas básicas
+    # Actualizar estadÃ­sticas bÃ¡sicas
     if request.endpoint and 'main' in request.endpoint:
         system_stats.last_updated = datetime.now()
         
-        # Si el pipeline está disponible, sincronizar estadísticas
+        # Si el pipeline estÃ¡ disponible, sincronizar estadÃ­sticas
         if RAG_PIPELINE_AVAILABLE and get_rag_pipeline:
             try:
                 pipeline = get_rag_pipeline()
@@ -1094,16 +1091,16 @@ def before_main_request():
                 system_stats.documents_indexed = stats.get('documents_count', system_stats.documents_indexed)
                 
             except Exception as e:
-                logger.debug(f"Error sincronizando estadísticas: {e}")
+                logger.debug(f"Error sincronizando estadÃ­sticas: {e}")
 
 @main_bp.after_request
 def after_main_request(response):
-    """Hook después de cada request principal MEJORADO"""
-    # Añadir headers de cache para recursos estáticos
+    """Hook despuÃ©s de cada request principal MEJORADO"""
+    # AÃ±adir headers de cache para recursos estÃ¡ticos
     if request.endpoint and 'static' in request.endpoint:
         response.cache_control.max_age = 3600  # 1 hora
     
-    # Añadir header de estado del pipeline
+    # AÃ±adir header de estado del pipeline
     if RAG_PIPELINE_AVAILABLE:
         response.headers['X-Pipeline-Status'] = 'available'
     else:
@@ -1142,7 +1139,7 @@ def ajax_system_health():
         else:
             # Verificar servicios individuales
             try:
-                rag_available = rag_service and rag_service.get_stats().get('total_documents', 0) > 0
+                rag_available = rag_pipeline and rag_pipeline.get_stats().get('total_documents', 0) > 0
                 llm_available = llm_service and any(llm_service.get_available_providers().values())
                 
                 health_data.update({
@@ -1173,7 +1170,7 @@ def ajax_system_health():
 
 @main_bp.route('/ajax/quick-stats')
 def ajax_quick_stats():
-    """Estadísticas rápidas (AJAX) MEJORADAS"""
+    """EstadÃ­sticas rÃ¡pidas (AJAX) MEJORADAS"""
     try:
         stats_data = {
             'timestamp': time.time(),
@@ -1201,7 +1198,7 @@ def ajax_quick_stats():
         else:
             # Usar servicios individuales
             try:
-                rag_stats = rag_service.get_stats() if rag_service else {}
+                rag_stats = rag_pipeline.get_stats() if rag_pipeline else {}
                 
                 stats_data.update({
                     'documents': rag_stats.get('total_documents', 0),
@@ -1215,7 +1212,7 @@ def ajax_quick_stats():
         return jsonify(stats_data)
         
     except Exception as e:
-        logger.error("Error obteniendo estadísticas rápidas", error=str(e))
+        logger.error("Error obteniendo estadÃ­sticas rÃ¡pidas", error=str(e))
         return jsonify({
             'error': str(e),
             'timestamp': time.time()
@@ -1223,7 +1220,7 @@ def ajax_quick_stats():
 
 @main_bp.route('/ajax/pipeline-metrics')
 def ajax_pipeline_metrics():
-    """Métricas específicas del pipeline (AJAX) - NUEVA FUNCIONALIDAD"""
+    """MÃ©tricas especÃ­ficas del pipeline (AJAX) - NUEVA FUNCIONALIDAD"""
     try:
         if not RAG_PIPELINE_AVAILABLE or not get_rag_pipeline:
             return jsonify({
@@ -1263,7 +1260,7 @@ def ajax_pipeline_metrics():
         return jsonify(metrics)
         
     except Exception as e:
-        logger.error(f"Error obteniendo métricas de pipeline: {e}")
+        logger.error(f"Error obteniendo mÃ©tricas de pipeline: {e}")
         return jsonify({
             'available': False,
             'error': str(e)
@@ -1271,17 +1268,16 @@ def ajax_pipeline_metrics():
 
 @main_bp.route('/data-sources')
 def data_sources():
-    """Página de gestión de fuentes de datos"""
+    """PÃ¡gina de gestiÃ³n de fuentes de datos"""
     try:
         # Obtener configuraciones
         app_config = get_app_config()
         
-        # Obtener estadísticas básicas para la página
-        from app.services.document_ingestion_service import document_ingestion_service
+        # Obtener estadÃ­sticas bÃ¡sicas para la pÃ¡gina
         
-        # Información del procesador de documentos
+        # InformaciÃ³n del procesador de documentos
         try:
-            from app.services.document_processor import DocumentProcessor
+            from app.services.ingestion.document_processor import DocumentProcessor
             processor = DocumentProcessor()
             processor_info = processor.get_processor_info()
         except Exception as e:
@@ -1295,14 +1291,14 @@ def data_sources():
                 }
             }
         
-        # Estadísticas globales básicas
+        # EstadÃ­sticas globales bÃ¡sicas
         try:
             global_stats = {
-                'total_sources': len(document_ingestion_service.list_sources()),
+                'total_sources': len(document_ingestion_service.list_sources()) if document_ingestion_service else 0,
                 'system_ready': True
             }
         except Exception as e:
-            logger.warning(f"Error obteniendo estadísticas: {e}")
+            logger.warning(f"Error obteniendo estadÃ­sticas: {e}")
             global_stats = {
                 'total_sources': 0,
                 'system_ready': False
@@ -1315,6 +1311,6 @@ def data_sources():
                              page_title="Fuentes de Datos")
                              
     except Exception as e:
-        logger.error(f"Error en página de fuentes de datos: {e}")
-        flash(f"Error cargando página: {str(e)}", 'error')
+        logger.error(f"Error en pÃ¡gina de fuentes de datos: {e}")
+        flash(f"Error cargando pÃ¡gina: {str(e)}", 'error')
         return redirect(url_for('main.index'))

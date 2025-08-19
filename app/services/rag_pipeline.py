@@ -1,26 +1,28 @@
 """
-# Imports corregidos automáticamente
-try:
-    from app.services.rag.embeddings import get_embedding_service
-    from app.services.rag.faiss_store import get_faiss_store
-    from app.services.rag.chromadb_store import get_chromadb_store
-    from app.services.llm.llm_services import get_llm_service
-    SERVICES_AVAILABLE = True
-except ImportError as e:
-    print(f"⚠️ Algunos servicios no disponibles: {e}")
-    SERVICES_AVAILABLE = False
-
-
 RAG Pipeline - Sistema completo integrado
 TFM Vicente Caruncho - Sistemas Inteligentes
 
 Pipeline completo: Ingesta → Embeddings → Vector Stores → LLM → Respuesta
 """
 
+# Imports corregidos para usar archivos existentes
+try:
+    from app.services.rag.embeddings import get_embedding_service
+    from app.services.rag.faiss_store import get_faiss_store  
+    from app.services.rag.chromadb_store import get_chromadb_store
+    from app.services.llm.llm_services import get_llm_service
+    from app.services.document_ingestion_service import document_ingestion_service
+
+    SERVICES_AVAILABLE = True
+except ImportError as e:
+    print(f"⚠️ Algunos servicios no disponibles: {e}")
+    SERVICES_AVAILABLE = False
+
 import time
 from typing import Dict, Any, List, Optional, Tuple
 from pathlib import Path
 
+from Prototipo_chatbot.app.services.ingestion import ingestion_service
 from app.core.logger import get_logger
 
 class RAGPipeline:
@@ -37,7 +39,7 @@ class RAGPipeline:
         
         # LLM Service (tu implementación original)
         try:
-            from .llm import get_llm_service
+            from app.services.llm.llm_services import get_llm_service
             self.llm_service = get_llm_service()
             self.logger.info("LLM Service inicializado")
         except ImportError:
@@ -46,16 +48,16 @@ class RAGPipeline:
         
         # Ingestion Service
         try:
-            from app.services.ingestion import ingestion_service
             self.ingestion_service = ingestion_service
             self.logger.info("Ingestion Service inicializado")
         except ImportError:
             self.ingestion_service = None
             self.logger.warning("Ingestion Service no disponible")
+
         
         # Embedding Service
         try:
-            from .embeddings import embedding_service
+            from app.services.rag.embeddings import embedding_service
             self.embedding_service = embedding_service
             self.logger.info("Embedding Service inicializado")
         except ImportError:
@@ -64,7 +66,7 @@ class RAGPipeline:
         
         # FAISS Vector Store
         try:
-            from .faiss_store import faiss_store
+            from app.services.rag.faiss_store import faiss_store
             self.faiss_store = faiss_store
             self.logger.info("FAISS Store inicializado")
         except ImportError:
@@ -73,7 +75,7 @@ class RAGPipeline:
         
         # ChromaDB Vector Store
         try:
-            from .chromadb_store import chromadb_store
+            from app.services.rag.chromadb_store import chromadb_store
             self.chromadb_store = chromadb_store
             self.logger.info("ChromaDB Store inicializado")
         except ImportError:
@@ -164,7 +166,7 @@ class RAGPipeline:
                 result['errors'].append(f"Directorio no encontrado: {directory_path}")
                 return result
             
-            supported_extensions = self.ingestion_service.processor.get_supported_extensions()
+            supported_extensions = self.document_processor.get_supported_extensions()
             files_found = []
             for ext in supported_extensions:
                 files_found.extend(directory.glob(f"*{ext}"))
@@ -177,7 +179,7 @@ class RAGPipeline:
             all_chunks = []
             for file_path in files_found:
                 try:
-                    chunks = self.ingestion_service.process_file(str(file_path))
+                    chunks = self.document_processor.process_file(str(file_path))
                     if chunks:
                         all_chunks.extend(chunks)
                         result['files_processed'] += 1
@@ -241,12 +243,12 @@ class RAGPipeline:
     
     def ingest_file(self, file_path: str) -> Dict[str, Any]:
         """Ingestar un archivo individual"""
-        if not self.ingestion_service:
-            return {'success': False, 'error': 'Ingestion service no disponible'}
+        if not self.document_processor:
+            return {'success': False, 'error': 'Document processor no disponible'}
         
         try:
             # Procesar archivo
-            chunks = self.ingestion_service.process_file(file_path)
+            chunks = self.document_processor.process_file(file_path)
             
             if not chunks:
                 return {'success': False, 'error': 'No se generaron chunks'}
