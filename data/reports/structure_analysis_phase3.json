@@ -1,0 +1,121 @@
+{
+  "templates": {
+    "found": [
+      "base.html",
+      "chat.html",
+      "dashboard.html",
+      "error.html",
+      "index.html",
+      "admin\\data_sources.html",
+      "chat\\index.html"
+    ],
+    "missing": [
+      "admin.html",
+      "comparison.html",
+      "errors/404.html",
+      "errors/500.html",
+      "admin/dashboard.html"
+    ],
+    "status": "partial"
+  },
+  "blueprints": {
+    "found": [
+      "api.py",
+      "chat.py",
+      "chat_routes.py",
+      "data_sources.py",
+      "llm_api.py",
+      "main.py",
+      "models.py",
+      "rag_pipeline_api.py"
+    ],
+    "missing": [
+      "admin.py",
+      "api/data_sources.py",
+      "api/chat.py",
+      "api/comparison.py"
+    ],
+    "status": "partial"
+  },
+  "tests": {
+    "found": [
+      "data/",
+      "fixtures/",
+      "integration/",
+      "unit/",
+      "__init__.py",
+      "fixtures\\__init__.py",
+      "integration\\__init__.py",
+      "unit\\test_chromadb_benchmark.py",
+      "unit\\test_chromadb_store.py",
+      "unit\\test_embedding_service.py",
+      "unit\\test_faiss_store.py",
+      "unit\\test_llm_service.py"
+    ],
+    "missing": [
+      "conftest.py",
+      "test_basic_functionality.py",
+      "unit/test_config.py",
+      "unit/test_embeddings.py",
+      "integration/test_api_endpoints.py"
+    ],
+    "status": "partial"
+  },
+  "docs": {
+    "found": [
+      "resultados_pruebas\\embedding_service_report_20250813_172812.json",
+      "resultados_pruebas\\fase4_rag_endtoend_20250813_215108.json",
+      "resultados_pruebas\\fase4_rag_endtoend_20250813_220954.json",
+      "resultados_pruebas\\fase4_rag_endtoend_20250813_221354.json",
+      "resultados_pruebas\\fase4_rag_endtoend_20250813_222306.json",
+      "resultados_pruebas\\fase4_rag_summary_20250813_215108.md",
+      "resultados_pruebas\\fase4_rag_summary_20250813_220954.md",
+      "resultados_pruebas\\fase4_rag_summary_20250813_221354.md",
+      "resultados_pruebas\\fase4_rag_summary_20250813_222306.md",
+      "resultados_pruebas\\llm_comparison_20250813_212649.json",
+      "resultados_pruebas\\llm_comparison_20250813_213253.json",
+      "resultados_pruebas\\llm_comparison_summary_20250813_212649.md",
+      "resultados_pruebas\\llm_comparison_summary_20250813_213253.md",
+      "resultados_pruebas\\vector_stores_simple_20250813_175659.txt",
+      "tfm/Arquitectura del FAIS.md",
+      "tfm/arquitectura_chromadb_tfm.md",
+      "tfm/development_status.md",
+      "tfm/Guia implementación LLM service.md",
+      "tfm/guia_benchmarking_tfm_faiis_chromadb.md",
+      "tfm/memoria_redacción.md",
+      "tfm/Variables del dahsboar pendientes de implementar.md"
+    ],
+    "missing": [
+      "api/endpoints.md",
+      "deployment/setup.md",
+      "architecture/overview.md",
+      "troubleshooting.md"
+    ],
+    "status": "partial"
+  },
+  "config": {
+    "found": [
+      "app/core/config.py",
+      "config/settings.yaml"
+    ],
+    "missing": [
+      ".env.example",
+      ".env"
+    ],
+    "status": "partial"
+  },
+  "static_files": {
+    "found": [
+      "css/",
+      "js/",
+      "css\\custom.css",
+      "js\\chat_rag.js",
+      "js\\main.js"
+    ],
+    "missing": [
+      "images/",
+      "js/chat.js"
+    ],
+    "status": "partial"
+  }
+}
