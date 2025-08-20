@@ -753,8 +753,17 @@ async function detectChanges() {
         document.getElementById('processChangesBtn').disabled = true;
         
         const response = await fetch(`/api/data-sources/${currentSourceId}/changes`, {
-            method: 'POST'
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+
+            },
+            body: JSON.stringify({})
         });
+        
+        if (!response.ok) {
+            throw new Error(`Error ${response.status}: ${response.statusText}`);
+        }
         
         const data = await response.json();
         
@@ -862,7 +871,11 @@ async function processChanges() {
         showLoading('Procesando cambios...');
         
         const response = await fetch(`/api/data-sources/${currentSourceId}/sync`, {
-            method: 'POST'
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({})
         });
         
         const data = await response.json();

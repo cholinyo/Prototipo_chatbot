@@ -1,0 +1,377 @@
+{% extends "base.html" %}
+
+{% block title %}Fuentes de Datos - {{ app_config.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+.stats-card {
+    border: none;
+    border-radius: 12px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    transition: transform 0.2s, box-shadow 0.2s;
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+}
+
+.stats-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.stats-number {
+    font-size: 2.5rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+}
+
+.ingestion-card {
+    border: none;
+    border-radius: 16px;
+    transition: all 0.3s ease;
+    height: 320px;
+    background: linear-gradient(135deg, var(--card-gradient-start), var(--card-gradient-end));
+}
+
+.ingestion-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+}
+
+.ingestion-card.documents {
+    --card-gradient-start: #667eea;
+    --card-gradient-end: #764ba2;
+    color: white;
+}
+
+.ingestion-card.web {
+    --card-gradient-start: #f093fb;
+    --card-gradient-end: #f5576c;
+    color: white;
+    cursor: pointer;
+}
+
+.ingestion-card.api {
+    --card-gradient-start: #4facfe;
+    --card-gradient-end: #00f2fe;
+    color: white;
+    cursor: pointer;
+}
+
+.ingestion-card.database {
+    --card-gradient-start: #43e97b;
+    --card-gradient-end: #38f9d7;
+    color: white;
+    cursor: pointer;
+}
+
+.ingestion-icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    opacity: 0.9;
+}
+
+.status-badge {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    font-size: 0.75rem;
+    padding: 4px 8px;
+    border-radius: 12px;
+}
+
+.available { background: rgba(40, 167, 69, 0.2); color: #28a745; border: 1px solid rgba(40, 167, 69, 0.3); }
+.coming-soon { background: rgba(255, 193, 7, 0.2); color: #ffc107; border: 1px solid rgba(255, 193, 7, 0.3); }
+
+.page-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 12px;
+    padding: 2rem;
+    margin-bottom: 2rem;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4">
+    <!-- Page Header -->
+    <div class="page-header text-center">
+        <h1 class="display-5 fw-bold mb-3">
+            <i class="fas fa-database me-3"></i>
+            Gestión de Fuentes de Datos
+        </h1>
+        <p class="fs-5 mb-0">
+            Centro de control para la ingesta multimodal de información institucional
+        </p>
+        <small class="opacity-75">
+            TFM Vicente Caruncho - Sistemas Inteligentes UJI
+        </small>
+    </div>
+
+    <!-- Global Statistics -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <h4 class="mb-3">
+                <i class="fas fa-chart-line me-2 text-primary"></i>
+                Estadísticas Globales
+            </h4>
+        </div>
+    </div>
+
+    <div class="row mb-5">
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="card stats-card text-center h-100">
+                <div class="card-body">
+                    <div class="stats-number text-primary">{{ global_stats.total_sources }}</div>
+                    <div class="text-muted fw-medium">Fuentes Configuradas</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="card stats-card text-center h-100">
+                <div class="card-body">
+                    <div class="stats-number text-success">{{ global_stats.total_documents }}</div>
+                    <div class="text-muted fw-medium">Documentos Procesados</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="card stats-card text-center h-100">
+                <div class="card-body">
+                    <div class="stats-number text-info">{{ "%.1f"|format(global_stats.total_size_mb) }}</div>
+                    <div class="text-muted fw-medium">MB Indexados</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="card stats-card text-center h-100">
+                <div class="card-body">
+                    <div class="stats-number text-warning">{{ "%.1f"|format(global_stats.success_rate) }}%</div>
+                    <div class="text-muted fw-medium">Tasa de Éxito</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Ingestion Types -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <h4 class="mb-3">
+                <i class="fas fa-cogs me-2 text-primary"></i>
+                Tipos de Ingesta Disponibles
+            </h4>
+            <p class="text-muted">
+                Selecciona el tipo de fuente de datos que deseas configurar según la arquitectura multimodal del TFM
+            </p>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Documentos -->
+        <div class="col-lg-3 col-md-6 mb-4">
+            <div class="card ingestion-card documents">
+                <div class="card-body text-center position-relative">
+                    <span class="status-badge available">
+                        <i class="fas fa-check me-1"></i>Disponible
+                    </span>
+                    
+                    <div class="ingestion-icon">
+                        <i class="fas fa-file-alt"></i>
+                    </div>
+                    
+                    <h5 class="card-title fw-bold">Documentos</h5>
+                    <p class="card-text opacity-90 mb-3">
+                        PDF, DOCX, TXT, Excel<br>
+                        Archivos normativos y técnicos
+                    </p>
+                    
+                    <div class="mt-auto">
+                        <div class="d-flex justify-content-between text-sm opacity-75 mb-3">
+                            <span>{{ sources_by_type.documents }} fuentes</span>
+                            <span>{{ processor_info.supported_extensions|length }} formatos</span>
+                        </div>
+                        
+                        <!-- Enlace de gestión -->
+                        <div class="d-grid">
+                            <a href="/documentos" class="btn btn-light btn-sm border-0 fw-medium">
+                                <i class="fas fa-cog me-2"></i>Gestión de Fuentes
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sitios Web -->
+        <div class="col-lg-3 col-md-6 mb-4">
+            <div class="card ingestion-card web">
+                <div class="card-body text-center position-relative">
+                    <span class="status-badge coming-soon">
+                        <i class="fas fa-clock me-1"></i>Próximamente
+                    </span>
+                    
+                    <div class="ingestion-icon">
+                        <i class="fas fa-globe"></i>
+                    </div>
+                    
+                    <h5 class="card-title fw-bold">Sitios Web</h5>
+                    <p class="card-text opacity-90 mb-3">
+                        Portal municipal, sede electrónica<br>
+                        Web scraping inteligente
+                    </p>
+                    
+                    <div class="mt-auto">
+                        <div class="d-flex justify-content-between text-sm opacity-75 mb-3">
+                            <span>{{ sources_by_type.web }} fuentes</span>
+                            <span>HTML, XML</span>
+                        </div>
+                        
+                        <!-- Enlace de gestión -->
+                        <div class="d-grid">
+                            <button class="btn btn-light btn-sm border-0 fw-medium opacity-75" disabled>
+                                <i class="fas fa-cog me-2"></i>Gestión de Fuentes
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- APIs Institucionales -->
+        <div class="col-lg-3 col-md-6 mb-4">
+            <div class="card ingestion-card api">
+                <div class="card-body text-center position-relative">
+                    <span class="status-badge coming-soon">
+                        <i class="fas fa-clock me-1"></i>Próximamente
+                    </span>
+                    
+                    <div class="ingestion-icon">
+                        <i class="fas fa-plug"></i>
+                    </div>
+                    
+                    <h5 class="card-title fw-bold">APIs Institucionales</h5>
+                    <p class="card-text opacity-90 mb-3">
+                        Portal transparencia, trámites<br>
+                        Datos actualizados en tiempo real
+                    </p>
+                    
+                    <div class="mt-auto">
+                        <div class="d-flex justify-content-between text-sm opacity-75 mb-3">
+                            <span>{{ sources_by_type.api }} fuentes</span>
+                            <span>REST, JSON</span>
+                        </div>
+                        
+                        <!-- Enlace de gestión -->
+                        <div class="d-grid">
+                            <button class="btn btn-light btn-sm border-0 fw-medium opacity-75" disabled>
+                                <i class="fas fa-cog me-2"></i>Gestión de Fuentes
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bases de Datos -->
+        <div class="col-lg-3 col-md-6 mb-4">
+            <div class="card ingestion-card database">
+                <div class="card-body text-center position-relative">
+                    <span class="status-badge coming-soon">
+                        <i class="fas fa-clock me-1"></i>Próximamente
+                    </span>
+                    
+                    <div class="ingestion-icon">
+                        <i class="fas fa-database"></i>
+                    </div>
+                    
+                    <h5 class="card-title fw-bold">Bases de Datos</h5>
+                    <p class="card-text opacity-90 mb-3">
+                        PostgreSQL, SQLite<br>
+                        Registros normativos estructurados
+                    </p>
+                    
+                    <div class="mt-auto">
+                        <div class="d-flex justify-content-between text-sm opacity-75 mb-3">
+                            <span>{{ sources_by_type.database }} fuentes</span>
+                            <span>SQL, NoSQL</span>
+                        </div>
+                        
+                        <!-- Enlace de gestión -->
+                        <div class="d-grid">
+                            <button class="btn btn-light btn-sm border-0 fw-medium opacity-75" disabled>
+                                <i class="fas fa-cog me-2"></i>Gestión de Fuentes
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="row mt-5">
+        <div class="col-12">
+            <div class="card border-0 bg-light">
+                <div class="card-body text-center py-4">
+                    <h5 class="card-title mb-3">
+                        <i class="fas fa-rocket me-2 text-primary"></i>
+                        Acciones Rápidas
+                    </h5>
+                    <div class="btn-group" role="group">
+                        <a href="/documentos" class="btn btn-outline-primary">
+                            <i class="fas fa-plus me-2"></i>Nueva Fuente
+                        </a>
+                        <button type="button" class="btn btn-outline-success" onclick="refreshStats()">
+                            <i class="fas fa-sync me-2"></i>Actualizar Estadísticas
+                        </button>
+                        <button type="button" class="btn btn-outline-info" onclick="viewSystemLogs()">
+                            <i class="fas fa-file-alt me-2"></i>Ver Logs del Sistema
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// Funciones simplificadas para las acciones
+function refreshStats() {
+    location.reload();
+}
+
+function viewSystemLogs() {
+    // Por implementar - abrir modal con logs
+    alert('📋 Los logs del sistema estarán disponibles próximamente');
+}
+
+// Animación de entrada
+document.addEventListener('DOMContentLoaded', function() {
+    // Animación de las tarjetas
+    const cards = document.querySelectorAll('.ingestion-card');
+    cards.forEach((card, index) => {
+        card.style.opacity = '0';
+        card.style.transform = 'translateY(20px)';
+        
+        setTimeout(() => {
+            card.style.transition = 'all 0.6s ease';
+            card.style.opacity = '1';
+            card.style.transform = 'translateY(0)';
+        }, index * 100);
+    });
+    
+    // Efecto hover en cards de próximamente
+    const comingSoonCards = document.querySelectorAll('.ingestion-card:not(.documents)');
+    comingSoonCards.forEach(card => {
+        card.addEventListener('click', function(e) {
+            // Solo si no se hizo clic en un botón
+            if (!e.target.closest('button')) {
+                const type = this.querySelector('.card-title').textContent;
+                alert(`🚧 ${type} estará disponible en próximas versiones del TFM.\n\nPor ahora, puedes usar la ingesta de documentos que está completamente funcional.`);
+            }
+        });
+    });
+});
+</script>
+{% endblock %}

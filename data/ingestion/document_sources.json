@@ -1,0 +1,56 @@
+{
+  "b7934149-0e3a-4b51-87e2-4816ea81c465": {
+    "id": "b7934149-0e3a-4b51-87e2-4816ea81c465",
+    "name": "Descargas",
+    "type": "documents",
+    "status": "pending",
+    "config": {
+      "directories": [
+        "D:\\vcaruncho\\Downloads"
+      ],
+      "file_extensions": [
+        ".pdf",
+        ".docx",
+        ".txt"
+      ],
+      "recursive": true,
+      "exclude_patterns": [
+        "temp",
+        "cache",
+        ".git",
+        "__pycache__"
+      ],
+      "max_file_size": 104857600
+    },
+    "created_at": "2025-08-20T08:34:55.820723",
+    "last_sync": "2025-08-20T09:00:45.452048",
+    "metadata": {}
+  },
+  "841413c1-477a-47a1-a441-f8a0d21bdeec": {
+    "id": "841413c1-477a-47a1-a441-f8a0d21bdeec",
+    "name": "Escritorio",
+    "type": "documents",
+    "status": "pending",
+    "config": {
+      "directories": [
+        "C:\\Users\\vcaruncho\\OneDrive - onda.es\\Escritorio"
+      ],
+      "file_extensions": [
+        ".pdf",
+        ".docx",
+        ".txt"
+      ],
+      "recursive": true,
+      "exclude_patterns": [
+        "temp",
+        "cache",
+        ".git",
+        "__pycache__"
+      ],
+      "max_file_size": 104857600
+    },
+    "created_at": "2025-08-20T08:37:23.048888",
+    "last_sync": null,
+    "metadata": {}
+  }
+}

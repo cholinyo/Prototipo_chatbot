@@ -98,9 +98,9 @@ class DocumentIngestionService:
         directories: List[str],
         **kwargs
     ) -> DocumentSource:
-        """Crear nueva fuente de documentos"""
-        source = DocumentSource(
-            id=str(uuid.uuid4()),
+        from app.models.data_sources import create_document_source
+
+        source = create_document_source(
             name=name,
             directories=directories,
             **kwargs

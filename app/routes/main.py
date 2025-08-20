@@ -1337,3 +1337,91 @@ def documentos():
         logger.error(f"Error cargando página de documentos: {e}")
         flash(f"Error cargando la página: {str(e)}", "error")
         return redirect(url_for('main.index'))
+
+# Añadir esta ruta al final de app/routes/main.py
+
+@main_bp.route('/fuentes-datos')
+def fuentes_datos():
+    """Interfaz central de gestión de fuentes de datos"""
+    try:
+        # Obtener configuraciones
+        app_config = get_app_config()
+        
+        # Estadísticas globales de todas las fuentes
+        try:
+            from app.services.document_ingestion_service import document_ingestion_service
+            
+            # Obtener todas las fuentes
+            sources = document_ingestion_service.list_sources()
+            all_stats = document_ingestion_service.get_all_stats()
+            
+            # Calcular estadísticas globales
+            global_stats = {
+                'total_sources': len(sources),
+                'total_documents': sum(s.processed_files for s in all_stats),
+                'total_size_mb': sum(s.total_size_mb for s in all_stats),
+                'total_chunks': sum(s.total_chunks for s in all_stats),
+                'success_rate': 0
+            }
+            
+            # Calcular tasa de éxito global
+            total_files = sum(s.total_files for s in all_stats)
+            if total_files > 0:
+                global_stats['success_rate'] = (global_stats['total_documents'] / total_files) * 100
+            
+            # Estadísticas por tipo de fuente
+            sources_by_type = {
+                'documents': len([s for s in sources if s.type.value == 'documents']),
+                'web': 0,  # Por implementar
+                'api': 0,  # Por implementar
+                'database': 0  # Por implementar
+            }
+            
+        except Exception as e:
+            logger.warning(f"Error obteniendo estadísticas globales: {e}")
+            global_stats = {
+                'total_sources': 0,
+                'total_documents': 0,
+                'total_size_mb': 0,
+                'total_chunks': 0,
+                'success_rate': 0
+            }
+            sources_by_type = {
+                'documents': 0,
+                'web': 0,
+                'api': 0,
+                'database': 0
+            }
+        
+        # Información del procesador
+        try:
+            from app.services.ingestion.document_processor import DocumentProcessor
+            processor = DocumentProcessor()
+            processor_info = processor.get_processor_info()
+        except Exception as e:
+            logger.warning(f"Error obteniendo info del procesador: {e}")
+            processor_info = {
+                'supported_extensions': ['.pdf', '.docx', '.txt'],
+                'processors_available': {
+                    'pdf': False,
+                    'docx': False,
+                    'pandas': False
+                }
+            }
+        
+        # Contexto para el template
+        context = {
+            'app_config': app_config,
+            'global_stats': global_stats,
+            'sources_by_type': sources_by_type,
+            'processor_info': processor_info,
+            'page_title': 'Gestión de Fuentes de Datos'
+        }
+        
+        logger.info("Página de fuentes de datos accedida")
+        return render_template('fuentes_datos.html', **context)
+        
+    except Exception as e:
+        logger.error(f"Error cargando página de fuentes de datos: {e}")
+        flash(f"Error cargando la página: {str(e)}", "error")
+        return redirect(url_for('main.index'))
