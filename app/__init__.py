@@ -91,6 +91,7 @@ def create_app(config=None):
     # Registrar blueprints disponibles
     blueprints_registered = 0
     
+    
     # Blueprint principal SIEMPRE con /health endpoint
     try:
         from app.routes.main import main_bp

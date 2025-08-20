@@ -1,5 +1,5 @@
 """
-API Routes para gestión de fuentes web - ACTUALIZADA
+API Routes para gestión de fuentes web - CORREGIDA
 TFM Vicente Caruncho - Sistemas Inteligentes
 """
 
@@ -9,17 +9,23 @@ from typing import Dict, Any, List
 import uuid
 
 from app.core.logger import get_logger
-from app.services.web_ingestion_service import web_ingestion_service
 
 # Blueprint para API de fuentes web
 web_sources_api = Blueprint('web_sources_api', __name__, url_prefix='/api/web-sources')
 logger = get_logger("web_sources_api")
 
 
+def get_web_ingestion_service():
+    """Obtener instancia del servicio con importación tardía"""
+    from app.services.web_ingestion_service import web_ingestion_service
+    return web_ingestion_service
+
+
 @web_sources_api.route('', methods=['GET'])
 def list_web_sources():
     """Listar todas las fuentes web"""
     try:
+        web_ingestion_service = get_web_ingestion_service()
         sources = web_ingestion_service.list_sources()
         
         # Convertir a formato JSON con estadísticas
@@ -55,6 +61,7 @@ def list_web_sources():
 def create_web_source_api():
     """Crear nueva fuente web"""
     try:
+        web_ingestion_service = get_web_ingestion_service()
         data = request.get_json()
         
         if not data:
@@ -126,6 +133,7 @@ def create_web_source_api():
 def get_web_source(source_id: str):
     """Obtener detalles de una fuente web específica"""
     try:
+        web_ingestion_service = get_web_ingestion_service()
         source = web_ingestion_service.get_source(source_id)
         
         if not source:
@@ -158,6 +166,7 @@ def get_web_source(source_id: str):
 def update_web_source(source_id: str):
     """Actualizar configuración de fuente web"""
     try:
+        web_ingestion_service = get_web_ingestion_service()
         source = web_ingestion_service.get_source(source_id)
         
         if not source:
@@ -201,6 +210,7 @@ def update_web_source(source_id: str):
 def delete_web_source(source_id: str):
     """Eliminar fuente web"""
     try:
+        web_ingestion_service = get_web_ingestion_service()
         success = web_ingestion_service.delete_source(source_id)
         
         if success:
@@ -226,6 +236,7 @@ def delete_web_source(source_id: str):
 def scrape_web_source(source_id: str):
     """Ejecutar scraping de una fuente web"""
     try:
+        web_ingestion_service = get_web_ingestion_service()
         data = request.get_json() or {}
         max_workers = data.get('max_workers', 3)
         
@@ -250,6 +261,7 @@ def scrape_web_source(source_id: str):
 def test_web_source(source_id: str):
     """Probar configuración de una fuente web"""
     try:
+        web_ingestion_service = get_web_ingestion_service()
         source = web_ingestion_service.get_source(source_id)
         
         if not source:
@@ -286,6 +298,7 @@ def test_web_source(source_id: str):
 def validate_web_url():
     """Validar una URL antes de agregar a fuente"""
     try:
+        web_ingestion_service = get_web_ingestion_service()
         data = request.get_json()
         url = data.get('url')
         
@@ -327,6 +340,7 @@ def validate_web_url():
 def get_web_stats():
     """Obtener estadísticas globales del servicio web"""
     try:
+        web_ingestion_service = get_web_ingestion_service()
         stats = web_ingestion_service.get_all_stats()
         
         return jsonify({
