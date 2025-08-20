@@ -1,0 +1,588 @@
+{% extends "base.html" %}
+
+{% block title %}Gestión de Sitios Web - {{ app_config.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+.web-card {
+    border: none;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    transition: all 0.3s ease;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.web-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+}
+
+.stats-card {
+    border: none;
+    border-radius: 10px;
+    background: white;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    transition: transform 0.2s ease;
+}
+
+.stats-card:hover {
+    transform: translateY(-2px);
+}
+
+.stats-number {
+    font-size: 2.2rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+}
+
+.url-input-group {
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.source-item {
+    background: white;
+    border-radius: 8px;
+    border: 1px solid #e9ecef;
+    transition: all 0.2s ease;
+}
+
+.source-item:hover {
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    border-color: #667eea;
+}
+
+.status-active {
+    color: #28a745;
+    background: rgba(40, 167, 69, 0.1);
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+}
+
+.status-inactive {
+    color: #6c757d;
+    background: rgba(108, 117, 125, 0.1);
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+}
+
+.page-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 12px;
+    padding: 2rem;
+    margin-bottom: 2rem;
+}
+
+.add-source-card {
+    border: 2px dashed #667eea;
+    border-radius: 12px;
+    background: rgba(102, 126, 234, 0.05);
+    transition: all 0.3s ease;
+}
+
+.add-source-card:hover {
+    background: rgba(102, 126, 234, 0.1);
+    border-color: #5a67d8;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4">
+    <!-- Page Header -->
+    <div class="page-header text-center">
+        <h1 class="display-5 fw-bold mb-3">
+            <i class="fas fa-globe me-3"></i>
+            Gestión de Sitios Web
+        </h1>
+        <p class="fs-5 mb-0">
+            Web scraping inteligente para portales municipales y sedes electrónicas
+        </p>
+        <small class="opacity-75">
+            Ingesta automatizada de contenido web institucional
+        </small>
+    </div>
+
+    <!-- Statistics -->
+    <div class="row mb-4">
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="card stats-card text-center h-100">
+                <div class="card-body">
+                    <div class="stats-number text-primary">{{ web_stats.total_sources }}</div>
+                    <div class="text-muted fw-medium">Sitios Configurados</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="card stats-card text-center h-100">
+                <div class="card-body">
+                    <div class="stats-number text-success">{{ web_stats.total_pages }}</div>
+                    <div class="text-muted fw-medium">Páginas Indexadas</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="card stats-card text-center h-100">
+                <div class="card-body">
+                    <div class="stats-number text-info">{{ web_stats.active_scraping }}</div>
+                    <div class="text-muted fw-medium">Procesos Activos</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="card stats-card text-center h-100">
+                <div class="card-body">
+                    <div class="stats-number text-warning">
+                        {% if web_stats.last_update %}
+                            {{ web_stats.last_update.strftime('%H:%M') }}
+                        {% else %}
+                            --:--
+                        {% endif %}
+                    </div>
+                    <div class="text-muted fw-medium">Última Actualización</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add New Source -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card add-source-card">
+                <div class="card-body">
+                    <h5 class="card-title text-primary">
+                        <i class="fas fa-plus-circle me-2"></i>
+                        Añadir Nuevo Sitio Web
+                    </h5>
+                    <p class="text-muted mb-3">
+                        Configura un nuevo sitio web para indexación automática
+                    </p>
+                    
+                    <form id="addWebSourceForm">
+                        <div class="row">
+                            <div class="col-md-8">
+                                <div class="input-group url-input-group">
+                                    <span class="input-group-text">
+                                        <i class="fas fa-link"></i>
+                                    </span>
+                                    <input type="url" 
+                                           class="form-control" 
+                                           id="websiteUrl" 
+                                           placeholder="https://ejemplo.ayuntamiento.es"
+                                           required>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <button type="submit" class="btn btn-primary w-100">
+                                    <i class="fas fa-plus me-2"></i>
+                                    Añadir Sitio
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Advanced Options (Collapsible) -->
+                        <div class="mt-3">
+                            <button class="btn btn-link text-decoration-none p-0" type="button" data-bs-toggle="collapse" data-bs-target="#advancedOptions">
+                                <i class="fas fa-cog me-1"></i>
+                                Opciones avanzadas
+                                <i class="fas fa-chevron-down ms-1"></i>
+                            </button>
+                        </div>
+                        
+                        <div class="collapse mt-3" id="advancedOptions">
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <label for="maxDepth" class="form-label">Profundidad máxima</label>
+                                    <select class="form-select" id="maxDepth">
+                                        <option value="1">1 nivel</option>
+                                        <option value="2" selected>2 niveles</option>
+                                        <option value="3">3 niveles</option>
+                                        <option value="5">5 niveles</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="crawlFrequency" class="form-label">Frecuencia de actualización</label>
+                                    <select class="form-select" id="crawlFrequency">
+                                        <option value="daily">Diaria</option>
+                                        <option value="weekly" selected>Semanal</option>
+                                        <option value="monthly">Mensual</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="contentFilter" class="form-label">Filtro de contenido</label>
+                                    <input type="text" 
+                                           class="form-control" 
+                                           id="contentFilter" 
+                                           placeholder="ej: .pdf, .doc, noticias">
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Configured Sources -->
+    <div class="row">
+        <div class="col-12">
+            <h4 class="mb-3">
+                <i class="fas fa-list me-2 text-primary"></i>
+                Sitios Configurados
+            </h4>
+        </div>
+    </div>
+
+    <div class="row" id="webSourcesList">
+        <!-- Dynamic content will be loaded here -->
+        <div class="col-12">
+            <div class="text-center py-5 text-muted">
+                <i class="fas fa-globe fa-3x mb-3 opacity-50"></i>
+                <p class="mb-0">No hay sitios web configurados aún</p>
+                <p class="small">Añade tu primer sitio web utilizando el formulario anterior</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="row mt-5">
+        <div class="col-12">
+            <div class="card border-0 bg-light">
+                <div class="card-body text-center py-4">
+                    <h5 class="card-title mb-3">
+                        <i class="fas fa-tools me-2 text-primary"></i>
+                        Acciones del Sistema
+                    </h5>
+                    <div class="btn-group" role="group">
+                        <button type="button" class="btn btn-outline-primary" onclick="refreshSources()">
+                            <i class="fas fa-sync me-2"></i>Actualizar Lista
+                        </button>
+                        <button type="button" class="btn btn-outline-success" onclick="startBulkCrawl()">
+                            <i class="fas fa-play me-2"></i>Iniciar Crawling
+                        </button>
+                        <button type="button" class="btn btn-outline-warning" onclick="pauseAllCrawlers()">
+                            <i class="fas fa-pause me-2"></i>Pausar Todo
+                        </button>
+                        <button type="button" class="btn btn-outline-info" onclick="viewCrawlLogs()">
+                            <i class="fas fa-file-alt me-2"></i>Ver Logs
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal for Source Details -->
+<div class="modal fade" id="sourceDetailsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-globe me-2"></i>
+                    Detalles del Sitio Web
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="sourceDetailsContent">
+                <!-- Dynamic content -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                <button type="button" class="btn btn-primary" onclick="editSource()">
+                    <i class="fas fa-edit me-2"></i>Editar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// Variables globales
+let currentSources = [];
+
+// Inicialización
+document.addEventListener('DOMContentLoaded', function() {
+    loadWebSources();
+    setupFormHandler();
+});
+
+// Manejar formulario de añadir sitio
+function setupFormHandler() {
+    const form = document.getElementById('addWebSourceForm');
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        addWebSource();
+    });
+}
+
+// Cargar fuentes web existentes
+async function loadWebSources() {
+    try {
+        const response = await fetch('/api/web-sources');
+        const data = await response.json();
+        
+        if (data.success) {
+            currentSources = data.sources || [];
+            renderWebSources();
+            updateStats();
+        } else {
+            console.error('Error cargando fuentes:', data.error);
+        }
+    } catch (error) {
+        console.error('Error en petición:', error);
+        // Mostrar fuentes mock para desarrollo
+        showMockSources();
+    }
+}
+
+// Mostrar fuentes mock para desarrollo
+function showMockSources() {
+    const mockSources = [
+        {
+            id: 'demo-1',
+            url: 'https://ejemplo.ayuntamiento.es',
+            name: 'Portal Municipal',
+            status: 'active',
+            last_crawl: new Date(),
+            pages_found: 45,
+            success_rate: 92.5
+        }
+    ];
+    
+    currentSources = mockSources;
+    renderWebSources();
+}
+
+// Renderizar lista de fuentes
+function renderWebSources() {
+    const container = document.getElementById('webSourcesList');
+    
+    if (currentSources.length === 0) {
+        container.innerHTML = `
+            <div class="col-12">
+                <div class="text-center py-5 text-muted">
+                    <i class="fas fa-globe fa-3x mb-3 opacity-50"></i>
+                    <p class="mb-0">No hay sitios web configurados aún</p>
+                    <p class="small">Añade tu primer sitio web utilizando el formulario anterior</p>
+                </div>
+            </div>
+        `;
+        return;
+    }
+    
+    container.innerHTML = currentSources.map(source => `
+        <div class="col-lg-6 col-xl-4 mb-3">
+            <div class="source-item p-3">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <h6 class="mb-0 text-truncate" style="max-width: 200px;">
+                        ${source.name || 'Sitio Web'}
+                    </h6>
+                    <span class="status-${source.status === 'active' ? 'active' : 'inactive'}">
+                        ${source.status === 'active' ? 'Activo' : 'Inactivo'}
+                    </span>
+                </div>
+                
+                <p class="text-muted small mb-2 text-truncate">
+                    <i class="fas fa-link me-1"></i>
+                    ${source.url}
+                </p>
+                
+                <div class="row text-center mb-3">
+                    <div class="col-4">
+                        <div class="small text-muted">Páginas</div>
+                        <div class="fw-bold">${source.pages_found || 0}</div>
+                    </div>
+                    <div class="col-4">
+                        <div class="small text-muted">Éxito</div>
+                        <div class="fw-bold">${(source.success_rate || 0).toFixed(1)}%</div>
+                    </div>
+                    <div class="col-4">
+                        <div class="small text-muted">Última</div>
+                        <div class="fw-bold small">
+                            ${source.last_crawl ? new Date(source.last_crawl).toLocaleDateString() : 'N/A'}
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="btn-group w-100" role="group">
+                    <button class="btn btn-outline-primary btn-sm" onclick="viewSourceDetails('${source.id}')">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                    <button class="btn btn-outline-success btn-sm" onclick="startCrawl('${source.id}')">
+                        <i class="fas fa-play"></i>
+                    </button>
+                    <button class="btn btn-outline-warning btn-sm" onclick="editSource('${source.id}')">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="btn btn-outline-danger btn-sm" onclick="deleteSource('${source.id}')">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+// Añadir nueva fuente web
+async function addWebSource() {
+    const url = document.getElementById('websiteUrl').value;
+    const maxDepth = document.getElementById('maxDepth').value;
+    const frequency = document.getElementById('crawlFrequency').value;
+    const filter = document.getElementById('contentFilter').value;
+    
+    // Validación y parsing seguro del URL
+    let name;
+    try {
+        const urlObj = new URL(url);
+        name = urlObj.hostname;
+    } catch (e) {
+        showAlert('URL inválida. Usa formato: https://ejemplo.com', 'danger');
+        return;
+    }
+    
+    const sourceData = {
+        name: name,
+        base_urls: [url],
+        max_depth: parseInt(maxDepth),
+        // Campos que tu API sí maneja:
+        delay_seconds: 1.0,
+        follow_links: true,
+        respect_robots_txt: true
+        // crawl_frequency y content_filter no están implementados en tu API
+    };
+    
+    try {
+        const response = await fetch('/api/web-sources', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(sourceData)
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            // Limpiar formulario
+            document.getElementById('addWebSourceForm').reset();
+            
+            // Recargar lista
+            await loadWebSources();
+            
+            // Mostrar mensaje de éxito
+            showAlert('Sitio web añadido correctamente', 'success');
+        } else {
+            showAlert('Error añadiendo sitio: ' + data.error, 'danger');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showAlert('Error de conexión', 'danger');
+    }
+}
+
+// Funciones de gestión
+function refreshSources() {
+    loadWebSources();
+    showAlert('Lista actualizada', 'info');
+}
+
+function startBulkCrawl() {
+    showAlert('Iniciando crawling en todos los sitios activos...', 'info');
+    // Implementar lógica de crawling masivo
+}
+
+function pauseAllCrawlers() {
+    showAlert('Pausando todos los procesos de crawling...', 'warning');
+    // Implementar lógica de pausa
+}
+
+function viewCrawlLogs() {
+    showAlert('Los logs de crawling estarán disponibles próximamente', 'info');
+    // Implementar visualización de logs
+}
+
+function startCrawl(sourceId) {
+    showAlert(`Iniciando crawling para sitio ${sourceId}...`, 'info');
+    // Implementar crawling individual
+}
+
+function viewSourceDetails(sourceId) {
+    const source = currentSources.find(s => s.id === sourceId);
+    if (source) {
+        document.getElementById('sourceDetailsContent').innerHTML = `
+            <div class="row">
+                <div class="col-md-6">
+                    <strong>URL:</strong><br>
+                    <span class="text-muted">${source.url}</span>
+                </div>
+                <div class="col-md-6">
+                    <strong>Estado:</strong><br>
+                    <span class="status-${source.status}">${source.status}</span>
+                </div>
+            </div>
+            <hr>
+            <div class="row">
+                <div class="col-md-4">
+                    <strong>Páginas encontradas:</strong><br>
+                    <span class="text-muted">${source.pages_found || 0}</span>
+                </div>
+                <div class="col-md-4">
+                    <strong>Tasa de éxito:</strong><br>
+                    <span class="text-muted">${(source.success_rate || 0).toFixed(1)}%</span>
+                </div>
+                <div class="col-md-4">
+                    <strong>Último crawling:</strong><br>
+                    <span class="text-muted">${source.last_crawl ? new Date(source.last_crawl).toLocaleDateString() : 'N/A'}</span>
+                </div>
+            </div>
+        `;
+        
+        new bootstrap.Modal(document.getElementById('sourceDetailsModal')).show();
+    }
+}
+
+function editSource(sourceId) {
+    showAlert('Edición de fuentes estará disponible próximamente', 'info');
+    // Implementar edición
+}
+
+function deleteSource(sourceId) {
+    if (confirm('¿Estás seguro de que quieres eliminar este sitio web?')) {
+        showAlert('Eliminando sitio...', 'warning');
+        // Implementar eliminación
+    }
+}
+
+function updateStats() {
+    // Actualizar estadísticas en tiempo real si es necesario
+    // Esta función se llamaría periódicamente
+}
+
+// Utility function para mostrar alertas
+function showAlert(message, type = 'info') {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+    alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    document.body.appendChild(alertDiv);
+    
+    // Auto-dismiss after 3 seconds
+    setTimeout(() => {
+        if (alertDiv.parentNode) {
+            alertDiv.remove();
+        }
+    }, 3000);
+}
+</script>
+{% endblock %}

@@ -1425,3 +1425,313 @@ def fuentes_datos():
         logger.error(f"Error cargando página de fuentes de datos: {e}")
         flash(f"Error cargando la página: {str(e)}", "error")
         return redirect(url_for('main.index'))
+
+# Añadir estas rutas a app/routes/main.py
+
+@main_bp.route('/webs')
+def webs():
+    """Página de gestión de sitios web para web scraping"""
+    try:
+        # Obtener configuraciones de la aplicación
+        app_config = get_app_config()
+        
+        # Obtener estadísticas reales del WebIngestionService
+        try:
+            from app.services.web_ingestion_service import web_ingestion_service
+            stats = web_ingestion_service.get_all_stats()
+            
+            web_stats = {
+                'total_sources': stats['total_sources'],
+                'total_pages': stats['total_pages'],
+                'active_scraping': stats['active_sources'],
+                'last_update': stats['last_updated']
+            }
+            
+            logger.info("Estadísticas de web scraping obtenidas del servicio")
+            
+        except Exception as e:
+            logger.warning(f"Error obteniendo estadísticas de web scraping: {e}")
+            
+            # Valores por defecto si el servicio no está disponible
+            web_stats = {
+                'total_sources': 0,
+                'total_pages': 0,
+                'active_scraping': 0,
+                'last_update': None
+            }
+        
+        # Contexto para el template
+        context = {
+            'app_config': app_config,
+            'web_stats': web_stats,
+            'page_title': 'Gestión de Sitios Web'
+        }
+        
+        logger.info("Página de gestión de sitios web accedida")
+        return render_template('webs.html', **context)
+        
+    except Exception as e:
+        logger.error(f"Error cargando página de gestión de webs: {e}")
+        flash('Error cargando la página de gestión de sitios web', 'error')
+        return redirect(url_for('main.fuentes_datos'))
+# ===================================================================
+# CREAR NUEVO ARCHIVO: app/routes/web_sources_api.py
+# ===================================================================
+
+"""
+API Routes para gestión de fuentes web
+TFM Vicente Caruncho - Sistemas Inteligentes
+"""
+
+from flask import Blueprint, request, jsonify, current_app
+from datetime import datetime
+from typing import Dict, Any, List
+import uuid
+
+from app.core.logger import get_logger
+from app.models.data_sources import create_web_source, DataSourceType
+from app.services.web_scraper_service import web_scraper_service
+
+# Blueprint para API de fuentes web
+web_sources_api = Blueprint('web_sources_api', __name__, url_prefix='/api/web-sources')
+logger = get_logger("web_sources_api")
+
+
+@web_sources_api.route('', methods=['GET'])
+def list_web_sources():
+    """Listar todas las fuentes web"""
+    try:
+        # TODO: Integrar con servicio de persistencia
+        sources = []  # Por ahora lista vacía
+        
+        return jsonify({
+            'success': True,
+            'sources': sources,
+            'total': len(sources)
+        })
+        
+    except Exception as e:
+        logger.error(f"Error listando fuentes web: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@web_sources_api.route('', methods=['POST'])
+def create_web_source_api():
+    """Crear nueva fuente web"""
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({
+                'success': False,
+                'error': 'No se proporcionaron datos'
+            }), 400
+        
+        # Validar campos requeridos
+        required_fields = ['name', 'base_urls']
+        for field in required_fields:
+            if field not in data:
+                return jsonify({
+                    'success': False,
+                    'error': f'Campo requerido: {field}'
+                }), 400
+        
+        # Validar URLs
+        base_urls = data['base_urls']
+        if not isinstance(base_urls, list) or not base_urls:
+            return jsonify({
+                'success': False,
+                'error': 'Se debe proporcionar al menos una URL base'
+            }), 400
+        
+        # Crear fuente web
+        try:
+            web_source = create_web_source(
+                name=data['name'],
+                base_urls=base_urls,
+                max_depth=data.get('max_depth', 2),
+                delay_seconds=data.get('delay_seconds', 1.0),
+                user_agent=data.get('user_agent', 'Mozilla/5.0 (Prototipo_chatbot TFM UJI)'),
+                follow_links=data.get('follow_links', True),
+                respect_robots_txt=data.get('respect_robots_txt', True),
+                content_selectors=data.get('content_selectors', ['main', 'article', '.content']),
+                exclude_selectors=data.get('exclude_selectors', ['nav', 'footer', '.sidebar']),
+                include_patterns=data.get('include_patterns', []),
+                exclude_patterns=data.get('exclude_patterns', ['/admin', '/login']),
+                min_content_length=data.get('min_content_length', 100),
+                custom_headers=data.get('custom_headers', {}),
+                use_javascript=data.get('use_javascript', False)
+            )
+            
+            # TODO: Guardar en base de datos/persistencia
+            
+            logger.info(f"Fuente web creada: {web_source.name} ({web_source.id})")
+            
+            return jsonify({
+                'success': True,
+                'source': web_source.to_dict(),
+                'message': f'Fuente web creada exitosamente: {web_source.name}'
+            }), 201
+            
+        except Exception as e:
+            logger.error(f"Error creando fuente web: {e}")
+            return jsonify({
+                'success': False,
+                'error': f'Error creando fuente: {str(e)}'
+            }), 500
+        
+    except Exception as e:
+        logger.error(f"Error en API create_web_source: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@web_sources_api.route('/<source_id>/scrape', methods=['POST'])
+def scrape_web_source(source_id: str):
+    """Ejecutar scraping de una fuente web"""
+    try:
+        # TODO: Obtener fuente desde persistencia
+        return jsonify({
+            'success': False,
+            'error': 'Funcionalidad en desarrollo'
+        }), 501
+        
+    except Exception as e:
+        logger.error(f"Error en scraping de fuente {source_id}: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@web_sources_api.route('/<source_id>/test', methods=['POST'])
+def test_web_source(source_id: str):
+    """Probar configuración de una fuente web"""
+    try:
+        data = request.get_json() or {}
+        
+        # Crear fuente temporal para testing
+        test_source = create_web_source(
+            name="Test Source",
+            base_urls=data.get('base_urls', []),
+            max_depth=1,  # Solo primer nivel para testing
+            **{k: v for k, v in data.items() if k != 'base_urls'}
+        )
+        
+        # Hacer scraping de prueba
+        try:
+            pages = web_scraper_service.scrape_source(test_source)
+            
+            # Preparar resultados de prueba
+            test_results = {
+                'pages_found': len(pages),
+                'sample_pages': [
+                    {
+                        'url': page.url,
+                        'title': page.title,
+                        'content_length': len(page.content),
+                        'links_found': len(page.links_found)
+                    }
+                    for page in pages[:3]  # Solo primeras 3 páginas
+                ]
+            }
+            
+            return jsonify({
+                'success': True,
+                'results': test_results,
+                'message': f'Prueba completada: {len(pages)} páginas encontradas'
+            })
+            
+        except Exception as scraping_error:
+            return jsonify({
+                'success': False,
+                'error': f'Error en prueba de scraping: {str(scraping_error)}'
+            }), 400
+        
+    except Exception as e:
+        logger.error(f"Error en test de fuente web: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@web_sources_api.route('/validate-url', methods=['POST'])
+def validate_web_url():
+    """Validar una URL antes de agregar a fuente"""
+    try:
+        data = request.get_json()
+        url = data.get('url')
+        
+        if not url:
+            return jsonify({
+                'success': False,
+                'error': 'URL requerida'
+            }), 400
+        
+        # Validación básica
+        from urllib.parse import urlparse
+        try:
+            parsed = urlparse(url)
+            if not parsed.scheme or not parsed.netloc:
+                raise ValueError("URL inválida")
+        except Exception:
+            return jsonify({
+                'success': False,
+                'error': 'URL con formato inválido'
+            }), 400
+        
+        # Test de conectividad básico
+        try:
+            import requests
+            response = requests.head(url, timeout=10, allow_redirects=True)
+            
+            validation_result = {
+                'accessible': response.status_code < 400,
+                'status_code': response.status_code,
+                'content_type': response.headers.get('content-type', ''),
+                'final_url': response.url,
+                'robots_txt_url': f"{parsed.scheme}://{parsed.netloc}/robots.txt"
+            }
+            
+            return jsonify({
+                'success': True,
+                'validation': validation_result
+            })
+            
+        except Exception as conn_error:
+            return jsonify({
+                'success': False,
+                'error': f'No se puede acceder a la URL: {str(conn_error)}'
+            }), 400
+        
+    except Exception as e:
+        logger.error(f"Error validando URL: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@main_bp.route('/debug/routes')
+def debug_routes():
+    """Debug: mostrar todas las rutas registradas"""
+    from flask import current_app
+    import urllib.parse
+    
+    output = []
+    for rule in current_app.url_map.iter_rules():
+        methods = ','.join(rule.methods - {'HEAD', 'OPTIONS'})
+        line = f"{rule.endpoint}: {rule.rule} [{methods}]"
+        output.append(line)
+    
+    output.sort()
+    return "<pre>" + "\n".join(output) + "</pre>"
+
+# Exportar para registro
+__all__ = ['web_sources_api']

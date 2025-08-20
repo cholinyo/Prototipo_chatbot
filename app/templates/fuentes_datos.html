@@ -205,10 +205,9 @@
         <div class="col-lg-3 col-md-6 mb-4">
             <div class="card ingestion-card web">
                 <div class="card-body text-center position-relative">
-                    <span class="status-badge coming-soon">
-                        <i class="fas fa-clock me-1"></i>Próximamente
-                    </span>
-                    
+                    <span class="status-badge available">
+                        <i class="fas fa-check me-1"></i>Disponible
+                    </span>                
                     <div class="ingestion-icon">
                         <i class="fas fa-globe"></i>
                     </div>
@@ -217,8 +216,7 @@
                     <p class="card-text opacity-90 mb-3">
                         Portal municipal, sede electrónica<br>
                         Web scraping inteligente
-                    </p>
-                    
+                    </p>               
                     <div class="mt-auto">
                         <div class="d-flex justify-content-between text-sm opacity-75 mb-3">
                             <span>{{ sources_by_type.web }} fuentes</span>
@@ -227,8 +225,9 @@
                         
                         <!-- Enlace de gestión -->
                         <div class="d-grid">
-                            <button class="btn btn-light btn-sm border-0 fw-medium opacity-75" disabled>
+                            <a href="/webs" class="btn btn-light btn-sm border-0 fw-medium">
                                 <i class="fas fa-cog me-2"></i>Gestión de Fuentes
+                            </a>
                             </button>
                         </div>
                     </div>
@@ -362,7 +361,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     
     // Efecto hover en cards de próximamente
-    const comingSoonCards = document.querySelectorAll('.ingestion-card:not(.documents)');
+    const comingSoonCards = document.querySelectorAll('.ingestion-card.api, .ingestion-card.database');
     comingSoonCards.forEach(card => {
         card.addEventListener('click', function(e) {
             // Solo si no se hizo clic en un botón

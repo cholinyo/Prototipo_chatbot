@@ -149,7 +149,8 @@ def create_app(config=None):
         ('app.routes.data_sources', 'data_sources_api', '/api/data-sources'),
         ('app.routes.api.comparison', 'comparison_api', '/api/comparison'),
         ('app.routes.chat_routes', 'chat_bp', None), 
-        ('app.routes.admin', 'admin_bp', '/admin')
+        ('app.routes.admin', 'admin_bp', '/admin'),
+        ('app.routes.web_sources_api', 'web_sources_api', '/api/web-sources'),
     ]
     
     for module_path, blueprint_name, url_prefix in optional_blueprints:

@@ -93,49 +93,10 @@ def create_compatible_app():
         logger.info("⚠️ Usando configuración por defecto")
     
     # Registrar TUS blueprints existentes
-    blueprints_registered = register_real_blueprints(app, logger)
+    
     
     logger.info(f"✅ App compatible creada con {blueprints_registered} blueprints")
     return app, app_config, logger
-
-
-def register_real_blueprints(app, logger):
-    """Registrar TUS blueprints existentes - NO valores estáticos"""
-    blueprints_registered = 0
-    
-    # TU blueprint principal que ya tiene la lógica real
-    try:
-        from app.routes.main import main_bp
-        app.register_blueprint(main_bp)
-        logger.info("✅ Blueprint main_bp registrado (con lógica real)")
-        blueprints_registered += 1
-    except ImportError as e:
-        logger.error(f"❌ No se pudo importar main_bp: {e}")
-        create_fallback_main_route(app, logger)
-        blueprints_registered += 1
-    
-    # TUS otros blueprints existentes
-    optional_blueprints = [
-        ('app.routes.chat', 'chat_bp', '/chat'),
-        ('app.routes.admin', 'admin_bp', '/admin'),
-        ('app.routes.api', 'api_bp', '/api'),
-        ('app.routes.data_sources', 'data_sources_api', None),
-        ('app.routes.llm_api', 'llm_api_bp', '/api/llm'),
-        ('app.routes.rag_pipeline_api', 'rag_api_bp', '/api/rag')
-    ]
-    
-    for module_path, blueprint_name, url_prefix in optional_blueprints:
-        try:
-            module = __import__(module_path, fromlist=[blueprint_name])
-            blueprint = getattr(module, blueprint_name)
-            app.register_blueprint(blueprint, url_prefix=url_prefix)
-            logger.info(f"✅ Blueprint {blueprint_name} registrado en {url_prefix}")
-            blueprints_registered += 1
-        except (ImportError, AttributeError) as e:
-            logger.debug(f"Blueprint {blueprint_name} no disponible: {e}")
-    
-    return blueprints_registered
-
 
 def create_fallback_main_route(app, logger):
     """Crear ruta principal de fallback si main_bp no está disponible"""
@@ -228,6 +189,8 @@ def print_startup_info(app_config, blueprints_count):
         print(f"   ✅ +{blueprints_count-1} blueprints adicionales disponibles")
     
     print("=" * 70)
+
+
 
 
 def main():

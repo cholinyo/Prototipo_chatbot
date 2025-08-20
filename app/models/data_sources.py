@@ -322,3 +322,114 @@ def create_document_source(
         max_file_size=kwargs.get('max_file_size', 100 * 1024 * 1024),
         metadata=kwargs.get('metadata', {})
     )
+@dataclass
+class WebSource(DataSource):
+    """Fuente de datos específica para sitios web"""
+    base_urls: List[str] = field(default_factory=list)
+    allowed_domains: List[str] = field(default_factory=list)
+    max_depth: int = 2
+    follow_links: bool = True
+    respect_robots_txt: bool = True
+    delay_seconds: float = 1.0
+    user_agent: str = "Mozilla/5.0 (Prototipo_chatbot TFM UJI)"
+    
+    # Selectores CSS para extracción
+    content_selectors: List[str] = field(default_factory=lambda: ['main', 'article', '.content', '#content'])
+    title_selectors: List[str] = field(default_factory=lambda: ['h1', 'title', '.page-title'])
+    exclude_selectors: List[str] = field(default_factory=lambda: ['nav', 'footer', '.sidebar', '#sidebar', '.menu'])
+    
+    # Filtros de contenido
+    min_content_length: int = 100
+    exclude_file_extensions: List[str] = field(default_factory=lambda: ['.pdf', '.doc', '.jpg', '.png', '.zip'])
+    include_patterns: List[str] = field(default_factory=list)
+    exclude_patterns: List[str] = field(default_factory=lambda: ['/admin', '/login', '/api/'])
+    
+    # Configuración de headers
+    custom_headers: Dict[str, str] = field(default_factory=dict)
+    use_javascript: bool = False  # Si requiere Selenium
+    
+    def __post_init__(self):
+        """Validación específica para fuentes web"""
+        if self.type != DataSourceType.WEB:
+            self.type = DataSourceType.WEB
+        
+        # Validar URLs
+        if not self.base_urls:
+            raise ValueError("Se debe proporcionar al menos una URL base")
+        
+        # Configurar dominios permitidos si no están especificados
+        if not self.allowed_domains:
+            from urllib.parse import urlparse
+            self.allowed_domains = list(set(
+                urlparse(url).netloc for url in self.base_urls
+            ))
+    
+    def is_url_allowed(self, url: str) -> bool:
+        """Verificar si una URL está permitida"""
+        from urllib.parse import urlparse
+        domain = urlparse(url).netloc
+        
+        # Verificar dominio permitido
+        if self.allowed_domains and domain not in self.allowed_domains:
+            return False
+        
+        # Verificar patrones de exclusión
+        for pattern in self.exclude_patterns:
+            if pattern in url:
+                return False
+        
+        # Verificar extensiones de archivo
+        for ext in self.exclude_file_extensions:
+            if url.lower().endswith(ext):
+                return False
+        
+        # Verificar patrones de inclusión (si están definidos)
+        if self.include_patterns:
+            return any(pattern in url for pattern in self.include_patterns)
+        
+        return True
+
+
+# Añadir al enum DataSourceType
+# (modificar la definición existente)
+class DataSourceType(Enum):
+    DOCUMENTS = "documents"
+    WEB = "web"  
+    API = "api"
+    DATABASE = "database"
+
+
+def create_web_source(
+    name: str,
+    base_urls: List[str],
+    source_id: Optional[str] = None,
+    **kwargs
+) -> WebSource:
+    """Factory function para crear fuentes web"""
+    import uuid
+    
+    if source_id is None:
+        source_id = str(uuid.uuid4())
+    
+    return WebSource(
+        id=source_id,
+        name=name,
+        type=DataSourceType.WEB,
+        base_urls=base_urls,
+        allowed_domains=kwargs.get('allowed_domains', []),
+        max_depth=kwargs.get('max_depth', 2),
+        follow_links=kwargs.get('follow_links', True),
+        respect_robots_txt=kwargs.get('respect_robots_txt', True),
+        delay_seconds=kwargs.get('delay_seconds', 1.0),
+        user_agent=kwargs.get('user_agent', "Mozilla/5.0 (Prototipo_chatbot TFM UJI)"),
+        content_selectors=kwargs.get('content_selectors', ['main', 'article', '.content']),
+        title_selectors=kwargs.get('title_selectors', ['h1', 'title']),
+        exclude_selectors=kwargs.get('exclude_selectors', ['nav', 'footer', '.sidebar']),
+        min_content_length=kwargs.get('min_content_length', 100),
+        exclude_file_extensions=kwargs.get('exclude_file_extensions', ['.pdf', '.doc', '.jpg']),
+        include_patterns=kwargs.get('include_patterns', []),
+        exclude_patterns=kwargs.get('exclude_patterns', ['/admin', '/login']),
+        custom_headers=kwargs.get('custom_headers', {}),
+        use_javascript=kwargs.get('use_javascript', False),
+        metadata=kwargs.get('metadata', {})
+    )
