@@ -4,71 +4,20 @@
 
 {% block extra_css %}
 <style>
-.web-card {
-    border: none;
-    border-radius: 12px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-    transition: all 0.3s ease;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-}
-
-.web-card:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 6px 20px rgba(0,0,0,0.15);
-}
-
-.stats-card {
-    border: none;
+.method-card {
+    border: 2px solid #e9ecef;
     border-radius: 10px;
-    background: white;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    transition: transform 0.2s ease;
+    transition: all 0.3s ease;
+    cursor: pointer;
 }
-
-.stats-card:hover {
-    transform: translateY(-2px);
-}
-
-.stats-number {
-    font-size: 2.2rem;
-    font-weight: 700;
-    margin-bottom: 0.5rem;
-}
-
-.url-input-group {
-    border-radius: 8px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
-
-.source-item {
-    background: white;
-    border-radius: 8px;
-    border: 1px solid #e9ecef;
-    transition: all 0.2s ease;
-}
-
-.source-item:hover {
-    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+.method-card:hover {
     border-color: #667eea;
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
 }
-
-.status-active {
-    color: #28a745;
-    background: rgba(40, 167, 69, 0.1);
-    padding: 4px 8px;
-    border-radius: 12px;
-    font-size: 0.75rem;
+.method-card.selected {
+    border-color: #667eea;
+    background: rgba(102, 126, 234, 0.05);
 }
-
-.status-inactive {
-    color: #6c757d;
-    background: rgba(108, 117, 125, 0.1);
-    padding: 4px 8px;
-    border-radius: 12px;
-    font-size: 0.75rem;
-}
-
 .page-header {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white;
@@ -76,150 +25,108 @@
     padding: 2rem;
     margin-bottom: 2rem;
 }
-
-.add-source-card {
-    border: 2px dashed #667eea;
-    border-radius: 12px;
-    background: rgba(102, 126, 234, 0.05);
-    transition: all 0.3s ease;
-}
-
-.add-source-card:hover {
-    background: rgba(102, 126, 234, 0.1);
-    border-color: #5a67d8;
-}
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="container-fluid px-4">
-    <!-- Page Header -->
+    <!-- Header -->
     <div class="page-header text-center">
         <h1 class="display-5 fw-bold mb-3">
             <i class="fas fa-globe me-3"></i>
             Gestión de Sitios Web
         </h1>
-        <p class="fs-5 mb-0">
-            Web scraping inteligente para portales municipales y sedes electrónicas
-        </p>
-        <small class="opacity-75">
-            Ingesta automatizada de contenido web institucional
-        </small>
+        <p class="fs-5 mb-0">Web scraping inteligente para portales municipales</p>
     </div>
 
-    <!-- Statistics -->
+    <!-- Estadísticas -->
     <div class="row mb-4">
         <div class="col-lg-3 col-md-6 mb-3">
-            <div class="card stats-card text-center h-100">
+            <div class="card text-center">
                 <div class="card-body">
-                    <div class="stats-number text-primary">{{ web_stats.total_sources }}</div>
-                    <div class="text-muted fw-medium">Sitios Configurados</div>
+                    <i class="fas fa-globe fa-2x text-primary mb-2"></i>
+                    <div class="h3 text-primary" id="totalSources">{{ web_stats.total_sources or 0 }}</div>
+                    <p class="text-muted mb-0">Sitios Configurados</p>
                 </div>
             </div>
         </div>
         <div class="col-lg-3 col-md-6 mb-3">
-            <div class="card stats-card text-center h-100">
+            <div class="card text-center">
                 <div class="card-body">
-                    <div class="stats-number text-success">{{ web_stats.total_pages }}</div>
-                    <div class="text-muted fw-medium">Páginas Indexadas</div>
-                </div>
-            </div>
-        </div>
-        <div class="col-lg-3 col-md-6 mb-3">
-            <div class="card stats-card text-center h-100">
-                <div class="card-body">
-                    <div class="stats-number text-info">{{ web_stats.active_scraping }}</div>
-                    <div class="text-muted fw-medium">Procesos Activos</div>
-                </div>
-            </div>
-        </div>
-        <div class="col-lg-3 col-md-6 mb-3">
-            <div class="card stats-card text-center h-100">
-                <div class="card-body">
-                    <div class="stats-number text-warning">
-                        {% if web_stats.last_update %}
-                            {{ web_stats.last_update.strftime('%H:%M') }}
-                        {% else %}
-                            --:--
-                        {% endif %}
-                    </div>
-                    <div class="text-muted fw-medium">Última Actualización</div>
+                    <i class="fas fa-file-alt fa-2x text-success mb-2"></i>
+                    <div class="h3 text-success" id="totalPages">{{ web_stats.total_pages or 0 }}</div>
+                    <p class="text-muted mb-0">Páginas Indexadas</p>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Add New Source -->
+    <!-- Configurar Nuevo Sitio -->
     <div class="row mb-4">
         <div class="col-12">
-            <div class="card add-source-card">
-                <div class="card-body">
-                    <h5 class="card-title text-primary">
-                        <i class="fas fa-plus-circle me-2"></i>
-                        Añadir Nuevo Sitio Web
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-plus me-2"></i>
+                        Configurar Nuevo Sitio Web
                     </h5>
-                    <p class="text-muted mb-3">
-                        Configura un nuevo sitio web para indexación automática
-                    </p>
-                    
+                </div>
+                <div class="card-body">
                     <form id="addWebSourceForm">
-                        <div class="row">
-                            <div class="col-md-8">
-                                <div class="input-group url-input-group">
-                                    <span class="input-group-text">
-                                        <i class="fas fa-link"></i>
-                                    </span>
-                                    <input type="url" 
-                                           class="form-control" 
-                                           id="websiteUrl" 
-                                           placeholder="https://ejemplo.ayuntamiento.es"
-                                           required>
+                        <!-- Selección de método -->
+                        <div class="mb-4">
+                            <label class="form-label fw-bold">Método de Scraping</label>
+                            <div class="row" id="scrapingMethods">
+                                <div class="col-12 text-center py-3">
+                                    <div class="spinner-border text-primary" role="status">
+                                        <span class="visually-hidden">Cargando métodos...</span>
+                                    </div>
                                 </div>
+                            </div>
+                        </div>
+
+                        <!-- Configuración básica -->
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="websiteName" class="form-label">Nombre del sitio</label>
+                                <input type="text" class="form-control" id="websiteName" 
+                                       placeholder="Portal Municipal" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="websiteUrl" class="form-label">URL base</label>
+                                <input type="url" class="form-control" id="websiteUrl" 
+                                       placeholder="https://ejemplo.ayuntamiento.es" required>
+                            </div>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-4">
+                                <label for="maxDepth" class="form-label">Profundidad máxima</label>
+                                <select class="form-select" id="maxDepth">
+                                    <option value="1">1 nivel</option>
+                                    <option value="2" selected>2 niveles</option>
+                                    <option value="3">3 niveles</option>
+                                </select>
                             </div>
                             <div class="col-md-4">
-                                <button type="submit" class="btn btn-primary w-100">
-                                    <i class="fas fa-plus me-2"></i>
-                                    Añadir Sitio
-                                </button>
+                                <label for="crawlFrequency" class="form-label">Frecuencia</label>
+                                <select class="form-select" id="crawlFrequency">
+                                    <option value="manual">Manual</option>
+                                    <option value="weekly" selected>Semanal</option>
+                                    <option value="monthly">Mensual</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="maxPages" class="form-label">Páginas máximas</label>
+                                <input type="number" class="form-control" id="maxPages" 
+                                       value="50" min="5" max="200">
                             </div>
                         </div>
-                        
-                        <!-- Advanced Options (Collapsible) -->
-                        <div class="mt-3">
-                            <button class="btn btn-link text-decoration-none p-0" type="button" data-bs-toggle="collapse" data-bs-target="#advancedOptions">
-                                <i class="fas fa-cog me-1"></i>
-                                Opciones avanzadas
-                                <i class="fas fa-chevron-down ms-1"></i>
+
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-plus me-2"></i>Añadir Sitio Web
                             </button>
-                        </div>
-                        
-                        <div class="collapse mt-3" id="advancedOptions">
-                            <div class="row">
-                                <div class="col-md-4">
-                                    <label for="maxDepth" class="form-label">Profundidad máxima</label>
-                                    <select class="form-select" id="maxDepth">
-                                        <option value="1">1 nivel</option>
-                                        <option value="2" selected>2 niveles</option>
-                                        <option value="3">3 niveles</option>
-                                        <option value="5">5 niveles</option>
-                                    </select>
-                                </div>
-                                <div class="col-md-4">
-                                    <label for="crawlFrequency" class="form-label">Frecuencia de actualización</label>
-                                    <select class="form-select" id="crawlFrequency">
-                                        <option value="daily">Diaria</option>
-                                        <option value="weekly" selected>Semanal</option>
-                                        <option value="monthly">Mensual</option>
-                                    </select>
-                                </div>
-                                <div class="col-md-4">
-                                    <label for="contentFilter" class="form-label">Filtro de contenido</label>
-                                    <input type="text" 
-                                           class="form-control" 
-                                           id="contentFilter" 
-                                           placeholder="ej: .pdf, .doc, noticias">
-                                </div>
-                            </div>
                         </div>
                     </form>
                 </div>
@@ -227,49 +134,27 @@
         </div>
     </div>
 
-    <!-- Configured Sources -->
+    <!-- Sitios Configurados -->
     <div class="row">
         <div class="col-12">
-            <h4 class="mb-3">
-                <i class="fas fa-list me-2 text-primary"></i>
-                Sitios Configurados
-            </h4>
-        </div>
-    </div>
-
-    <div class="row" id="webSourcesList">
-        <!-- Dynamic content will be loaded here -->
-        <div class="col-12">
-            <div class="text-center py-5 text-muted">
-                <i class="fas fa-globe fa-3x mb-3 opacity-50"></i>
-                <p class="mb-0">No hay sitios web configurados aún</p>
-                <p class="small">Añade tu primer sitio web utilizando el formulario anterior</p>
-            </div>
-        </div>
-    </div>
-
-    <!-- Quick Actions -->
-    <div class="row mt-5">
-        <div class="col-12">
-            <div class="card border-0 bg-light">
-                <div class="card-body text-center py-4">
-                    <h5 class="card-title mb-3">
-                        <i class="fas fa-tools me-2 text-primary"></i>
-                        Acciones del Sistema
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-list me-2"></i>
+                        Sitios Configurados
                     </h5>
-                    <div class="btn-group" role="group">
-                        <button type="button" class="btn btn-outline-primary" onclick="refreshSources()">
-                            <i class="fas fa-sync me-2"></i>Actualizar Lista
-                        </button>
-                        <button type="button" class="btn btn-outline-success" onclick="startBulkCrawl()">
-                            <i class="fas fa-play me-2"></i>Iniciar Crawling
-                        </button>
-                        <button type="button" class="btn btn-outline-warning" onclick="pauseAllCrawlers()">
-                            <i class="fas fa-pause me-2"></i>Pausar Todo
-                        </button>
-                        <button type="button" class="btn btn-outline-info" onclick="viewCrawlLogs()">
-                            <i class="fas fa-file-alt me-2"></i>Ver Logs
-                        </button>
+                    <button type="button" class="btn btn-outline-primary btn-sm" 
+                            onclick="refreshSources()">
+                        <i class="fas fa-sync-alt"></i> Actualizar
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div class="row" id="webSourcesList">
+                        <div class="col-12 text-center py-5">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Cargando sitios...</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -277,52 +162,78 @@
     </div>
 </div>
 
-<!-- Modal for Source Details -->
-<div class="modal fade" id="sourceDetailsModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">
-                    <i class="fas fa-globe me-2"></i>
-                    Detalles del Sitio Web
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body" id="sourceDetailsContent">
-                <!-- Dynamic content -->
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
-                <button type="button" class="btn btn-primary" onclick="editSource()">
-                    <i class="fas fa-edit me-2"></i>Editar
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-{% endblock %}
-
-{% block extra_scripts %}
 <script>
-// Variables globales
 let currentSources = [];
+let availableMethods = [];
+let selectedMethod = 'requests';
 
-// Inicialización
 document.addEventListener('DOMContentLoaded', function() {
+    loadAvailableMethods();
     loadWebSources();
-    setupFormHandler();
+    setupEventListeners();
 });
 
-// Manejar formulario de añadir sitio
-function setupFormHandler() {
-    const form = document.getElementById('addWebSourceForm');
-    form.addEventListener('submit', function(e) {
-        e.preventDefault();
-        addWebSource();
-    });
+async function loadAvailableMethods() {
+    try {
+        const response = await fetch('/api/scraping-methods');
+        const data = await response.json();
+        
+        if (data.success) {
+            availableMethods = data.methods;
+            renderScrapingMethods();
+        } else {
+            showFallbackMethods();
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showFallbackMethods();
+    }
 }
 
-// Cargar fuentes web existentes
+function renderScrapingMethods() {
+    const container = document.getElementById('scrapingMethods');
+    
+    container.innerHTML = availableMethods.map(method => `
+        <div class="col-lg-6 mb-3">
+            <div class="method-card p-3" onclick="selectMethod('${method.id}')" data-method="${method.id}">
+                <h6 class="mb-2">${method.name}</h6>
+                <p class="text-muted small mb-2">${method.description}</p>
+                <div class="small">
+                    <span class="text-success">Ventajas:</span> ${method.pros.join(', ')}<br>
+                    <span class="text-warning">Limitaciones:</span> ${method.cons.join(', ')}
+                </div>
+            </div>
+        </div>
+    `).join('');
+    
+    if (availableMethods.length > 0) {
+        selectMethod(availableMethods[0].id);
+    }
+}
+
+function showFallbackMethods() {
+    availableMethods = [{
+        id: 'requests',
+        name: 'Requests + BeautifulSoup',
+        description: 'Método básico para sitios estáticos',
+        pros: ['Rápido', 'Ligero'],
+        cons: ['Sin JavaScript']
+    }];
+    renderScrapingMethods();
+}
+
+function selectMethod(methodId) {
+    document.querySelectorAll('.method-card').forEach(card => {
+        card.classList.remove('selected');
+    });
+    
+    const methodCard = document.querySelector(`[data-method="${methodId}"]`);
+    if (methodCard) {
+        methodCard.classList.add('selected');
+        selectedMethod = methodId;
+    }
+}
+
 async function loadWebSources() {
     try {
         const response = await fetch('/api/web-sources');
@@ -331,258 +242,149 @@ async function loadWebSources() {
         if (data.success) {
             currentSources = data.sources || [];
             renderWebSources();
-            updateStats();
         } else {
-            console.error('Error cargando fuentes:', data.error);
+            showEmptySourcesList();
         }
     } catch (error) {
-        console.error('Error en petición:', error);
-        // Mostrar fuentes mock para desarrollo
-        showMockSources();
+        console.error('Error:', error);
+        showEmptySourcesList();
     }
 }
 
-// Mostrar fuentes mock para desarrollo
-function showMockSources() {
-    const mockSources = [
-        {
-            id: 'demo-1',
-            url: 'https://ejemplo.ayuntamiento.es',
-            name: 'Portal Municipal',
-            status: 'active',
-            last_crawl: new Date(),
-            pages_found: 45,
-            success_rate: 92.5
-        }
-    ];
-    
-    currentSources = mockSources;
-    renderWebSources();
-}
-
-// Renderizar lista de fuentes
 function renderWebSources() {
     const container = document.getElementById('webSourcesList');
     
     if (currentSources.length === 0) {
-        container.innerHTML = `
-            <div class="col-12">
-                <div class="text-center py-5 text-muted">
-                    <i class="fas fa-globe fa-3x mb-3 opacity-50"></i>
-                    <p class="mb-0">No hay sitios web configurados aún</p>
-                    <p class="small">Añade tu primer sitio web utilizando el formulario anterior</p>
-                </div>
-            </div>
-        `;
+        showEmptySourcesList();
         return;
     }
     
     container.innerHTML = currentSources.map(source => `
-        <div class="col-lg-6 col-xl-4 mb-3">
-            <div class="source-item p-3">
-                <div class="d-flex justify-content-between align-items-start mb-2">
-                    <h6 class="mb-0 text-truncate" style="max-width: 200px;">
-                        ${source.name || 'Sitio Web'}
-                    </h6>
-                    <span class="status-${source.status === 'active' ? 'active' : 'inactive'}">
-                        ${source.status === 'active' ? 'Activo' : 'Inactivo'}
-                    </span>
-                </div>
-                
-                <p class="text-muted small mb-2 text-truncate">
-                    <i class="fas fa-link me-1"></i>
-                    ${source.url}
-                </p>
-                
-                <div class="row text-center mb-3">
-                    <div class="col-4">
-                        <div class="small text-muted">Páginas</div>
-                        <div class="fw-bold">${source.pages_found || 0}</div>
-                    </div>
-                    <div class="col-4">
-                        <div class="small text-muted">Éxito</div>
-                        <div class="fw-bold">${(source.success_rate || 0).toFixed(1)}%</div>
-                    </div>
-                    <div class="col-4">
-                        <div class="small text-muted">Última</div>
-                        <div class="fw-bold small">
-                            ${source.last_crawl ? new Date(source.last_crawl).toLocaleDateString() : 'N/A'}
+        <div class="col-lg-6 mb-3">
+            <div class="card">
+                <div class="card-body">
+                    <h6 class="card-title">${source.name}</h6>
+                    <p class="card-text small text-muted">${source.url}</p>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <small class="text-muted">Método: ${source.method}</small>
+                        <div class="btn-group" role="group">
+                            <button class="btn btn-outline-success btn-sm" 
+                                    onclick="startScraping('${source.id}')">
+                                <i class="fas fa-play"></i>
+                            </button>
+                            <button class="btn btn-outline-danger btn-sm" 
+                                    onclick="deleteSource('${source.id}')">
+                                <i class="fas fa-trash"></i>
+                            </button>
                         </div>
                     </div>
-                </div>
-                
-                <div class="btn-group w-100" role="group">
-                    <button class="btn btn-outline-primary btn-sm" onclick="viewSourceDetails('${source.id}')">
-                        <i class="fas fa-eye"></i>
-                    </button>
-                    <button class="btn btn-outline-success btn-sm" onclick="startCrawl('${source.id}')">
-                        <i class="fas fa-play"></i>
-                    </button>
-                    <button class="btn btn-outline-warning btn-sm" onclick="editSource('${source.id}')">
-                        <i class="fas fa-edit"></i>
-                    </button>
-                    <button class="btn btn-outline-danger btn-sm" onclick="deleteSource('${source.id}')">
-                        <i class="fas fa-trash"></i>
-                    </button>
                 </div>
             </div>
         </div>
     `).join('');
 }
 
-// Añadir nueva fuente web
-async function addWebSource() {
-    const url = document.getElementById('websiteUrl').value;
-    const maxDepth = document.getElementById('maxDepth').value;
-    const frequency = document.getElementById('crawlFrequency').value;
-    const filter = document.getElementById('contentFilter').value;
-    
-    // Validación y parsing seguro del URL
-    let name;
-    try {
-        const urlObj = new URL(url);
-        name = urlObj.hostname;
-    } catch (e) {
-        showAlert('URL inválida. Usa formato: https://ejemplo.com', 'danger');
-        return;
-    }
-    
-    const sourceData = {
-        name: name,
-        base_urls: [url],
-        max_depth: parseInt(maxDepth),
-        // Campos que tu API sí maneja:
-        delay_seconds: 1.0,
-        follow_links: true,
-        respect_robots_txt: true
-        // crawl_frequency y content_filter no están implementados en tu API
-    };
-    
-    try {
-        const response = await fetch('/api/web-sources', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(sourceData)
-        });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-            // Limpiar formulario
-            document.getElementById('addWebSourceForm').reset();
-            
-            // Recargar lista
-            await loadWebSources();
-            
-            // Mostrar mensaje de éxito
-            showAlert('Sitio web añadido correctamente', 'success');
-        } else {
-            showAlert('Error añadiendo sitio: ' + data.error, 'danger');
-        }
-    } catch (error) {
-        console.error('Error:', error);
-        showAlert('Error de conexión', 'danger');
-    }
+function showEmptySourcesList() {
+    const container = document.getElementById('webSourcesList');
+    container.innerHTML = `
+        <div class="col-12 text-center py-5">
+            <i class="fas fa-globe fa-3x mb-3 text-muted"></i>
+            <h5>No hay sitios web configurados</h5>
+            <p class="text-muted">Añade tu primer sitio web usando el formulario anterior</p>
+        </div>
+    `;
 }
 
-// Funciones de gestión
+function setupEventListeners() {
+    const form = document.getElementById('addWebSourceForm');
+    form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const formData = {
+            name: document.getElementById('websiteName').value,
+            url: document.getElementById('websiteUrl').value,
+            method: selectedMethod,
+            max_depth: parseInt(document.getElementById('maxDepth').value),
+            crawl_frequency: document.getElementById('crawlFrequency').value,
+            max_pages: parseInt(document.getElementById('maxPages').value)
+        };
+        
+        try {
+            const response = await fetch('/api/web-sources', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(formData)
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                showAlert('Sitio web añadido correctamente', 'success');
+                form.reset();
+                loadWebSources();
+            } else {
+                showAlert('Error: ' + data.error, 'danger');
+            }
+        } catch (error) {
+            showAlert('Error de conexión', 'danger');
+        }
+    });
+}
+
+function showAlert(message, type) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+    alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 1060;';
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    document.body.appendChild(alertDiv);
+    setTimeout(() => alertDiv.remove(), 5000);
+}
+
 function refreshSources() {
     loadWebSources();
     showAlert('Lista actualizada', 'info');
 }
 
-function startBulkCrawl() {
-    showAlert('Iniciando crawling en todos los sitios activos...', 'info');
-    // Implementar lógica de crawling masivo
-}
-
-function pauseAllCrawlers() {
-    showAlert('Pausando todos los procesos de crawling...', 'warning');
-    // Implementar lógica de pausa
-}
-
-function viewCrawlLogs() {
-    showAlert('Los logs de crawling estarán disponibles próximamente', 'info');
-    // Implementar visualización de logs
-}
-
-function startCrawl(sourceId) {
-    showAlert(`Iniciando crawling para sitio ${sourceId}...`, 'info');
-    // Implementar crawling individual
-}
-
-function viewSourceDetails(sourceId) {
-    const source = currentSources.find(s => s.id === sourceId);
-    if (source) {
-        document.getElementById('sourceDetailsContent').innerHTML = `
-            <div class="row">
-                <div class="col-md-6">
-                    <strong>URL:</strong><br>
-                    <span class="text-muted">${source.url}</span>
-                </div>
-                <div class="col-md-6">
-                    <strong>Estado:</strong><br>
-                    <span class="status-${source.status}">${source.status}</span>
-                </div>
-            </div>
-            <hr>
-            <div class="row">
-                <div class="col-md-4">
-                    <strong>Páginas encontradas:</strong><br>
-                    <span class="text-muted">${source.pages_found || 0}</span>
-                </div>
-                <div class="col-md-4">
-                    <strong>Tasa de éxito:</strong><br>
-                    <span class="text-muted">${(source.success_rate || 0).toFixed(1)}%</span>
-                </div>
-                <div class="col-md-4">
-                    <strong>Último crawling:</strong><br>
-                    <span class="text-muted">${source.last_crawl ? new Date(source.last_crawl).toLocaleDateString() : 'N/A'}</span>
-                </div>
-            </div>
-        `;
+async function startScraping(sourceId) {
+    try {
+        const response = await fetch(`/api/scraping/start/${sourceId}`, {
+            method: 'POST'
+        });
         
-        new bootstrap.Modal(document.getElementById('sourceDetailsModal')).show();
-    }
-}
-
-function editSource(sourceId) {
-    showAlert('Edición de fuentes estará disponible próximamente', 'info');
-    // Implementar edición
-}
-
-function deleteSource(sourceId) {
-    if (confirm('¿Estás seguro de que quieres eliminar este sitio web?')) {
-        showAlert('Eliminando sitio...', 'warning');
-        // Implementar eliminación
-    }
-}
-
-function updateStats() {
-    // Actualizar estadísticas en tiempo real si es necesario
-    // Esta función se llamaría periódicamente
-}
-
-// Utility function para mostrar alertas
-function showAlert(message, type = 'info') {
-    const alertDiv = document.createElement('div');
-    alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
-    alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
-    alertDiv.innerHTML = `
-        ${message}
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    `;
-    
-    document.body.appendChild(alertDiv);
-    
-    // Auto-dismiss after 3 seconds
-    setTimeout(() => {
-        if (alertDiv.parentNode) {
-            alertDiv.remove();
+        const data = await response.json();
+        
+        if (data.success) {
+            showAlert('Scraping iniciado', 'success');
+        } else {
+            showAlert('Error: ' + data.error, 'danger');
         }
-    }, 3000);
+    } catch (error) {
+        showAlert('Error de conexión', 'danger');
+    }
+}
+
+async function deleteSource(sourceId) {
+    if (!confirm('¿Eliminar este sitio web?')) return;
+    
+    try {
+        const response = await fetch(`/api/web-sources/${sourceId}`, {
+            method: 'DELETE'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showAlert('Sitio eliminado', 'success');
+            loadWebSources();
+        } else {
+            showAlert('Error: ' + data.error, 'danger');
+        }
+    } catch (error) {
+        showAlert('Error de conexión', 'danger');
+    }
 }
 </script>
 {% endblock %}

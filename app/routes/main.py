@@ -30,6 +30,15 @@ except ImportError as e:
     document_ingestion_service = None
     RAG_PIPELINE_AVAILABLE = False
 
+# CORRECCIÓN: Importar servicio web sin variables problemáticas
+try:
+    from app.services.web_ingestion_service import web_ingestion_service
+    WEB_INGESTION_AVAILABLE = True
+except ImportError as e:
+    print(f"⚠️ Servicio de web ingestion no disponible: {e}")
+    web_ingestion_service = None
+    WEB_INGESTION_AVAILABLE = False
+
 from app.models import SystemStats
 
 # Crear blueprint
@@ -917,29 +926,38 @@ def fuentes_datos():
 
 @main_bp.route('/webs')
 def webs():
-    """Página de gestión de sitios web para web scraping"""
+    """Página de gestión de sitios web para web scraping - CORREGIDA"""
     try:
-        # Obtener configuraciones de la aplicación
         app_config = get_app_config()
         
-        # Obtener estadísticas reales del WebIngestionService
-        try:
-            from app.services.web_ingestion_service import web_ingestion_service
-            stats = web_ingestion_service.get_all_stats()
-            
-            web_stats = {
-                'total_sources': stats['total_sources'],
-                'total_pages': stats['total_pages'],
-                'active_scraping': stats['active_sources'],
-                'last_update': stats['last_updated']
-            }
-            
-            logger.info("Estadísticas de web scraping obtenidas del servicio")
-            
-        except Exception as e:
-            logger.warning(f"Error obteniendo estadísticas de web scraping: {e}")
-            
-            # Valores por defecto si el servicio no está disponible
+        # CORRECCIÓN: Usar servicio directamente en lugar de variables importadas
+        if WEB_INGESTION_AVAILABLE and web_ingestion_service:
+            try:
+                # Obtener estadísticas reales del servicio
+                all_sources = web_ingestion_service.list_sources()
+                all_stats = web_ingestion_service.get_all_stats()
+                
+                web_stats = {
+                    'total_sources': len(all_sources),
+                    'total_pages': sum(getattr(stats, 'total_pages', 0) for stats in all_stats.values()),
+                    'active_scraping': 0,  # TODO: Implementar conteo de tareas activas
+                    'last_update': max([getattr(stats, 'last_scan', datetime.min) for stats in all_stats.values()], default=datetime.now())
+                }
+                
+                logger.info("Estadísticas de web scraping obtenidas del servicio")
+                
+            except Exception as e:
+                logger.warning(f"Error obteniendo estadísticas de web scraping: {e}")
+                
+                # Valores por defecto si el servicio no está disponible
+                web_stats = {
+                    'total_sources': 0,
+                    'total_pages': 0,
+                    'active_scraping': 0,
+                    'last_update': None
+                }
+        else:
+            logger.warning("Servicio de web ingestion no disponible")
             web_stats = {
                 'total_sources': 0,
                 'total_pages': 0,
@@ -947,11 +965,11 @@ def webs():
                 'last_update': None
             }
         
-        # Contexto para el template
         context = {
             'app_config': app_config,
             'web_stats': web_stats,
-            'page_title': 'Gestión de Sitios Web'
+            'page_title': 'Gestión de Sitios Web',
+            'web_ingestion_available': WEB_INGESTION_AVAILABLE
         }
         
         logger.info("Página de gestión de sitios web accedida")

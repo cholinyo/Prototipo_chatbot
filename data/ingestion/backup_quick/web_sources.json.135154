@@ -1,0 +1,247 @@
+{
+  "a116df22-7117-4ce3-9ca0-09634c28b5e1": {
+    "id": "a116df22-7117-4ce3-9ca0-09634c28b5e1",
+    "name": "www.onda.es",
+    "type": "web",
+    "status": "pending",
+    "config": {
+      "base_urls": [
+        "http://www.onda.es"
+      ],
+      "allowed_domains": [
+        "www.onda.es"
+      ],
+      "max_depth": 2,
+      "follow_links": true,
+      "respect_robots_txt": true,
+      "delay_seconds": 1,
+      "user_agent": "Mozilla/5.0 (Prototipo_chatbot TFM UJI)",
+      "content_selectors": [
+        "main",
+        "article",
+        ".content"
+      ],
+      "title_selectors": [
+        "h1",
+        "title"
+      ],
+      "exclude_selectors": [
+        "nav",
+        "footer",
+        ".sidebar"
+      ],
+      "min_content_length": 100,
+      "exclude_file_extensions": [
+        ".pdf",
+        ".doc",
+        ".jpg"
+      ],
+      "include_patterns": [],
+      "exclude_patterns": [
+        "/admin",
+        "/login"
+      ],
+      "custom_headers": {},
+      "use_javascript": false
+    },
+    "created_at": "2025-08-21T10:31:46.312334",
+    "last_sync": null,
+    "metadata": {}
+  },
+  "1280f612-a641-44d2-8662-bbbcc19d63ee": {
+    "id": "1280f612-a641-44d2-8662-bbbcc19d63ee",
+    "name": "participacio.onda.es",
+    "type": "web",
+    "status": "pending",
+    "config": {
+      "base_urls": [
+        "https://participacio.onda.es"
+      ],
+      "allowed_domains": [
+        "participacio.onda.es"
+      ],
+      "max_depth": 2,
+      "follow_links": true,
+      "respect_robots_txt": true,
+      "delay_seconds": 1,
+      "user_agent": "Mozilla/5.0 (Prototipo_chatbot TFM UJI)",
+      "content_selectors": [
+        "main",
+        "article",
+        ".content"
+      ],
+      "title_selectors": [
+        "h1",
+        "title"
+      ],
+      "exclude_selectors": [
+        "nav",
+        "footer",
+        ".sidebar"
+      ],
+      "min_content_length": 100,
+      "exclude_file_extensions": [
+        ".pdf",
+        ".doc",
+        ".jpg"
+      ],
+      "include_patterns": [],
+      "exclude_patterns": [
+        "/admin",
+        "/login"
+      ],
+      "custom_headers": {},
+      "use_javascript": false
+    },
+    "created_at": "2025-08-21T10:31:54.933877",
+    "last_sync": "2025-08-21T10:33:45.819962",
+    "metadata": {}
+  },
+  "4fd86ba8-b30a-438a-b3ed-8c5445a98767": {
+    "id": "4fd86ba8-b30a-438a-b3ed-8c5445a98767",
+    "name": "Example.com Test",
+    "type": "web",
+    "status": "pending",
+    "config": {
+      "base_urls": [
+        "http://example.com"
+      ],
+      "allowed_domains": [
+        "example.com"
+      ],
+      "max_depth": 1,
+      "follow_links": true,
+      "respect_robots_txt": false,
+      "delay_seconds": 1.0,
+      "user_agent": "Mozilla/5.0 (Prototipo_chatbot TFM UJI)",
+      "content_selectors": [
+        "main",
+        "article",
+        ".content"
+      ],
+      "title_selectors": [
+        "h1",
+        "title"
+      ],
+      "exclude_selectors": [
+        "nav",
+        "footer",
+        ".sidebar"
+      ],
+      "min_content_length": 100,
+      "exclude_file_extensions": [
+        ".pdf",
+        ".doc",
+        ".jpg"
+      ],
+      "include_patterns": [],
+      "exclude_patterns": [
+        "/admin",
+        "/login"
+      ],
+      "custom_headers": {},
+      "use_javascript": false
+    },
+    "created_at": "2025-08-21T10:34:32.701982",
+    "last_sync": "2025-08-21T10:35:19.300420",
+    "metadata": {}
+  },
+  "d0e05aeb-6c17-4917-82f8-4849c1968741": {
+    "id": "d0e05aeb-6c17-4917-82f8-4849c1968741",
+    "name": "Example.com Test",
+    "type": "web",
+    "status": "pending",
+    "config": {
+      "base_urls": [
+        "http://example.com"
+      ],
+      "allowed_domains": [
+        "example.com"
+      ],
+      "max_depth": 1,
+      "follow_links": true,
+      "respect_robots_txt": false,
+      "delay_seconds": 1.0,
+      "user_agent": "Mozilla/5.0 (Prototipo_chatbot TFM UJI)",
+      "content_selectors": [
+        "main",
+        "article",
+        ".content"
+      ],
+      "title_selectors": [
+        "h1",
+        "title"
+      ],
+      "exclude_selectors": [
+        "nav",
+        "footer",
+        ".sidebar"
+      ],
+      "min_content_length": 100,
+      "exclude_file_extensions": [
+        ".pdf",
+        ".doc",
+        ".jpg"
+      ],
+      "include_patterns": [],
+      "exclude_patterns": [
+        "/admin",
+        "/login"
+      ],
+      "custom_headers": {},
+      "use_javascript": false
+    },
+    "created_at": "2025-08-21T11:32:01.908197",
+    "last_sync": null,
+    "metadata": {}
+  },
+  "dbaa4f29-490f-4a98-a76f-9aedeffd2c1b": {
+    "id": "dbaa4f29-490f-4a98-a76f-9aedeffd2c1b",
+    "name": "Example.com Test",
+    "type": "web",
+    "status": "pending",
+    "config": {
+      "base_urls": [
+        "http://example.com"
+      ],
+      "allowed_domains": [
+        "example.com"
+      ],
+      "max_depth": 1,
+      "follow_links": true,
+      "respect_robots_txt": false,
+      "delay_seconds": 1.0,
+      "user_agent": "Mozilla/5.0 (Prototipo_chatbot TFM UJI)",
+      "content_selectors": [
+        "main",
+        "article",
+        ".content"
+      ],
+      "title_selectors": [
+        "h1",
+        "title"
+      ],
+      "exclude_selectors": [
+        "nav",
+        "footer",
+        ".sidebar"
+      ],
+      "min_content_length": 100,
+      "exclude_file_extensions": [
+        ".pdf",
+        ".doc",
+        ".jpg"
+      ],
+      "include_patterns": [],
+      "exclude_patterns": [
+        "/admin",
+        "/login"
+      ],
+      "custom_headers": {},
+      "use_javascript": false
+    },
+    "created_at": "2025-08-21T11:33:07.110923",
+    "last_sync": "2025-08-21T11:35:07.040051",
+    "metadata": {}
+  }
+}

@@ -1,65 +1,30 @@
 """
-Prototipo_chatbot - TFM Vicente Caruncho Ramos
-Universitat Jaume I - Sistemas Inteligentes
-
-Sistema RAG para Administraciones Locales
+Aplicación Flask - Factory Pattern
+TFM Vicente Caruncho - Sistemas Inteligentes
 """
 
-__version__ = "1.0.0"
+import os
+from pathlib import Path
+from flask import Flask, jsonify
+from datetime import datetime
+
+
+# Metadatos de la aplicación
+__version__ = "3.0"
 __author__ = "Vicente Caruncho Ramos"
-__university__ = "Universitat Jaume I"
-__project__ = "Prototipo de Chatbot RAG para Administraciones Locales"
 
-# Importaciones principales (con manejo de errores)
-try:
-    from .models.document import DocumentChunk, DocumentMetadata
-except ImportError:
-    DocumentChunk = None
-    DocumentMetadata = None
-
-try:
-    from .services.rag.embeddings import embedding_service
-except ImportError:
-    embedding_service = None
-
-def get_project_info():
-    """Informacion del proyecto"""
-    return {
-        "name": __project__,
-        "version": __version__,
-        "author": __author__,
-        "university": __university__,
-        "status": "TFM Development"
-    }
-
-
-# =============================================================================
-# APPLICATION FACTORY
-# =============================================================================
 
 def create_app(config=None):
-    """
-    Factory para crear la aplicación Flask
-    Añadido por fix rápido para compatibilidad con run.py simplificado
+    """Factory para crear aplicación Flask"""
     
-    Args:
-        config: Configuración opcional a aplicar
+    # Obtener directorio raíz del proyecto
+    project_root = Path(__file__).parent.parent
     
-    Returns:
-        Flask: Instancia de la aplicación configurada
-    """
-    import os
-    import sys
-    from pathlib import Path
-    from flask import Flask
-    from flask import jsonify
-    
-    # Crear instancia Flask
+    # Crear aplicación Flask con rutas corregidas
     app = Flask(
         __name__,
-        template_folder='templates',
-        static_folder='static',
-        instance_relative_config=True
+        template_folder=str(project_root / 'app' / 'templates'),  # ✅ CORREGIDO
+        static_folder=str(project_root / 'app' / 'static')        # ✅ CORREGIDO
     )
     
     # Configuración básica
@@ -83,16 +48,15 @@ def create_app(config=None):
         logger = get_logger("app_factory")
         logger.info("Logging configurado correctamente")
         app.logger = logger
-    except ImportError:
+    except ImportError as e:
         import logging
         logging.basicConfig(level=logging.INFO)
-        app.logger.info("Usando logging básico (configuración core no disponible)")
+        app.logger.info(f"Usando logging básico (configuración core no disponible): {e}")
     
-    # Registrar blueprints disponibles
+    # Contador de blueprints registrados
     blueprints_registered = 0
     
-    
-    # Blueprint principal SIEMPRE con /health endpoint
+    # Blueprint principal SIEMPRE disponible
     try:
         from app.routes.main import main_bp
         app.register_blueprint(main_bp)
@@ -101,7 +65,7 @@ def create_app(config=None):
     except ImportError as e:
         app.logger.warning(f"⚠️ Blueprint main no disponible: {e}")
         # Crear blueprint básico como fallback
-        from flask import Blueprint, jsonify
+        from flask import Blueprint
         main_bp = Blueprint('main', __name__)
         
         @main_bp.route('/')
@@ -109,30 +73,30 @@ def create_app(config=None):
             return jsonify({
                 "message": "Prototipo_chatbot TFM - Sistema funcionando",
                 "status": "running",
-                "author": "Vicente Caruncho Ramos",
-                "version": "2.0",
-                "mode": "basic_fallback"
+                "author": __author__,
+                "version": __version__,
+                "mode": "basic_fallback",
+                "available_endpoints": ["/", "/health", "/ajax/quick-stats"]
             })
         
         app.register_blueprint(main_bp)
         app.logger.info("✅ Blueprint main básico creado como fallback")
         blueprints_registered += 1
     
-    # ✅ ENDPOINT /health SIEMPRE DISPONIBLE (corrección crítica)
+    # ✅ ENDPOINTS BÁSICOS SIEMPRE DISPONIBLES
     @app.route('/health')
     def health_check():
         """Health check endpoint - siempre disponible"""
-        from datetime import datetime
         return jsonify({
             "status": "healthy",
             "timestamp": datetime.now().isoformat(),
             "version": __version__,
             "author": __author__,
             "mode": "production" if not app.config.get('DEBUG') else "development",
-            "blueprints_registered": blueprints_registered
+            "blueprints_registered": blueprints_registered,
+            "blueprints_available": list(app.blueprints.keys())
         })
     
-    # ✅ ENDPOINT AJAX STATS (para evitar errores 404)
     @app.route('/ajax/quick-stats')
     def quick_stats():
         """Quick stats endpoint"""
@@ -141,47 +105,55 @@ def create_app(config=None):
             "timestamp": __import__('time').time(),
             "active": True,
             "documents_indexed": 0,  # Por defecto
-            "system_status": "operational"
+            "system_status": "operational",
+            "blueprints_count": len(app.blueprints)
         })
     
-    # Blueprints opcionales CORREGIDOS
+    # Blueprints opcionales - ORDEN CORREGIDO Y VERIFICADO
     optional_blueprints = [
+        # APIs principales
+        ('app.routes.web_sources_api', 'web_sources_api', '/api/web-sources'),  # ✅ PRIORITARIO
         ('app.routes.api', 'api_bp', '/api'),
-        ('app.routes.data_sources', 'data_sources_api', '/api/data-sources'),
-        ('app.routes.api.comparison', 'comparison_api', '/api/comparison'),
+        
+        # Rutas de gestión
         ('app.routes.chat_routes', 'chat_bp', None), 
         ('app.routes.admin', 'admin_bp', '/admin'),
-        ('app.routes.web_sources_api', 'web_sources_api', '/api/web-sources'),
+        
+        # APIs específicas (si existen)
+        ('app.routes.data_sources', 'data_sources_api', '/api/data-sources'),
+        ('app.routes.api.comparison', 'comparison_api', '/api/comparison'),
     ]
     
     for module_path, blueprint_name, url_prefix in optional_blueprints:
         try:
             module = __import__(module_path, fromlist=[blueprint_name])
             blueprint = getattr(module, blueprint_name)
+            
             if url_prefix:
                 app.register_blueprint(blueprint, url_prefix=url_prefix)
                 app.logger.info(f"✅ Blueprint {blueprint_name} registrado en {url_prefix}")
             else:
                 app.register_blueprint(blueprint)
                 app.logger.info(f"✅ Blueprint {blueprint_name} registrado")
+            
             blueprints_registered += 1
+            
         except (ImportError, AttributeError) as e:
             app.logger.warning(f"⚠️ Blueprint {blueprint_name} no disponible: {e}")
     
     # Configurar manejadores de errores básicos
     @app.errorhandler(404)
     def not_found_error(error):
-        from flask import jsonify
         return jsonify({
             'error': 'Página no encontrada',
             'status_code': 404,
-            'message': 'El recurso solicitado no existe'
+            'message': 'El recurso solicitado no existe',
+            'available_blueprints': list(app.blueprints.keys())
         }), 404
     
     @app.errorhandler(500)
     def internal_error(error):
         app.logger.error(f"Error interno del servidor: {error}")
-        from flask import jsonify
         return jsonify({
             'error': 'Error interno del servidor',
             'status_code': 500,
@@ -193,14 +165,16 @@ def create_app(config=None):
     def inject_global_vars():
         return {
             'app_name': 'Prototipo_chatbot',
-            'app_version': '2.0',
-            'author': 'Vicente Caruncho Ramos',
+            'app_version': __version__,
+            'author': __author__,
             'university': 'Universitat Jaume I',
             'master': 'Sistemas Inteligentes',
             'current_year': 2025
         }
     
-    app.logger.info(f"📋 Aplicación Flask creada con {blueprints_registered} blueprints")
+    app.logger.info(f"📋 Aplicación Flask creada exitosamente con {blueprints_registered} blueprints")
+    app.logger.info(f"📋 Blueprints disponibles: {list(app.blueprints.keys())}")
+    
     return app
 
 
