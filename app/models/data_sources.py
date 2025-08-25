@@ -148,9 +148,9 @@ class DataSource:
             id=data['id'],
             name=data['name'],
             type=DataSourceType(data['type']),
-            status=DataSourceStatus(data['status']),
+            status=DataSourceStatus(data.get('status', 'pending')),
             config=data.get('config', {}),
-            created_at=datetime.fromisoformat(data['created_at']),
+            created_at=datetime.fromisoformat(data['created_at']) if data.get('created_at') else datetime.now(),
             last_sync=datetime.fromisoformat(data['last_sync']) if data.get('last_sync') else None,
             metadata=data.get('metadata', {})
         )
@@ -420,17 +420,19 @@ class WebSource(DataSource):
     
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'WebSource':
-        """Crear WebSource desde diccionario - Reconstruye desde config"""
+        """Crear WebSource desde diccionario - Reconstruye desde config - CORREGIDO"""
         config = data.get('config', {})
-        
+        base_urls = data.get('base_urls', config.get('base_urls', []))
         return cls(
             id=data['id'],
             name=data['name'],
-            status=DataSourceStatus(data['status']),
-            created_at=datetime.fromisoformat(data['created_at']),
+            type=DataSourceType.WEB,  # CRÍTICO: Campo requerido que faltaba
+            status=DataSourceStatus(data.get('status', 'active')),
+            created_at=datetime.fromisoformat(data['created_at']) if data.get('created_at') else datetime.now(),
             last_sync=datetime.fromisoformat(data['last_sync']) if data.get('last_sync') else None,
             metadata=data.get('metadata', {}),
-            base_urls=config.get('base_urls', []),
+            # Campos específicos de WebSource desde config
+            base_urls=base_urls,
             allowed_domains=config.get('allowed_domains', []),
             max_depth=config.get('max_depth', 2),
             follow_links=config.get('follow_links', True),

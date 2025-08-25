@@ -1,18 +1,19 @@
 """
-API Routes para gestión de fuentes web - ARREGLADO PARA CONSISTENCIA
+API Routes para gestión de fuentes web - LIMPIO Y CORREGIDO
 TFM Vicente Caruncho - Sistemas Inteligentes
 
-CAMBIOS PRINCIPALES:
-1. Backend recibe estructura WebSource correcta del frontend
-2. Manejo automático de migración legacy
-3. Validaciones robustas de datos
-4. Compatibilidad con modelo WebSource consolidado
+CAMBIOS APLICADOS:
+- Eliminadas referencias a enhanced_web_scraper
+- Estructura de datos consistente con modelo WebSource
+- Endpoints simplificados y funcionles
+- Compatibilidad completa con web_scraper_service y web_ingestion_service
 """
 
 import json
 import os
 import time
 import threading
+import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, List, Optional
@@ -46,7 +47,7 @@ except ImportError as e:
     SELENIUM_AVAILABLE = False
     SELENIUM_ERROR = f"Selenium no instalado: {e}"
 
-# CRÍTICO: Importar modelo de datos correcto
+# IMPORTACIONES LIMPIAS - Solo modelo de datos
 from app.models.data_sources import (
     WebSource, 
     ScrapedPage, 
@@ -69,12 +70,13 @@ SCRAPED_CONTENT_DIR.mkdir(exist_ok=True)
 WEB_SOURCES_FILE = DATA_DIR / "web_sources.json"
 SCRAPING_TASKS_FILE = DATA_DIR / "scraping_tasks.json"
 
-# Variables globales
+# Variables globales para tareas activas
 active_tasks = {}
 task_lock = threading.Lock()
 
+
 class WebScrapingService:
-    """Servicio de web scraping híbrido"""
+    """Servicio de web scraping simplificado y funcional"""
     
     def __init__(self):
         self.session = requests.Session()
@@ -84,7 +86,7 @@ class WebScrapingService:
         self.selenium_working = None
         
     def check_selenium_status(self):
-        """Verificar si Selenium funciona"""
+        """Verificar si Selenium funciona correctamente"""
         if self.selenium_working is not None:
             return self.selenium_working
         
@@ -98,7 +100,7 @@ class WebScrapingService:
             if driver:
                 driver.quit()
                 self.selenium_working = True
-                logger.info("Selenium funcionando")
+                logger.info("Selenium funcionando correctamente")
                 return True
         except Exception as e:
             self.selenium_working = False
@@ -109,7 +111,7 @@ class WebScrapingService:
         return False
         
     def get_driver(self):
-        """Crear driver de Selenium"""
+        """Crear driver de Selenium con configuración optimizada"""
         if not SELENIUM_AVAILABLE:
             raise Exception(f"Selenium no disponible: {SELENIUM_ERROR}")
         
@@ -120,6 +122,7 @@ class WebScrapingService:
             chrome_options.add_argument('--disable-dev-shm-usage')
             chrome_options.add_argument('--disable-gpu')
             chrome_options.add_argument('--window-size=1920,1080')
+            chrome_options.add_argument('--disable-blink-features=AutomationControlled')
             
             if WEBDRIVER_MANAGER_AVAILABLE:
                 service = webdriver.chrome.service.Service(ChromeDriverManager().install())
@@ -136,13 +139,15 @@ class WebScrapingService:
             raise Exception(f"Error creando driver: {e}")
 
     def test_url_connectivity(self, url: str) -> Dict[str, Any]:
-        """Test de conectividad"""
+        """Test básico de conectividad"""
         try:
             response = self.session.head(url, timeout=10, allow_redirects=True)
             return {
                 'success': True,
                 'status_code': response.status_code,
-                'accessible': response.status_code < 400
+                'accessible': response.status_code < 400,
+                'content_type': response.headers.get('content-type', ''),
+                'server': response.headers.get('server', '')
             }
         except Exception as e:
             return {
@@ -152,27 +157,36 @@ class WebScrapingService:
             }
 
     def scrape_with_requests(self, url: str, min_content_length: int = 50) -> Dict[str, Any]:
-        """Scraping con requests"""
+        """Scraping con requests + BeautifulSoup"""
         try:
             response = self.session.get(url, timeout=15)
             response.raise_for_status()
             
             soup = BeautifulSoup(response.content, 'html.parser')
             
-            # Limpiar
-            for script in soup(["script", "style", "nav", "footer"]):
+            # Limpiar elementos no deseados
+            for script in soup(["script", "style", "nav", "footer", ".sidebar", "#sidebar"]):
                 script.decompose()
             
             title = soup.find('title').get_text(strip=True) if soup.find('title') else url
             content = soup.get_text(separator=' ', strip=True)
+            
+            # Extraer enlaces
+            links = []
+            for link in soup.find_all('a', href=True):
+                href = link['href']
+                if href.startswith(('http://', 'https://')):
+                    links.append(href)
             
             return {
                 'success': True,
                 'method': 'requests',
                 'title': title,
                 'content': content,
+                'links': links[:20],  # Limitar enlaces
                 'content_length': len(content),
-                'sufficient_content': len(content) >= min_content_length
+                'sufficient_content': len(content) >= min_content_length,
+                'status_code': response.status_code
             }
             
         except Exception as e:
@@ -185,7 +199,7 @@ class WebScrapingService:
             }
 
     def scrape_with_selenium(self, url: str, min_content_length: int = 50) -> Dict[str, Any]:
-        """Scraping con Selenium"""
+        """Scraping con Selenium para contenido dinámico"""
         if not self.check_selenium_status():
             return {
                 'success': False,
@@ -198,33 +212,42 @@ class WebScrapingService:
         driver = None
         try:
             driver = self.get_driver()
-            logger.info(f"Navegando a {url}")
+            logger.info(f"Navegando a {url} con Selenium")
             
             driver.get(url)
             
-            # Esperar carga
+            # Esperar carga completa
             WebDriverWait(driver, 15).until(
                 lambda d: d.execute_script("return document.readyState") == "complete"
             )
-            time.sleep(3)
+            time.sleep(3)  # Tiempo adicional para JavaScript
             
             title = driver.title or url
             page_source = driver.page_source
             soup = BeautifulSoup(page_source, 'html.parser')
             
-            # Limpiar
-            for element in soup(["script", "style", "nav", "footer"]):
+            # Limpiar elementos
+            for element in soup(["script", "style", "nav", "footer", ".sidebar"]):
                 element.decompose()
             
             content = soup.get_text(separator=' ', strip=True)
+            
+            # Extraer enlaces
+            links = []
+            for link in soup.find_all('a', href=True):
+                href = link['href']
+                if href.startswith(('http://', 'https://')):
+                    links.append(href)
             
             return {
                 'success': True,
                 'method': 'selenium',
                 'title': title,
                 'content': content,
+                'links': links[:20],
                 'content_length': len(content),
-                'sufficient_content': len(content) >= min_content_length
+                'sufficient_content': len(content) >= min_content_length,
+                'javascript_rendered': True
             }
             
         except Exception as e:
@@ -244,26 +267,26 @@ class WebScrapingService:
                     pass
 
     def scrape_auto(self, url: str, min_content_length: int = 50) -> Dict[str, Any]:
-        """Scraping automático con fallback"""
+        """Scraping automático con fallback inteligente"""
         logger.info(f"Scraping automático de {url}")
         
-        # Primero requests
+        # Primero intentar con requests
         requests_result = self.scrape_with_requests(url, min_content_length)
         
         if requests_result['success'] and requests_result['sufficient_content']:
             logger.info(f"Requests exitoso: {requests_result['content_length']} chars")
             return requests_result
         
-        # Fallback a Selenium
+        # Fallback a Selenium si está disponible
         if self.check_selenium_status():
-            logger.info("Intentando con Selenium...")
+            logger.info("Fallback a Selenium...")
             selenium_result = self.scrape_with_selenium(url, min_content_length)
             
             if selenium_result['success'] and selenium_result['sufficient_content']:
                 logger.info(f"Selenium exitoso: {selenium_result['content_length']} chars")
                 return selenium_result
         
-        # Devolver mejor resultado
+        # Devolver mejor resultado disponible
         return requests_result if requests_result.get('content_length', 0) > 0 else {
             'success': False,
             'method': 'auto',
@@ -272,13 +295,15 @@ class WebScrapingService:
             'sufficient_content': False
         }
 
-# Instancia global
+
+# Instancia global del servicio
 scraping_service = WebScrapingService()
 
-# ===== FUNCIONES DE PERSISTENCIA CORREGIDAS =====
+
+# ===== FUNCIONES DE PERSISTENCIA =====
 
 def load_web_sources() -> Dict[str, WebSource]:
-    """Cargar fuentes web desde archivo JSON con migración automática legacy"""
+    """Cargar fuentes web desde archivo JSON"""
     if not WEB_SOURCES_FILE.exists():
         return {}
     
@@ -287,17 +312,9 @@ def load_web_sources() -> Dict[str, WebSource]:
             data = json.load(f)
         
         sources = {}
-        migrated_any = False
-        
         for source_id, source_data in data.items():
             try:
-                # ✅ DETECCIÓN Y MIGRACIÓN AUTOMÁTICA
-                if 'type' not in source_data or 'config' not in source_data:
-                    logger.info(f"Migrando fuente legacy: {source_id}")
-                    source_data = migrate_legacy_source_data(source_data)
-                    migrated_any = True
-                
-                # ✅ CREAR WebSource USANDO MODELO CORRECTO
+                # Crear WebSource desde diccionario
                 web_source = WebSource.from_dict(source_data)
                 sources[source_id] = web_source
                 logger.debug(f"Fuente cargada: {web_source.name}")
@@ -306,11 +323,6 @@ def load_web_sources() -> Dict[str, WebSource]:
                 logger.error(f"Error cargando fuente {source_id}: {e}")
                 continue
         
-        # ✅ GUARDAR AUTOMÁTICAMENTE SI SE MIGRÓ ALGO
-        if migrated_any:
-            logger.info("Guardando fuentes migradas automáticamente")
-            save_web_sources(sources)
-        
         logger.info(f"Cargadas {len(sources)} fuentes web")
         return sources
         
@@ -318,66 +330,11 @@ def load_web_sources() -> Dict[str, WebSource]:
         logger.error(f"Error cargando fuentes web: {e}")
         return {}
 
-def migrate_legacy_source_data(legacy_data: Dict[str, Any]) -> Dict[str, Any]:
-    """✅ FUNCIÓN DE MIGRACIÓN MEJORADA - Convierte datos legacy al modelo WebSource"""
-    
-    # Obtener base_urls - puede estar en config o en nivel raíz
-    base_urls = []
-    if 'config' in legacy_data and 'base_urls' in legacy_data['config']:
-        base_urls = legacy_data['config']['base_urls']
-    elif 'base_urls' in legacy_data:
-        base_urls = legacy_data['base_urls']
-    elif 'url' in legacy_data:
-        base_urls = [legacy_data['url']]
-    
-    # Migrar metadatos del nivel raíz si existen
-    metadata = legacy_data.get('metadata', {})
-    
-    # ✅ ESTRUCTURA CORRECTA SEGÚN MODELO WebSource
-    migrated = {
-        'id': legacy_data.get('id', ''),
-        'name': legacy_data.get('name', ''),
-        'type': 'web',
-        'status': legacy_data.get('status', 'active'),
-        'config': {
-            # URLs
-            'base_urls': base_urls,
-            
-            # Configuraciones de scraping (migrar desde nivel raíz)
-            'max_depth': legacy_data.get('max_depth', 2),
-            'delay_seconds': legacy_data.get('delay_seconds', 1.0),
-            'follow_links': legacy_data.get('follow_links', True),
-            'respect_robots_txt': legacy_data.get('respect_robots_txt', True),
-            'min_content_length': legacy_data.get('min_content_length', 100),
-            'user_agent': legacy_data.get('user_agent', 'Mozilla/5.0 (Prototipo_chatbot TFM UJI)'),
-            
-            # Configuraciones avanzadas del Enhanced Scraper
-            'scraping_method': metadata.get('scraping_method', 'requests'),
-            'max_pages': metadata.get('max_pages', 50),
-            'crawl_frequency': metadata.get('crawl_frequency', 'manual'),
-            
-            # Selectores por defecto
-            'content_selectors': ['main', 'article', '.content'],
-            'title_selectors': ['h1', 'title'],
-            'exclude_selectors': ['nav', 'footer', '.sidebar'],
-            'exclude_file_extensions': ['.pdf', '.doc', '.jpg'],
-            'include_patterns': [],
-            'exclude_patterns': ['/admin', '/login'],
-            'custom_headers': {},
-            'use_javascript': metadata.get('scraping_method') == 'selenium'
-        },
-        'created_at': legacy_data.get('created_at', datetime.now().isoformat()),
-        'last_sync': legacy_data.get('last_sync'),
-        'metadata': metadata
-    }
-    
-    logger.debug(f"Migración completada para: {migrated['name']}")
-    return migrated
 
 def save_web_sources(sources: Dict[str, WebSource]):
     """Guardar fuentes web usando modelo WebSource"""
     try:
-        # Convertir todas las fuentes a diccionarios usando to_dict()
+        # Convertir todas las fuentes a diccionarios
         data = {}
         for source_id, web_source in sources.items():
             data[source_id] = web_source.to_dict()
@@ -390,18 +347,19 @@ def save_web_sources(sources: Dict[str, WebSource]):
     except Exception as e:
         logger.error(f"Error guardando fuentes web: {e}")
 
+
 def save_scraped_content(source_id: str, url: str, result: Dict[str, Any]) -> Optional[str]:
-    """Guardar contenido usando modelo ScrapedPage"""
+    """Guardar contenido scrapeado usando modelo ScrapedPage"""
     if not result.get('success') or not result.get('sufficient_content'):
         return None
     
     try:
-        # Crear ScrapedPage usando el modelo
+        # Crear ScrapedPage usando el modelo correcto
         scraped_page = ScrapedPage.from_response(
             url=url,
             title=result.get('title', ''),
             content=result.get('content', ''),
-            links=[],  # TODO: Extraer links en scraping
+            links=result.get('links', []),
             source_id=source_id
         )
         
@@ -428,25 +386,69 @@ def save_scraped_content(source_id: str, url: str, result: Dict[str, Any]) -> Op
         logger.error(f"Error guardando contenido: {e}")
         return None
 
-# ===== ENDPOINTS DE LA API CORREGIDOS =====
+
+# ===== ENDPOINTS DE LA API =====
+
+@web_sources_api.route('/methods', methods=['GET'])
+def get_scraping_methods():
+    """Obtener métodos de scraping disponibles - SIMPLIFICADO"""
+    try:
+        selenium_status = scraping_service.check_selenium_status()
+        
+        methods = [
+            {
+                'id': 'requests',
+                'name': 'Requests + BeautifulSoup',
+                'description': 'Método rápido para sitios estáticos',
+                'available': True,
+                'pros': ['Muy rápido', 'Bajo consumo de recursos'],
+                'cons': ['Sin soporte JavaScript'],
+                'use_cases': ['Portales institucionales', 'Sitios estáticos', 'Páginas simples']
+            },
+            {
+                'id': 'selenium',
+                'name': 'Selenium WebDriver',
+                'description': 'Navegador automatizado para contenido dinámico',
+                'available': selenium_status,
+                'pros': ['Ejecuta JavaScript', 'Contenido dinámico'],
+                'cons': ['Más lento', 'Mayor consumo de recursos'],
+                'use_cases': ['SPAs', 'Sitios con JavaScript', 'Contenido dinámico'],
+                'error': None if selenium_status else SELENIUM_ERROR
+            }
+        ]
+        
+        return jsonify({
+            'success': True,
+            'methods': methods,
+            'selenium_available': selenium_status
+        })
+        
+    except Exception as e:
+        logger.error(f"Error obteniendo métodos: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 
 @web_sources_api.route('', methods=['GET'])
 def list_web_sources():
-    """Listar fuentes web con manejo de ambas estructuras"""
+    """Listar todas las fuentes web configuradas"""
     try:
         sources = load_web_sources()
         
-        # Convertir a formato de respuesta con compatibilidad legacy
+        # Convertir a formato de respuesta
         sources_list = []
         for source_id, web_source in sources.items():
             source_dict = web_source.to_dict()
             
-            # ✅ AÑADIR CAMPOS PARA COMPATIBILIDAD CON FRONTEND
-            source_dict['scraping_method'] = web_source.config.get('scraping_method', 'requests')
-            source_dict['pages_found'] = web_source.metadata.get('total_pages_processed', 0)
-            source_dict['success_rate'] = web_source.metadata.get('success_rate', 0.0)
-            source_dict['last_activity'] = web_source.last_sync
-            source_dict['is_active'] = web_source.metadata.get('scraping_active', False)
+            # Añadir campos para compatibilidad con frontend
+            source_dict.update({
+                'scraping_method': web_source.config.get('scraping_method', 'requests'),
+                'pages_found': web_source.metadata.get('total_pages_processed', 0),
+                'success_rate': web_source.metadata.get('success_rate', 0.0),
+                'last_activity': web_source.last_sync,
+                'is_active': web_source.metadata.get('scraping_active', False),
+                'url': web_source.base_urls[0] if web_source.base_urls else '',
+                'method': web_source.config.get('scraping_method', 'requests')
+            })
             
             sources_list.append(source_dict)
         
@@ -456,13 +458,15 @@ def list_web_sources():
             'total': len(sources),
             'active_count': sum(1 for s in sources_list if s.get('is_active', False))
         })
+        
     except Exception as e:
         logger.error(f"Error listando fuentes: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
+
 @web_sources_api.route('', methods=['POST'])
 def create_web_source_endpoint():
-    """✅ ENDPOINT CORREGIDO - Recibe estructura WebSource del frontend"""
+    """Crear nueva fuente web con estructura WebSource correcta"""
     try:
         data = request.get_json()
         if not data:
@@ -470,8 +474,8 @@ def create_web_source_endpoint():
         
         logger.info(f"Datos recibidos del frontend: {data}")
         
-        # ✅ VALIDACIONES MEJORADAS
-        required_fields = ['name', 'type', 'base_urls', 'config']
+        # Validaciones
+        required_fields = ['name', 'type', 'base_urls']
         missing_fields = [field for field in required_fields if field not in data]
         if missing_fields:
             return jsonify({
@@ -485,26 +489,25 @@ def create_web_source_endpoint():
         if data['type'] != 'web':
             return jsonify({'success': False, 'error': 'type debe ser "web"'}), 400
         
-        # ✅ CREAR WebSource DIRECTAMENTE DESDE DATOS ESTRUCTURADOS
+        # Crear WebSource desde datos estructurados
         try:
             web_source = WebSource.from_dict(data)
-            logger.info(f"WebSource creado correctamente: {web_source.name}")
+            logger.info(f"WebSource creado: {web_source.name}")
         except Exception as e:
-            logger.error(f"Error creando WebSource desde datos: {e}")
+            logger.error(f"Error creando WebSource: {e}")
             return jsonify({'success': False, 'error': f'Error en estructura de datos: {e}'}), 400
         
-        # ✅ ESTABLECER VALORES POR DEFECTO SI NO ESTÁN PRESENTES
+        # Establecer valores por defecto
         web_source.status = DataSourceStatus.ACTIVE
-        
         if not web_source.created_at:
             web_source.created_at = datetime.now()
         
-        # ✅ CARGAR, AÑADIR Y GUARDAR
+        # Cargar, añadir y guardar
         sources = load_web_sources()
         sources[web_source.id] = web_source
         save_web_sources(sources)
         
-        logger.info(f"Fuente web creada y guardada: {web_source.name} (ID: {web_source.id})")
+        logger.info(f"Fuente web creada: {web_source.name} (ID: {web_source.id})")
         
         return jsonify({
             'success': True,
@@ -517,9 +520,10 @@ def create_web_source_endpoint():
         logger.error(f"Error creando fuente: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
+
 @web_sources_api.route('/test-url', methods=['POST'])
 def test_url():
-    """Test de URL"""
+    """Test de conectividad y scraping de URL"""
     try:
         data = request.get_json()
         if not data or 'url' not in data:
@@ -529,12 +533,12 @@ def test_url():
         method = data.get('method', 'auto')
         min_content_length = data.get('min_content_length', 50)
         
-        logger.info(f"Testing: {url} con {method}")
+        logger.info(f"Testing: {url} con método {method}")
         
         # Test conectividad
         connectivity = scraping_service.test_url_connectivity(url)
         
-        # Test scraping
+        # Test scraping según método
         if method == 'requests':
             scraping_result = scraping_service.scrape_with_requests(url, min_content_length)
         elif method == 'selenium':
@@ -547,45 +551,47 @@ def test_url():
             'url': url,
             'connectivity': connectivity,
             'scraping': scraping_result,
-            'recommendation': scraping_result.get('method', 'auto')
+            'recommendation': scraping_result.get('method', 'requests')
         })
         
     except Exception as e:
         logger.error(f"Error test URL: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
+
 @web_sources_api.route('/scraping/start/<source_id>', methods=['POST'])
 def start_scraping(source_id: str):
-    """Iniciar scraping usando modelo WebSource"""
+    """Iniciar proceso de scraping para una fuente"""
     try:
         with task_lock:
             if source_id in active_tasks:
                 return jsonify({
                     'success': False,
-                    'error': 'Scraping ya en progreso'
+                    'error': 'Scraping ya en progreso para esta fuente'
                 }), 409
         
-        # Cargar fuente usando modelo
+        # Cargar fuente
         sources = load_web_sources()
         if source_id not in sources:
             return jsonify({'success': False, 'error': 'Fuente no encontrada'}), 404
         
         web_source = sources[source_id]
-        
         task_id = f"{source_id}_{int(time.time())}"
         
+        # Inicializar tarea
         with task_lock:
             active_tasks[source_id] = {
                 'task_id': task_id,
                 'status': 'starting',
                 'started_at': datetime.now().isoformat(),
-                'total_urls': len(web_source.config.get('base_urls', [])),
+                'total_urls': len(web_source.base_urls),
                 'processed_urls': 0,
                 'successful_pages': 0,
                 'failed_pages': 0
             }
         
         def run_scraping():
+            """Función de scraping en hilo separado"""
             try:
                 with task_lock:
                     active_tasks[source_id]['status'] = 'running'
@@ -595,12 +601,13 @@ def start_scraping(source_id: str):
                 web_source.last_sync = datetime.now()
                 web_source.metadata['scraping_active'] = True
                 
-                base_urls = web_source.config.get('base_urls', [])
+                # Obtener configuración
                 min_content_length = web_source.config.get('min_content_length', 100)
                 delay_seconds = web_source.config.get('delay_seconds', 1.0)
                 use_javascript = web_source.config.get('use_javascript', False)
                 
-                for url in base_urls:
+                # Procesar cada URL
+                for url in web_source.base_urls:
                     try:
                         logger.info(f"Scrapeando: {url}")
                         
@@ -619,6 +626,7 @@ def start_scraping(source_id: str):
                             else:
                                 active_tasks[source_id]['failed_pages'] += 1
                         
+                        # Respetar delay
                         time.sleep(delay_seconds)
                         
                     except Exception as e:
@@ -626,7 +634,7 @@ def start_scraping(source_id: str):
                         with task_lock:
                             active_tasks[source_id]['failed_pages'] += 1
                 
-                # Finalizar y actualizar metadata
+                # Finalizar
                 with task_lock:
                     task_info = active_tasks[source_id]
                     task_info['status'] = 'completed'
@@ -635,9 +643,9 @@ def start_scraping(source_id: str):
                 # Actualizar metadata de la fuente
                 web_source.metadata.update({
                     'total_pages_processed': task_info['processed_urls'],
+                    'successful_pages': task_info['successful_pages'],
                     'failed_pages': task_info['failed_pages'],
                     'success_rate': (task_info['successful_pages'] / max(task_info['processed_urls'], 1)) * 100,
-                    'last_scraping_duration': time.time() - time.mktime(datetime.fromisoformat(task_info['started_at']).timetuple()),
                     'scraping_active': False
                 })
                 
@@ -654,28 +662,31 @@ def start_scraping(source_id: str):
                 with task_lock:
                     active_tasks[source_id]['status'] = 'failed'
                     active_tasks[source_id]['error'] = str(e)
-                    
+                
                 # Limpiar estado activo
                 web_source.metadata['scraping_active'] = False
+                web_source.status = DataSourceStatus.ERROR
                 sources[source_id] = web_source
                 save_web_sources(sources)
         
+        # Ejecutar en hilo separado
         thread = threading.Thread(target=run_scraping, daemon=True)
         thread.start()
         
         return jsonify({
             'success': True,
             'task_id': task_id,
-            'message': 'Scraping iniciado'
+            'message': f'Scraping iniciado para {web_source.name}'
         })
         
     except Exception as e:
         logger.error(f"Error iniciando scraping: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
+
 @web_sources_api.route('/scraping/status/<source_id>', methods=['GET'])
 def get_scraping_status(source_id: str):
-    """Estado del scraping"""
+    """Obtener estado del scraping de una fuente"""
     try:
         with task_lock:
             task_info = active_tasks.get(source_id)
@@ -683,7 +694,8 @@ def get_scraping_status(source_id: str):
         if not task_info:
             return jsonify({
                 'success': True,
-                'status': 'not_running'
+                'status': 'not_running',
+                'message': 'No hay scraping activo para esta fuente'
             })
         
         return jsonify({
@@ -695,27 +707,50 @@ def get_scraping_status(source_id: str):
         logger.error(f"Error obteniendo estado: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
+
 @web_sources_api.route('/<source_id>', methods=['DELETE'])
 def delete_web_source(source_id: str):
-    """Eliminar fuente"""
+    """Eliminar fuente web y su contenido asociado"""
     try:
         sources = load_web_sources()
-        if source_id in sources:
-            del sources[source_id]
-            save_web_sources(sources)
+        
+        if source_id not in sources:
+            return jsonify({'success': False, 'error': 'Fuente no encontrada'}), 404
+        
+        source_name = sources[source_id].name
+        
+        # Eliminar fuente
+        del sources[source_id]
+        save_web_sources(sources)
+        
+        # Eliminar contenido scrapeado asociado
+        source_dir = SCRAPED_CONTENT_DIR / source_id
+        if source_dir.exists():
+            try:
+                import shutil
+                shutil.rmtree(source_dir)
+                logger.info(f"Contenido eliminado: {source_dir}")
+            except Exception as e:
+                logger.warning(f"Error eliminando contenido: {e}")
+        
+        # Limpiar tareas activas
+        with task_lock:
+            if source_id in active_tasks:
+                del active_tasks[source_id]
         
         return jsonify({
             'success': True,
-            'message': 'Fuente eliminada'
+            'message': f'Fuente eliminada: {source_name}'
         })
         
     except Exception as e:
         logger.error(f"Error eliminando fuente: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
+
 @web_sources_api.route('/system/status', methods=['GET'])
 def get_system_status():
-    """Estado del sistema"""
+    """Estado general del sistema de scraping"""
     try:
         sources = load_web_sources()
         selenium_status = scraping_service.check_selenium_status()
@@ -726,9 +761,12 @@ def get_system_status():
                 'selenium_available': selenium_status,
                 'selenium_error': SELENIUM_ERROR if not selenium_status else None,
                 'active_tasks': len(active_tasks),
-                'total_sources': len(sources)
+                'total_sources': len(sources),
+                'data_directory': str(DATA_DIR),
+                'scraped_content_directory': str(SCRAPED_CONTENT_DIR)
             }
         })
+        
     except Exception as e:
         logger.error(f"Error estado sistema: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
