@@ -1,0 +1,70 @@
+[
+  {
+    "action": "source_created",
+    "source_id": "9776c235-924c-4985-af75-23e28ea7f743",
+    "source_name": "Onda",
+    "method": "requests",
+    "timestamp": "2025-08-22T10:06:59.411689"
+  },
+  {
+    "action": "scraping_started",
+    "source_id": "9776c235-924c-4985-af75-23e28ea7f743",
+    "source_name": "Onda",
+    "method": "requests",
+    "timestamp": "2025-08-22T10:07:01.800592"
+  },
+  {
+    "action": "scraping_completed",
+    "source_id": "9776c235-924c-4985-af75-23e28ea7f743",
+    "source_name": "Onda",
+    "pages_found": 54,
+    "duration": 3.62,
+    "success_rate": 91.8,
+    "timestamp": "2025-08-22T10:07:05.834302"
+  },
+  {
+    "action": "real_scraping_started",
+    "source_id": "9776c235-924c-4985-af75-23e28ea7f743",
+    "source_name": "Onda",
+    "method": "requests",
+    "timestamp": "2025-08-22T11:22:02.606300"
+  },
+  {
+    "action": "scraping_completed",
+    "source_id": "9776c235-924c-4985-af75-23e28ea7f743",
+    "source_name": "Onda",
+    "pages_found": 0,
+    "pages_failed": 1,
+    "total_processed": 1,
+    "duration_seconds": 1.1791019439697266,
+    "success_rate": 0.0,
+    "content_size_mb": 0.0,
+    "timestamp": "2025-08-22T11:22:03.787415"
+  },
+  {
+    "action": "source_created",
+    "source_id": "2efd1208-8541-45eb-a927-01451676a284",
+    "source_name": "Participacio",
+    "method": "requests",
+    "timestamp": "2025-08-22T11:28:27.940017"
+  },
+  {
+    "action": "real_scraping_started",
+    "source_id": "2efd1208-8541-45eb-a927-01451676a284",
+    "source_name": "Participacio",
+    "method": "requests",
+    "timestamp": "2025-08-22T11:28:32.937714"
+  },
+  {
+    "action": "scraping_completed",
+    "source_id": "2efd1208-8541-45eb-a927-01451676a284",
+    "source_name": "Participacio",
+    "pages_found": 0,
+    "pages_failed": 1,
+    "total_processed": 1,
+    "duration_seconds": 1.0800909996032715,
+    "success_rate": 0.0,
+    "content_size_mb": 0.0,
+    "timestamp": "2025-08-22T11:28:34.019852"
+  }
+]

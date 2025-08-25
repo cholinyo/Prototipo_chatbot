@@ -112,7 +112,7 @@ def create_app(config=None):
     # Blueprints opcionales - ORDEN CORREGIDO Y VERIFICADO
     optional_blueprints = [
         # APIs principales
-        ('app.routes.web_sources_api', 'web_sources_api', '/api/web-sources'),  # ✅ PRIORITARIO
+        ('app.routes.web_sources_api', 'web_sources_api', '/api/web-sources'),  
         ('app.routes.api', 'api_bp', '/api'),
         
         # Rutas de gestión

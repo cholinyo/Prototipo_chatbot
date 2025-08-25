@@ -4,20 +4,67 @@
 
 {% block extra_css %}
 <style>
-.method-card {
-    border: 2px solid #e9ecef;
-    border-radius: 10px;
+.web-card {
+    border: none;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
     transition: all 0.3s ease;
-    cursor: pointer;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
 }
-.method-card:hover {
+
+.web-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+}
+
+.stats-card {
+    border: none;
+    border-radius: 10px;
+    background: white;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    transition: transform 0.2s ease;
+}
+
+.stats-card:hover {
+    transform: translateY(-2px);
+}
+
+.stats-number {
+    font-size: 2.2rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+}
+
+.source-item {
+    background: white;
+    border-radius: 8px;
+    border: 1px solid #e9ecef;
+    transition: all 0.2s ease;
+    margin-bottom: 1rem;
+}
+
+.source-item:hover {
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
     border-color: #667eea;
-    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
 }
-.method-card.selected {
-    border-color: #667eea;
-    background: rgba(102, 126, 234, 0.05);
+
+.status-active {
+    color: #28a745;
+    background: rgba(40, 167, 69, 0.1);
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 0.75rem;
 }
+
+.status-inactive {
+    color: #6c757d;
+    background: rgba(108, 117, 125, 0.1);
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+}
+
 .page-header {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white;
@@ -25,135 +72,209 @@
     padding: 2rem;
     margin-bottom: 2rem;
 }
+
+.add-source-card {
+    border: 2px dashed #667eea;
+    border-radius: 12px;
+    background: rgba(102, 126, 234, 0.05);
+    transition: all 0.3s ease;
+}
+
+.add-source-card:hover {
+    background: rgba(102, 126, 234, 0.1);
+    border-color: #5a67d8;
+}
+
+.method-badge {
+    background: rgba(102, 126, 234, 0.1);
+    color: #667eea;
+    padding: 2px 8px;
+    border-radius: 8px;
+    font-size: 0.75rem;
+}
+
+.progress-container {
+    margin-top: 8px;
+}
+
+.scraping-active {
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+}
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="container-fluid px-4">
-    <!-- Header -->
+    <!-- Page Header -->
     <div class="page-header text-center">
         <h1 class="display-5 fw-bold mb-3">
             <i class="fas fa-globe me-3"></i>
             Gestión de Sitios Web
         </h1>
-        <p class="fs-5 mb-0">Web scraping inteligente para portales municipales</p>
+        <p class="fs-5 mb-0">
+            Web scraping inteligente para portales municipales y sedes electrónicas
+        </p>
+        <small class="opacity-75">
+            Ingesta automatizada de contenido web institucional
+        </small>
     </div>
 
-    <!-- Estadísticas -->
+    <!-- Estadísticas del Sistema -->
     <div class="row mb-4">
-        <div class="col-lg-3 col-md-6 mb-3">
-            <div class="card text-center">
-                <div class="card-body">
-                    <i class="fas fa-globe fa-2x text-primary mb-2"></i>
-                    <div class="h3 text-primary" id="totalSources">{{ web_stats.total_sources or 0 }}</div>
-                    <p class="text-muted mb-0">Sitios Configurados</p>
-                </div>
+        <div class="col-md-3">
+            <div class="stats-card card h-100 text-center p-3">
+                <div class="stats-number text-primary" id="totalSources">{{ web_stats.total_sources }}</div>
+                <div class="text-muted">Sitios Configurados</div>
             </div>
         </div>
-        <div class="col-lg-3 col-md-6 mb-3">
-            <div class="card text-center">
-                <div class="card-body">
-                    <i class="fas fa-file-alt fa-2x text-success mb-2"></i>
-                    <div class="h3 text-success" id="totalPages">{{ web_stats.total_pages or 0 }}</div>
-                    <p class="text-muted mb-0">Páginas Indexadas</p>
+        <div class="col-md-3">
+            <div class="stats-card card h-100 text-center p-3">
+                <div class="stats-number text-success" id="totalPages">{{ web_stats.total_pages }}</div>
+                <div class="text-muted">Páginas Indexadas</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stats-card card h-100 text-center p-3">
+                <div class="stats-number text-warning" id="activeScraping">{{ web_stats.active_scraping }}</div>
+                <div class="text-muted">Procesos Activos</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stats-card card h-100 text-center p-3">
+                <div class="stats-number text-info" id="lastUpdate">
+                    {% if web_stats.last_update %}
+                        {{ web_stats.last_update.strftime('%d/%m') if web_stats.last_update else 'N/A' }}
+                    {% else %}
+                        N/A
+                    {% endif %}
                 </div>
+                <div class="text-muted">Última Actualización</div>
             </div>
         </div>
     </div>
 
-    <!-- Configurar Nuevo Sitio -->
+    <!-- Formulario para Añadir Sitio Web -->
     <div class="row mb-4">
         <div class="col-12">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0">
-                        <i class="fas fa-plus me-2"></i>
-                        Configurar Nuevo Sitio Web
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <form id="addWebSourceForm">
-                        <!-- Selección de método -->
-                        <div class="mb-4">
-                            <label class="form-label fw-bold">Método de Scraping</label>
-                            <div class="row" id="scrapingMethods">
-                                <div class="col-12 text-center py-3">
-                                    <div class="spinner-border text-primary" role="status">
-                                        <span class="visually-hidden">Cargando métodos...</span>
-                                    </div>
-                                </div>
+            <div class="add-source-card card p-4">
+                <h5 class="card-title mb-3">
+                    <i class="fas fa-plus me-2 text-primary"></i>
+                    Añadir Nuevo Sitio Web
+                </h5>
+                
+                <form id="addWebSourceForm" onsubmit="addWebSource(event)">
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label for="websiteName" class="form-label">Nombre del sitio</label>
+                            <input type="text" class="form-control" id="websiteName" 
+                                   placeholder="Portal Municipal" required>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label for="websiteUrl" class="form-label">URL base</label>
+                            <input type="url" class="form-control" id="websiteUrl" 
+                                   placeholder="https://ejemplo.ayuntamiento.es" required>
+                        </div>
+                        <div class="col-md-2 mb-3">
+                            <label for="maxDepth" class="form-label">Profundidad máxima</label>
+                            <select class="form-select" id="maxDepth">
+                                <option value="1">1 nivel</option>
+                                <option value="2" selected>2 niveles</option>
+                                <option value="3">3 niveles</option>
+                                <option value="4">4 niveles</option>
+                                <option value="5">5 niveles</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2 mb-3">
+                            <label for="maxPages" class="form-label">Páginas máximas</label>
+                            <select class="form-select" id="maxPages">
+                                <option value="25">25 páginas</option>
+                                <option value="50" selected>50 páginas</option>
+                                <option value="100">100 páginas</option>
+                                <option value="200">200 páginas</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-3 mb-3">
+                            <label for="scrapingMethod" class="form-label">Método de scraping</label>
+                            <select class="form-select" id="scrapingMethod">
+                                <option value="requests" selected>Requests (Rápido)</option>
+                                <option value="selenium">Selenium (JavaScript)</option>
+                                <option value="playwright">Playwright (Moderno)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label for="delaySeconds" class="form-label">Retardo (segundos)</label>
+                            <select class="form-select" id="delaySeconds">
+                                <option value="0.5">0.5s (Muy rápido)</option>
+                                <option value="1.0" selected>1.0s (Rápido)</option>
+                                <option value="2.0">2.0s (Moderado)</option>
+                                <option value="3.0">3.0s (Conservador)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <div class="form-check form-switch mt-4">
+                                <input class="form-check-input" type="checkbox" id="followLinks" checked>
+                                <label class="form-check-label" for="followLinks">
+                                    Seguir enlaces
+                                </label>
                             </div>
                         </div>
-
-                        <!-- Configuración básica -->
-                        <div class="row mb-3">
-                            <div class="col-md-6">
-                                <label for="websiteName" class="form-label">Nombre del sitio</label>
-                                <input type="text" class="form-control" id="websiteName" 
-                                       placeholder="Portal Municipal" required>
-                            </div>
-                            <div class="col-md-6">
-                                <label for="websiteUrl" class="form-label">URL base</label>
-                                <input type="url" class="form-control" id="websiteUrl" 
-                                       placeholder="https://ejemplo.ayuntamiento.es" required>
+                        <div class="col-md-3 mb-3">
+                            <div class="form-check form-switch mt-4">
+                                <input class="form-check-input" type="checkbox" id="respectRobots" checked>
+                                <label class="form-check-label" for="respectRobots">
+                                    Respetar robots.txt
+                                </label>
                             </div>
                         </div>
-
-                        <div class="row mb-3">
-                            <div class="col-md-4">
-                                <label for="maxDepth" class="form-label">Profundidad máxima</label>
-                                <select class="form-select" id="maxDepth">
-                                    <option value="1">1 nivel</option>
-                                    <option value="2" selected>2 niveles</option>
-                                    <option value="3">3 niveles</option>
-                                </select>
-                            </div>
-                            <div class="col-md-4">
-                                <label for="crawlFrequency" class="form-label">Frecuencia</label>
-                                <select class="form-select" id="crawlFrequency">
-                                    <option value="manual">Manual</option>
-                                    <option value="weekly" selected>Semanal</option>
-                                    <option value="monthly">Mensual</option>
-                                </select>
-                            </div>
-                            <div class="col-md-4">
-                                <label for="maxPages" class="form-label">Páginas máximas</label>
-                                <input type="number" class="form-control" id="maxPages" 
-                                       value="50" min="5" max="200">
-                            </div>
-                        </div>
-
-                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
-                            <button type="submit" class="btn btn-primary">
-                                <i class="fas fa-plus me-2"></i>Añadir Sitio Web
-                            </button>
-                        </div>
-                    </form>
-                </div>
+                    </div>
+                    
+                    <div class="d-flex justify-content-end">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-plus me-2"></i>Añadir Sitio Web
+                        </button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
 
-    <!-- Sitios Configurados -->
+    <!-- Lista de Sitios Configurados -->
     <div class="row">
         <div class="col-12">
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h5 class="mb-0">
-                        <i class="fas fa-list me-2"></i>
+                        <i class="fas fa-list me-2 text-primary"></i>
                         Sitios Configurados
                     </h5>
-                    <button type="button" class="btn btn-outline-primary btn-sm" 
-                            onclick="refreshSources()">
-                        <i class="fas fa-sync-alt"></i> Actualizar
-                    </button>
+                    <div class="btn-group" role="group">
+                        <button type="button" class="btn btn-outline-primary btn-sm" onclick="refreshSources()">
+                            <i class="fas fa-sync me-1"></i>Actualizar
+                        </button>
+                        <button type="button" class="btn btn-outline-success btn-sm" onclick="startBulkScraping()">
+                            <i class="fas fa-play me-1"></i>Iniciar Todo
+                        </button>
+                        <button type="button" class="btn btn-outline-info btn-sm" onclick="viewScrapingStatus()">
+                            <i class="fas fa-chart-line me-1"></i>Estado
+                        </button>
+                    </div>
                 </div>
                 <div class="card-body">
-                    <div class="row" id="webSourcesList">
-                        <div class="col-12 text-center py-5">
+                    <div id="sourcesContainer">
+                        <div class="text-center py-4">
                             <div class="spinner-border text-primary" role="status">
-                                <span class="visually-hidden">Cargando sitios...</span>
+                                <span class="visually-hidden">Cargando...</span>
                             </div>
+                            <p class="mt-2">Cargando sitios web...</p>
                         </div>
                     </div>
                 </div>
@@ -162,76 +283,102 @@
     </div>
 </div>
 
-<script>
-let currentSources = [];
-let availableMethods = [];
-let selectedMethod = 'requests';
+<!-- Modal for Source Details -->
+<div class="modal fade" id="sourceDetailsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-globe me-2"></i>
+                    Detalles del Sitio Web
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="sourceDetailsContent">
+                <!-- Dynamic content -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
 
+<!-- Modal for Scraping Status -->
+<div class="modal fade" id="scrapingStatusModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-chart-line me-2"></i>
+                    Estado del Scraping
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="scrapingStatusContent">
+                <!-- Dynamic content -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                <button type="button" class="btn btn-primary" onclick="refreshScrapingStatus()">
+                    <i class="fas fa-sync me-2"></i>Actualizar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// Variables globales
+let currentSources = [];
+let scrapingMethods = [];
+let scrapingStatusInterval = null;
+
+// Inicialización
 document.addEventListener('DOMContentLoaded', function() {
-    loadAvailableMethods();
+    loadScrapingMethods();
     loadWebSources();
-    setupEventListeners();
+    
+    // Auto-refresh cada 30 segundos
+    setInterval(refreshStats, 30000);
 });
 
-async function loadAvailableMethods() {
+// =========================================================================
+// FUNCIONES DE CARGA DE DATOS
+// =========================================================================
+
+async function loadScrapingMethods() {
     try {
-        const response = await fetch('/api/scraping-methods');
+        const response = await fetch('/api/web-sources/scraping-methods');
         const data = await response.json();
         
         if (data.success) {
-            availableMethods = data.methods;
-            renderScrapingMethods();
-        } else {
-            showFallbackMethods();
+            scrapingMethods = data.methods;
+            updateScrapingMethodsDropdown();
         }
     } catch (error) {
-        console.error('Error:', error);
-        showFallbackMethods();
+        console.error('Error cargando métodos de scraping:', error);
     }
 }
 
-function renderScrapingMethods() {
-    const container = document.getElementById('scrapingMethods');
+function updateScrapingMethodsDropdown() {
+    const select = document.getElementById('scrapingMethod');
+    select.innerHTML = '';
     
-    container.innerHTML = availableMethods.map(method => `
-        <div class="col-lg-6 mb-3">
-            <div class="method-card p-3" onclick="selectMethod('${method.id}')" data-method="${method.id}">
-                <h6 class="mb-2">${method.name}</h6>
-                <p class="text-muted small mb-2">${method.description}</p>
-                <div class="small">
-                    <span class="text-success">Ventajas:</span> ${method.pros.join(', ')}<br>
-                    <span class="text-warning">Limitaciones:</span> ${method.cons.join(', ')}
-                </div>
-            </div>
-        </div>
-    `).join('');
-    
-    if (availableMethods.length > 0) {
-        selectMethod(availableMethods[0].id);
-    }
-}
-
-function showFallbackMethods() {
-    availableMethods = [{
-        id: 'requests',
-        name: 'Requests + BeautifulSoup',
-        description: 'Método básico para sitios estáticos',
-        pros: ['Rápido', 'Ligero'],
-        cons: ['Sin JavaScript']
-    }];
-    renderScrapingMethods();
-}
-
-function selectMethod(methodId) {
-    document.querySelectorAll('.method-card').forEach(card => {
-        card.classList.remove('selected');
+    scrapingMethods.forEach(method => {
+        const option = document.createElement('option');
+        option.value = method.id;
+        option.textContent = `${method.name} ${method.available ? '' : '(No disponible)'}`;
+        option.disabled = !method.available;
+        
+        if (method.id === 'requests' && method.available) {
+            option.selected = true;
+        }
+        
+        select.appendChild(option);
     });
-    
-    const methodCard = document.querySelector(`[data-method="${methodId}"]`);
-    if (methodCard) {
-        methodCard.classList.add('selected');
-        selectedMethod = methodId;
-    }
 }
 
 async function loadWebSources() {
@@ -240,43 +387,107 @@ async function loadWebSources() {
         const data = await response.json();
         
         if (data.success) {
-            currentSources = data.sources || [];
-            renderWebSources();
+            currentSources = data.sources;
+            displayWebSources(data.sources);
+            updateStats(data);
         } else {
-            showEmptySourcesList();
+            showAlert('Error cargando sitios: ' + data.error, 'danger');
         }
     } catch (error) {
         console.error('Error:', error);
-        showEmptySourcesList();
+        showAlert('Error de conexión al cargar sitios', 'danger');
+        displayWebSources([]);
     }
 }
 
-function renderWebSources() {
-    const container = document.getElementById('webSourcesList');
+// =========================================================================
+// FUNCIONES DE VISUALIZACIÓN
+// =========================================================================
+
+function displayWebSources(sources) {
+    const container = document.getElementById('sourcesContainer');
     
-    if (currentSources.length === 0) {
-        showEmptySourcesList();
+    if (!sources || sources.length === 0) {
+        container.innerHTML = `
+            <div class="text-center py-5 text-muted">
+                <i class="fas fa-globe fa-3x mb-3 opacity-50"></i>
+                <h5>No hay sitios web configurados</h5>
+                <p>Añade tu primer sitio web usando el formulario de arriba</p>
+            </div>
+        `;
         return;
     }
     
-    container.innerHTML = currentSources.map(source => `
-        <div class="col-lg-6 mb-3">
-            <div class="card">
-                <div class="card-body">
-                    <h6 class="card-title">${source.name}</h6>
-                    <p class="card-text small text-muted">${source.url}</p>
-                    <div class="d-flex justify-content-between align-items-center">
-                        <small class="text-muted">Método: ${source.method}</small>
-                        <div class="btn-group" role="group">
-                            <button class="btn btn-outline-success btn-sm" 
-                                    onclick="startScraping('${source.id}')">
+    container.innerHTML = sources.map(source => `
+        <div class="source-item p-3 ${source.is_active ? 'scraping-active' : ''}">
+            <div class="row align-items-center">
+                <div class="col-md-6">
+                    <div class="d-flex align-items-center mb-2">
+                        <h6 class="mb-0 me-3">${source.name}</h6>
+                        <span class="badge ${source.status === 'active' ? 'bg-success' : 'bg-secondary'} me-2">
+                            ${source.status === 'active' ? 'Activo' : 'Inactivo'}
+                        </span>
+                        <span class="method-badge">
+                            ${source.scraping_method || 'requests'}
+                        </span>
+                    </div>
+                    <div class="text-muted small mb-1">
+                        <i class="fas fa-link me-1"></i>
+                        <a href="${source.base_urls[0]}" target="_blank" class="text-decoration-none">
+                            ${source.base_urls[0]}
+                        </a>
+                    </div>
+                    ${source.is_active ? `
+                        <div class="progress-container">
+                            <div class="progress" style="height: 4px;">
+                                <div class="progress-bar progress-bar-striped progress-bar-animated bg-success" 
+                                     style="width: 100%"></div>
+                            </div>
+                            <small class="text-success">Scraping en progreso...</small>
+                        </div>
+                    ` : ''}
+                </div>
+                
+                <div class="col-md-3">
+                    <div class="row text-center">
+                        <div class="col-4">
+                            <div class="small text-muted">Páginas</div>
+                            <div class="fw-bold">${source.pages_found || 0}</div>
+                        </div>
+                        <div class="col-4">
+                            <div class="small text-muted">Éxito</div>
+                            <div class="fw-bold">${(source.success_rate || 0).toFixed(1)}%</div>
+                        </div>
+                        <div class="col-4">
+                            <div class="small text-muted">Última</div>
+                            <div class="fw-bold small">
+                                ${source.last_activity !== 'Nunca' ? new Date(source.last_activity).toLocaleDateString() : 'N/A'}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-3 text-end">
+                    <div class="btn-group" role="group">
+                        <button class="btn btn-outline-primary btn-sm" onclick="viewSourceDetails('${source.id}')"
+                                title="Ver detalles">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                        ${source.is_active ? `
+                            <button class="btn btn-outline-warning btn-sm" onclick="stopScraping('${source.id}')"
+                                    title="Cancelar scraping">
+                                <i class="fas fa-stop"></i>
+                            </button>
+                        ` : `
+                            <button class="btn btn-outline-success btn-sm" onclick="startScraping('${source.id}')"
+                                    title="Iniciar scraping">
                                 <i class="fas fa-play"></i>
                             </button>
-                            <button class="btn btn-outline-danger btn-sm" 
-                                    onclick="deleteSource('${source.id}')">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </div>
+                        `}
+                        <button class="btn btn-outline-danger btn-sm" onclick="deleteSource('${source.id}')"
+                                title="Eliminar sitio">
+                            <i class="fas fa-trash"></i>
+                        </button>
                     </div>
                 </div>
             </div>
@@ -284,90 +495,265 @@ function renderWebSources() {
     `).join('');
 }
 
-function showEmptySourcesList() {
-    const container = document.getElementById('webSourcesList');
-    container.innerHTML = `
-        <div class="col-12 text-center py-5">
-            <i class="fas fa-globe fa-3x mb-3 text-muted"></i>
-            <h5>No hay sitios web configurados</h5>
-            <p class="text-muted">Añade tu primer sitio web usando el formulario anterior</p>
-        </div>
-    `;
+function updateStats(data) {
+    document.getElementById('totalSources').textContent = data.total || 0;
+    document.getElementById('activeScraping').textContent = data.active_count || 0;
+    
+    // Actualizar estadísticas adicionales si están disponibles
+    if (data.stats) {
+        const totalPages = data.sources.reduce((sum, source) => sum + (source.pages_found || 0), 0);
+        document.getElementById('totalPages').textContent = totalPages;
+    }
 }
 
-function setupEventListeners() {
-    const form = document.getElementById('addWebSourceForm');
-    form.addEventListener('submit', async function(e) {
-        e.preventDefault();
-        
-        const formData = {
-            name: document.getElementById('websiteName').value,
-            url: document.getElementById('websiteUrl').value,
-            method: selectedMethod,
-            max_depth: parseInt(document.getElementById('maxDepth').value),
-            crawl_frequency: document.getElementById('crawlFrequency').value,
-            max_pages: parseInt(document.getElementById('maxPages').value)
-        };
-        
-        try {
-            const response = await fetch('/api/web-sources', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify(formData)
-            });
-            
-            const data = await response.json();
-            
-            if (data.success) {
-                showAlert('Sitio web añadido correctamente', 'success');
-                form.reset();
-                loadWebSources();
-            } else {
-                showAlert('Error: ' + data.error, 'danger');
-            }
-        } catch (error) {
-            showAlert('Error de conexión', 'danger');
-        }
-    });
-}
+// =========================================================================
+// FUNCIONES DE GESTIÓN DE SITIOS WEB
+// =========================================================================
 
-function showAlert(message, type) {
-    const alertDiv = document.createElement('div');
-    alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
-    alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 1060;';
-    alertDiv.innerHTML = `
-        ${message}
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    `;
-    document.body.appendChild(alertDiv);
-    setTimeout(() => alertDiv.remove(), 5000);
-}
+a// FUNCIÓN CORREGIDA: addWebSource() 
+// Arregla la estructura de datos para coincidir con modelo WebSource
 
-function refreshSources() {
-    loadWebSources();
-    showAlert('Lista actualizada', 'info');
-}
-
-async function startScraping(sourceId) {
+async function addWebSource(event) {
+    event.preventDefault();
+    
+    const name = document.getElementById('websiteName').value.trim();
+    const url = document.getElementById('websiteUrl').value.trim();
+    const maxDepth = parseInt(document.getElementById('maxDepth').value);
+    const maxPages = parseInt(document.getElementById('maxPages').value);
+    const method = document.getElementById('scrapingMethod').value;
+    const delaySeconds = parseFloat(document.getElementById('delaySeconds').value);
+    const followLinks = document.getElementById('followLinks').checked;
+    const respectRobots = document.getElementById('respectRobots').checked;
+    
+    // Validación
+    if (!name || !url) {
+        showAlert('Por favor completa todos los campos requeridos', 'warning');
+        return;
+    }
+    
     try {
-        const response = await fetch(`/api/scraping/start/${sourceId}`, {
-            method: 'POST'
+        new URL(url); // Validar URL
+    } catch (e) {
+        showAlert('URL inválida. Usa formato: https://ejemplo.com', 'danger');
+        return;
+    }
+    
+    // ✅ ESTRUCTURA CORREGIDA - Coincide con modelo WebSource
+    const sourceData = {
+        name: name,
+        type: 'web',                    // ✅ Añadido campo obligatorio
+        status: 'active',               // ✅ Añadido campo obligatorio
+        base_urls: [url],               // ✅ Convertir string a array
+        config: {                       // ✅ Mover toda configuración aquí
+            max_depth: maxDepth,
+            delay_seconds: delaySeconds,
+            follow_links: followLinks,
+            respect_robots_txt: respectRobots,
+            min_content_length: 100,
+            user_agent: 'Mozilla/5.0 (Prototipo_chatbot TFM UJI)',
+            
+            // Configuraciones específicas del Enhanced Scraper
+            scraping_method: method,
+            max_pages: maxPages,
+            crawl_frequency: 'manual',
+            
+            // Selectores por defecto para administraciones locales
+            content_selectors: ['main', 'article', '.content', '.post-content', '#content'],
+            title_selectors: ['h1', 'title', '.page-title', '.entry-title'],
+            exclude_selectors: ['nav', 'footer', '.sidebar', '.menu', '.navigation'],
+            exclude_file_extensions: ['.pdf', '.doc', '.jpg', '.png', '.gif'],
+            include_patterns: [],
+            exclude_patterns: ['/admin', '/login', '/wp-admin', '/dashboard'],
+            custom_headers: {},
+            use_javascript: method === 'selenium'
+        },
+        metadata: {                     // ✅ Metadatos iniciales
+            created_by: 'web_interface',
+            frontend_version: '1.0.0',
+            created_via: 'admin_panel'
+        }
+    };
+    
+    console.log('Enviando datos:', sourceData); // Debug
+    
+    try {
+        const response = await fetch('/api/web-sources', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(sourceData)
         });
         
         const data = await response.json();
         
         if (data.success) {
-            showAlert('Scraping iniciado', 'success');
+            // Limpiar formulario
+            document.getElementById('addWebSourceForm').reset();
+            
+            // Recargar lista
+            await loadWebSources();
+            
+            showAlert(`Sitio "${name}" añadido correctamente`, 'success');
         } else {
-            showAlert('Error: ' + data.error, 'danger');
+            console.error('Error del servidor:', data);
+            showAlert('Error añadiendo sitio: ' + data.error, 'danger');
         }
     } catch (error) {
-        showAlert('Error de conexión', 'danger');
+        console.error('Error de conexión:', error);
+        showAlert('Error de conexión al servidor', 'danger');
     }
 }
 
+// ✅ FUNCIÓN CORREGIDA: displayWebSources()
+// Ajusta la visualización para usar la estructura correcta
+
+function displayWebSources(sources) {
+    const container = document.getElementById('sourcesContainer');
+    
+    if (!sources || sources.length === 0) {
+        container.innerHTML = `
+            <div class="text-center py-5 text-muted">
+                <i class="fas fa-globe fa-3x mb-3 opacity-50"></i>
+                <h5>No hay sitios web configurados</h5>
+                <p>Añade tu primer sitio web usando el formulario de arriba</p>
+            </div>
+        `;
+        return;
+    }
+    
+    container.innerHTML = sources.map(source => {
+        // ✅ Adaptarse a ambas estructuras (legacy y nueva)
+        const config = source.config || source; // Fallback para datos legacy
+        const baseUrls = config.base_urls || source.base_urls || [];
+        const scrapingMethod = config.scraping_method || source.scraping_method || 'requests';
+        const status = source.status || 'active';
+        const metadata = source.metadata || {};
+        
+        // Calcular estadísticas
+        const pagesFound = metadata.total_pages_processed || 0;
+        const successRate = metadata.success_rate || 0;
+        const lastActivity = source.last_sync || metadata.last_activity || null;
+        const isActive = metadata.scraping_active || false;
+        
+        return `
+            <div class="source-item p-3 ${isActive ? 'scraping-active' : ''}">
+                <div class="row align-items-center">
+                    <div class="col-md-6">
+                        <div class="d-flex align-items-center mb-2">
+                            <h6 class="mb-0 me-3">${source.name}</h6>
+                            <span class="badge ${status === 'active' ? 'bg-success' : 'bg-secondary'} me-2">
+                                ${status === 'active' ? 'Activo' : 'Inactivo'}
+                            </span>
+                            <span class="method-badge">
+                                ${scrapingMethod}
+                            </span>
+                        </div>
+                        <div class="text-muted small mb-1">
+                            <i class="fas fa-link me-1"></i>
+                            ${baseUrls.length > 0 ? `
+                                <a href="${baseUrls[0]}" target="_blank" class="text-decoration-none">
+                                    ${baseUrls[0]}
+                                </a>
+                            ` : 'No URL configurada'}
+                        </div>
+                        ${isActive ? `
+                            <div class="progress-container">
+                                <div class="progress" style="height: 4px;">
+                                    <div class="progress-bar progress-bar-striped progress-bar-animated bg-success" 
+                                         style="width: 100%"></div>
+                                </div>
+                                <small class="text-success">Scraping en progreso...</small>
+                            </div>
+                        ` : ''}
+                    </div>
+                    
+                    <div class="col-md-3">
+                        <div class="row text-center">
+                            <div class="col-4">
+                                <div class="small text-muted">Páginas</div>
+                                <div class="fw-bold">${pagesFound}</div>
+                            </div>
+                            <div class="col-4">
+                                <div class="small text-muted">Éxito</div>
+                                <div class="fw-bold">${successRate.toFixed(1)}%</div>
+                            </div>
+                            <div class="col-4">
+                                <div class="small text-muted">Última</div>
+                                <div class="fw-bold small">
+                                    ${lastActivity ? new Date(lastActivity).toLocaleDateString() : 'N/A'}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-3 text-end">
+                        <div class="btn-group" role="group">
+                            <button class="btn btn-outline-primary btn-sm" onclick="viewSourceDetails('${source.id}')"
+                                    title="Ver detalles">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                            ${isActive ? `
+                                <button class="btn btn-outline-warning btn-sm" onclick="stopScraping('${source.id}')"
+                                        title="Cancelar scraping">
+                                    <i class="fas fa-stop"></i>
+                                </button>
+                            ` : `
+                                <button class="btn btn-outline-success btn-sm" onclick="startScraping('${source.id}')"
+                                        title="Iniciar scraping">
+                                    <i class="fas fa-play"></i>
+                                </button>
+                            `}
+                            <button class="btn btn-outline-danger btn-sm" onclick="deleteSource('${source.id}')"
+                                    title="Eliminar sitio">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+// ✅ FUNCIÓN AUXILIAR: Normalizar datos legacy
+function normalizeSourceData(source) {
+    // Si ya tiene la estructura correcta, devolverla tal como está
+    if (source.config && source.type) {
+        return source;
+    }
+    
+    // Migrar estructura legacy a nueva estructura
+    return {
+        id: source.id,
+        name: source.name,
+        type: 'web',
+        status: 'active',
+        config: {
+            base_urls: source.base_urls || [],
+            max_depth: source.max_depth || 2,
+            delay_seconds: source.delay_seconds || 1.0,
+            follow_links: source.follow_links !== false,
+            respect_robots_txt: source.respect_robots_txt !== false,
+            min_content_length: source.min_content_length || 100,
+            user_agent: source.user_agent || 'Mozilla/5.0 (Prototipo_chatbot TFM UJI)',
+            scraping_method: source.metadata?.scraping_method || 'requests',
+            max_pages: source.metadata?.max_pages || 50,
+            crawl_frequency: source.metadata?.crawl_frequency || 'manual'
+        },
+        created_at: source.created_at,
+        last_sync: source.last_sync,
+        metadata: source.metadata || {}
+    };
+}
+
 async function deleteSource(sourceId) {
-    if (!confirm('¿Eliminar este sitio web?')) return;
+    const source = currentSources.find(s => s.id === sourceId);
+    if (!source) return;
+    
+    if (!confirm(`¿Estás seguro de que quieres eliminar "${source.name}"?`)) {
+        return;
+    }
     
     try {
         const response = await fetch(`/api/web-sources/${sourceId}`, {
@@ -377,14 +763,328 @@ async function deleteSource(sourceId) {
         const data = await response.json();
         
         if (data.success) {
-            showAlert('Sitio eliminado', 'success');
-            loadWebSources();
+            showAlert('Sitio eliminado correctamente', 'success');
+            await loadWebSources();
         } else {
-            showAlert('Error: ' + data.error, 'danger');
+            showAlert('Error eliminando sitio: ' + data.error, 'danger');
         }
     } catch (error) {
+        console.error('Error:', error);
         showAlert('Error de conexión', 'danger');
     }
+}
+
+// =========================================================================
+// FUNCIONES DE SCRAPING
+// =========================================================================
+
+async function startScraping(sourceId) {
+    try {
+        const response = await fetch(`/api/web-sources/scraping/start/${sourceId}`, {
+            method: 'POST'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showAlert('Scraping iniciado correctamente', 'success');
+            await loadWebSources(); // Recargar para mostrar estado activo
+        } else {
+            showAlert('Error iniciando scraping: ' + data.error, 'danger');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showAlert('Error de conexión', 'danger');
+    }
+}
+
+async function stopScraping(sourceId) {
+    try {
+        const response = await fetch(`/api/web-sources/scraping/cancel/${sourceId}`, {
+            method: 'POST'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showAlert('Scraping cancelado correctamente', 'success');
+            await loadWebSources();
+        } else {
+            showAlert('Error cancelando scraping: ' + data.error, 'danger');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showAlert('Error de conexión', 'danger');
+    }
+}
+
+async function startBulkScraping() {
+    if (!confirm('¿Iniciar scraping en todos los sitios configurados?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/web-sources/scraping/bulk-start', {
+            method: 'POST'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showAlert(`Scraping masivo iniciado: ${data.total_started} sitios procesándose`, 'success');
+            await loadWebSources();
+        } else {
+            showAlert('Error en scraping masivo: ' + data.error, 'danger');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showAlert('Error de conexión', 'danger');
+    }
+}
+
+// =========================================================================
+// FUNCIONES DE VISUALIZACIÓN DE DETALLES
+// =========================================================================
+
+async function viewSourceDetails(sourceId) {
+    try {
+        const response = await fetch(`/api/web-sources/${sourceId}`);
+        const data = await response.json();
+        
+        if (data.success) {
+            const source = data.source;
+            const stats = data.statistics || {};
+            const history = data.history || [];
+            
+            document.getElementById('sourceDetailsContent').innerHTML = `
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>Información General</h6>
+                        <table class="table table-sm">
+                            <tr>
+                                <td><strong>Nombre:</strong></td>
+                                <td>${source.name}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>URL:</strong></td>
+                                <td><a href="${source.base_urls[0]}" target="_blank">${source.base_urls[0]}</a></td>
+                            </tr>
+                            <tr>
+                                <td><strong>Método:</strong></td>
+                                <td><span class="method-badge">${source.scraping_method || 'requests'}</span></td>
+                            </tr>
+                            <tr>
+                                <td><strong>Estado:</strong></td>
+                                <td><span class="badge ${source.status === 'active' ? 'bg-success' : 'bg-secondary'}">${source.status}</span></td>
+                            </tr>
+                        </table>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>Estadísticas</h6>
+                        <table class="table table-sm">
+                            <tr>
+                                <td><strong>Páginas encontradas:</strong></td>
+                                <td>${stats.total_pages_scraped || 0}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Tasa de éxito:</strong></td>
+                                <td>${(stats.success_rate || 0).toFixed(1)}%</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Última duración:</strong></td>
+                                <td>${stats.last_scraping_duration || 0}s</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Tamaño promedio:</strong></td>
+                                <td>${stats.average_page_size || 0} bytes</td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+                
+                ${history.length > 0 ? `
+                    <hr>
+                    <h6>Historial Reciente</h6>
+                    <div class="table-responsive" style="max-height: 200px; overflow-y: auto;">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Acción</th>
+                                    <th>Fecha</th>
+                                    <th>Páginas</th>
+                                    <th>Duración</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${history.map(entry => `
+                                    <tr>
+                                        <td>${entry.action}</td>
+                                        <td>${new Date(entry.timestamp).toLocaleString()}</td>
+                                        <td>${entry.pages_found || '-'}</td>
+                                        <td>${entry.duration ? entry.duration + 's' : '-'}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                ` : ''}
+            `;
+            
+            const modal = new bootstrap.Modal(document.getElementById('sourceDetailsModal'));
+            modal.show();
+        } else {
+            showAlert('Error obteniendo detalles: ' + data.error, 'danger');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showAlert('Error de conexión', 'danger');
+    }
+}
+
+async function viewScrapingStatus() {
+    try {
+        const response = await fetch('/api/web-sources/scraping/status');
+        const data = await response.json();
+        
+        if (data.success) {
+            const activeTasks = data.active_tasks || {};
+            const systemStats = data.system_stats || {};
+            
+            document.getElementById('scrapingStatusContent').innerHTML = `
+                <div class="row mb-3">
+                    <div class="col-md-3 text-center">
+                        <div class="h4 text-primary">${data.total_active}</div>
+                        <small class="text-muted">Tareas Activas</small>
+                    </div>
+                    <div class="col-md-3 text-center">
+                        <div class="h4 text-success">${systemStats.available_slots || 0}</div>
+                        <small class="text-muted">Slots Disponibles</small>
+                    </div>
+                    <div class="col-md-3 text-center">
+                        <div class="h4 text-info">${systemStats.total_sources || 0}</div>
+                        <small class="text-muted">Total Sitios</small>
+                    </div>
+                    <div class="col-md-3 text-center">
+                        <div class="h4 text-warning">${systemStats.max_concurrent_tasks || 0}</div>
+                        <small class="text-muted">Máx. Concurrente</small>
+                    </div>
+                </div>
+                
+                ${Object.keys(activeTasks).length > 0 ? `
+                    <h6>Tareas en Progreso</h6>
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Sitio</th>
+                                    <th>Progreso</th>
+                                    <th>Páginas</th>
+                                    <th>Tiempo</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${Object.entries(activeTasks).map(([sourceId, task]) => `
+                                    <tr>
+                                        <td>${task.source_name}</td>
+                                        <td>
+                                            <div class="progress" style="height: 20px;">
+                                                <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                                                     style="width: ${task.progress || 0}%">
+                                                    ${task.progress || 0}%
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td>${task.pages_processed || 0}</td>
+                                        <td>${Math.round(task.elapsed_seconds || 0)}s</td>
+                                        <td>
+                                            <button class="btn btn-outline-danger btn-sm" onclick="stopScraping('${sourceId}')">
+                                                <i class="fas fa-stop"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                ` : '<p class="text-muted">No hay tareas de scraping activas</p>'}
+            `;
+            
+            const modal = new bootstrap.Modal(document.getElementById('scrapingStatusModal'));
+            modal.show();
+            
+            // Auto-refresh cada 5 segundos si el modal está abierto
+            if (scrapingStatusInterval) {
+                clearInterval(scrapingStatusInterval);
+            }
+            scrapingStatusInterval = setInterval(refreshScrapingStatus, 5000);
+            
+            // Limpiar interval al cerrar modal
+            document.getElementById('scrapingStatusModal').addEventListener('hidden.bs.modal', function() {
+                if (scrapingStatusInterval) {
+                    clearInterval(scrapingStatusInterval);
+                    scrapingStatusInterval = null;
+                }
+            });
+        } else {
+            showAlert('Error obteniendo estado: ' + data.error, 'danger');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showAlert('Error de conexión', 'danger');
+    }
+}
+
+function refreshScrapingStatus() {
+    if (document.getElementById('scrapingStatusModal').classList.contains('show')) {
+        viewScrapingStatus();
+    }
+}
+
+// =========================================================================
+// FUNCIONES DE UTILIDAD
+// =========================================================================
+
+function refreshSources() {
+    loadWebSources();
+    showAlert('Lista actualizada', 'info');
+}
+
+async function refreshStats() {
+    try {
+        const response = await fetch('/api/web-sources/stats');
+        const data = await response.json();
+        
+        if (data.success) {
+            const stats = data.stats;
+            if (stats.overview) {
+                document.getElementById('totalSources').textContent = stats.overview.total_sources || 0;
+                document.getElementById('activeScraping').textContent = stats.overview.active_scraping_tasks || 0;
+            }
+        }
+    } catch (error) {
+        console.debug('Error actualizando estadísticas:', error);
+    }
+}
+
+function showAlert(message, type = 'info') {
+    // Crear alert temporal
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+    alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; max-width: 400px;';
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    document.body.appendChild(alertDiv);
+    
+    // Auto-remove después de 5 segundos
+    setTimeout(() => {
+        if (alertDiv.parentNode) {
+            alertDiv.remove();
+        }
+    }, 5000);
 }
 </script>
 {% endblock %}

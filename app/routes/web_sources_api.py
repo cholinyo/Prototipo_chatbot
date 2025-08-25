@@ -1,1225 +1,734 @@
 """
-API Routes para gestión de fuentes web - SISTEMA COMPLETO INTEGRADO
+API Routes para gestión de fuentes web - ARREGLADO PARA CONSISTENCIA
 TFM Vicente Caruncho - Sistemas Inteligentes
-Universitat Jaume I - Curso 2024-2025
 
-INTEGRACIÓN COMPLETA CON MODELOS DE DATOS:
-- Usa las clases WebSource y create_web_source del módulo data_sources
-- Mantiene compatibilidad con fallbacks para desarrollo
-- Sistema de persistencia en memoria con serialización JSON
-- Simulación realista de procesos de scraping
-
-FUNCIONALIDAD COMPLETA:
-- Gestión de métodos de scraping disponibles (requests, selenium, playwright)
-- CRUD completo de fuentes web con modelo de datos robusto
-- Control de procesos de scraping (iniciar, detener, monitorear)
-- Estadísticas y monitoreo en tiempo real
-- Sistema de simulación para testing y desarrollo
-- Manejo robusto de errores y fallbacks inteligentes
-
-RUTAS API DISPONIBLES:
-- GET  /api/scraping-methods     - Listar métodos de scraping disponibles
-- GET  /api/web-sources          - Listar todas las fuentes configuradas
-- POST /api/web-sources          - Crear nueva fuente web
-- DELETE /api/web-sources/<id>   - Eliminar fuente específica
-- POST /api/scraping/start/<id>  - Iniciar scraping individual
-- POST /api/scraping/bulk-start  - Iniciar scraping masivo
-- GET  /api/scraping/status      - Estado de procesos activos
-- POST /api/scraping/cancel/<id> - Cancelar proceso específico
-- GET  /api/stats                - Estadísticas generales del sistema
-- GET  /api/debug/routes         - Debug: mostrar rutas registradas
+CAMBIOS PRINCIPALES:
+1. Backend recibe estructura WebSource correcta del frontend
+2. Manejo automático de migración legacy
+3. Validaciones robustas de datos
+4. Compatibilidad con modelo WebSource consolidado
 """
 
-# =============================================================================
-# IMPORTACIONES Y CONFIGURACIÓN INICIAL
-# =============================================================================
-
-from flask import Blueprint, request, jsonify, current_app
-from datetime import datetime
-import uuid
-import threading
+import json
+import os
 import time
-import random
+import threading
+from datetime import datetime
+from pathlib import Path
 from typing import Dict, Any, List, Optional
 
-# Importaciones locales del core
+from flask import Blueprint, request, jsonify
+import requests
+from bs4 import BeautifulSoup
+
+# Selenium imports con manejo robusto de errores
+SELENIUM_AVAILABLE = False
+SELENIUM_ERROR = "No configurado"
+
+try:
+    from selenium import webdriver
+    from selenium.webdriver.chrome.options import Options as ChromeOptions
+    from selenium.webdriver.common.by import By
+    from selenium.webdriver.support.ui import WebDriverWait
+    from selenium.webdriver.support import expected_conditions as EC
+    from selenium.common.exceptions import TimeoutException, WebDriverException
+    
+    try:
+        from webdriver_manager.chrome import ChromeDriverManager
+        WEBDRIVER_MANAGER_AVAILABLE = True
+    except ImportError:
+        WEBDRIVER_MANAGER_AVAILABLE = False
+    
+    SELENIUM_AVAILABLE = True
+    SELENIUM_ERROR = None
+    
+except ImportError as e:
+    SELENIUM_AVAILABLE = False
+    SELENIUM_ERROR = f"Selenium no instalado: {e}"
+
+# CRÍTICO: Importar modelo de datos correcto
+from app.models.data_sources import (
+    WebSource, 
+    ScrapedPage, 
+    DataSourceStatus,
+    ProcessingStatus,
+    create_web_source
+)
 from app.core.logger import get_logger
 
-# Importaciones de modelos de datos con fallback
-try:
-    from app.models.data_sources import (
-        WebSource, create_web_source, DataSourceType, 
-        DataSourceStatus, IngestionStats
-    )
-    DATA_SOURCES_AVAILABLE = True
-    print("✅ Modelos de datos importados correctamente")
-except ImportError as e:
-    DATA_SOURCES_AVAILABLE = False
-    print(f"⚠️ Modelos de datos no disponibles: {e}")
-
-# Importaciones de servicios avanzados con fallback
-try:
-    from app.services.enhanced_web_scraper import (
-        enhanced_scraper_service, ScrapingMethod, CrawlFrequency, ScrapingConfig
-    )
-    ENHANCED_SCRAPER_AVAILABLE = True
-    print("✅ Servicio de scraping avanzado disponible")
-except ImportError:
-    ENHANCED_SCRAPER_AVAILABLE = False
-    print("⚠️ Servicio de scraping avanzado no disponible, usando fallback")
-
-# =============================================================================
-# CONFIGURACIÓN DEL BLUEPRINT Y STORAGE
-# =============================================================================
-
-# Crear blueprint principal - SIN url_prefix para evitar conflictos
-web_sources_api = Blueprint('web_sources_api', __name__)
+# Blueprint
+web_sources_api = Blueprint('web_sources_api', __name__, url_prefix='/api/web-sources')
 logger = get_logger("web_sources_api")
 
-# Sistema de almacenamiento en memoria para desarrollo
-# En producción esto se reemplazaría por una base de datos
-web_sources_store: Dict[str, WebSource] = {}  # ID -> WebSource object
-active_scraping_tasks: Dict[str, Dict[str, Any]] = {}  # ID -> task info
-scraping_history: List[Dict[str, Any]] = []  # Historial de operaciones
+# Configuración
+DATA_DIR = Path("data")
+DATA_DIR.mkdir(exist_ok=True)
+SCRAPED_CONTENT_DIR = DATA_DIR / "scraped_content"
+SCRAPED_CONTENT_DIR.mkdir(exist_ok=True)
 
-# Configuración global del sistema
-SYSTEM_CONFIG = {
-    'max_concurrent_tasks': 5,
-    'default_timeout': 300,  # 5 minutos
-    'max_sources_per_user': 50,
-    'simulation_mode': True  # Para desarrollo
-}
+WEB_SOURCES_FILE = DATA_DIR / "web_sources.json"
+SCRAPING_TASKS_FILE = DATA_DIR / "scraping_tasks.json"
 
-# =============================================================================
-# FUNCIONES DE UTILIDAD - MÉTODOS DE SCRAPING
-# =============================================================================
+# Variables globales
+active_tasks = {}
+task_lock = threading.Lock()
 
-def get_available_scraping_methods() -> List[Dict[str, Any]]:
-    """
-    Obtener métodos de scraping disponibles en el sistema
+class WebScrapingService:
+    """Servicio de web scraping híbrido"""
     
-    Verifica la disponibilidad real de cada método y retorna información
-    detallada incluyendo ventajas, limitaciones y casos de uso.
-    
-    Returns:
-        List[Dict]: Lista de métodos con metadatos completos
-    """
-    if ENHANCED_SCRAPER_AVAILABLE:
-        # Usar servicio avanzado si está disponible
+    def __init__(self):
+        self.session = requests.Session()
+        self.session.headers.update({
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        })
+        self.selenium_working = None
+        
+    def check_selenium_status(self):
+        """Verificar si Selenium funciona"""
+        if self.selenium_working is not None:
+            return self.selenium_working
+        
+        if not SELENIUM_AVAILABLE:
+            self.selenium_working = False
+            logger.warning(f"Selenium no disponible: {SELENIUM_ERROR}")
+            return False
+        
         try:
-            return enhanced_scraper_service.get_available_methods()
+            driver = self.get_driver()
+            if driver:
+                driver.quit()
+                self.selenium_working = True
+                logger.info("Selenium funcionando")
+                return True
         except Exception as e:
-            logger.warning(f"Error usando servicio avanzado: {e}")
-    
-    # Métodos de fallback con detección automática de disponibilidad
-    methods = []
-    
-    # Método 1: Requests + BeautifulSoup (siempre disponible)
-    try:
-        import requests
-        import bs4
-        methods.append({
-            'id': 'requests',
-            'name': 'Requests + BeautifulSoup',
-            'description': 'Método rápido y eficiente para sitios web estáticos',
-            'available': True,
-            'performance': 'Muy alta',
-            'resource_usage': 'Bajo',
-            'pros': [
-                'Muy rápido y eficiente',
-                'Bajo consumo de recursos',
-                'Altamente estable',
-                'Compatible con la mayoría de sitios'
-            ],
-            'cons': [
-                'No ejecuta JavaScript',
-                'Limitado con aplicaciones SPA',
-                'No maneja interacciones dinámicas'
-            ],
-            'use_cases': [
-                'Portales institucionales',
-                'Sitios web estáticos',
-                'Blogs y noticias',
-                'Páginas de documentación'
-            ],
-            'requirements': ['requests', 'beautifulsoup4']
-        })
-    except ImportError:
-        methods.append({
-            'id': 'requests',
-            'name': 'Requests + BeautifulSoup (No disponible)',
-            'description': 'Requiere instalación de dependencias',
-            'available': False,
-            'error': 'Módulos requests o beautifulsoup4 no instalados'
-        })
-    
-    # Método 2: Selenium WebDriver
-    try:
-        import selenium
-        from selenium import webdriver
-        methods.append({
-            'id': 'selenium',
-            'name': 'Selenium WebDriver',
-            'description': 'Navegador automatizado para sitios con JavaScript',
-            'available': True,
-            'performance': 'Media',
-            'resource_usage': 'Alto',
-            'pros': [
-                'Ejecuta JavaScript completamente',
-                'Interacciones complejas posibles',
-                'Soporte para múltiples navegadores',
-                'Maduro y bien documentado'
-            ],
-            'cons': [
-                'Mayor consumo de recursos',
-                'Más lento que requests',
-                'Requiere ChromeDriver/GeckoDriver',
-                'Puede ser detectado por anti-bot'
-            ],
-            'use_cases': [
-                'Aplicaciones de página única (SPA)',
-                'Sitios con autenticación',
-                'JavaScript intensivo',
-                'Formularios dinámicos'
-            ],
-            'requirements': ['selenium', 'chromedriver']
-        })
-    except ImportError:
-        methods.append({
-            'id': 'selenium',
-            'name': 'Selenium WebDriver (No instalado)',
-            'description': 'Navegador automatizado - requiere instalación',
-            'available': False,
-            'installation': 'pip install selenium && playwright install chromium',
-            'pros': ['Ejecuta JavaScript', 'Interacciones complejas'],
-            'cons': ['Requiere instalación adicional'],
-            'use_cases': ['SPAs', 'Sitios dinámicos']
-        })
-    
-    # Método 3: Playwright (más moderno)
-    try:
-        import playwright
-        methods.append({
-            'id': 'playwright',
-            'name': 'Playwright (Moderno)',
-            'description': 'Framework moderno de automatización web',
-            'available': True,
-            'performance': 'Alta',
-            'resource_usage': 'Medio',
-            'pros': [
-                'Muy rápido y eficiente',
-                'Soporte multi-navegador nativo',
-                'API moderna y limpia',
-                'Mejor manejo de recursos'
-            ],
-            'cons': [
-                'Más complejo de configurar',
-                'Menos documentación comunidad',
-                'Relativamente nuevo'
-            ],
-            'use_cases': [
-                'Scraping masivo',
-                'Testing de múltiples navegadores',
-                'Aplicaciones de alto rendimiento'
-            ],
-            'requirements': ['playwright']
-        })
-    except ImportError:
-        methods.append({
-            'id': 'playwright',
-            'name': 'Playwright (No instalado)',
-            'description': 'Framework moderno - requiere instalación',
-            'available': False,
-            'installation': 'pip install playwright && playwright install',
-            'pros': ['Muy rápido', 'Multi-navegador', 'Moderno'],
-            'cons': ['Requiere instalación'],
-            'use_cases': ['Scraping avanzado', 'Alto rendimiento']
-        })
-    
-    return methods
-
-# =============================================================================
-# FUNCIONES DE UTILIDAD - GESTIÓN DE DATOS
-# =============================================================================
-
-def create_websource_from_request(data: Dict[str, Any]) -> WebSource:
-    """
-    Crear objeto WebSource desde datos de request HTTP
-    
-    Utiliza la función factory del módulo data_sources para crear
-    un objeto WebSource válido con todas las validaciones.
-    
-    Args:
-        data: Diccionario con datos del request JSON
+            self.selenium_working = False
+            logger.error(f"Selenium no funciona: {e}")
+            return False
         
-    Returns:
-        WebSource: Objeto WebSource validado
+        self.selenium_working = False
+        return False
         
-    Raises:
-        ValueError: Si los datos son inválidos
-    """
-    if not DATA_SOURCES_AVAILABLE:
-        raise ImportError("Modelos de datos no disponibles")
-    
-    # Validar campos requeridos
-    required_fields = ['name', 'url']
-    for field in required_fields:
-        if field not in data or not data[field].strip():
-            raise ValueError(f"Campo requerido: {field}")
-    
-    # Preparar URLs base
-    url = data['url'].strip()
-    if not url.startswith(('http://', 'https://')):
-        raise ValueError("URL debe comenzar con http:// o https://")
-    
-    base_urls = [url]
-    
-    # Usar factory function del módulo data_sources
-    return create_web_source(
-        name=data['name'].strip(),
-        base_urls=base_urls,
-        max_depth=min(int(data.get('max_depth', 2)), 5),
-        delay_seconds=max(float(data.get('delay_seconds', 1.0)), 0.5),
-        follow_links=data.get('follow_links', True),
-        respect_robots_txt=data.get('respect_robots_txt', True),
-        user_agent=data.get('user_agent', 'Prototipo_chatbot TFM UJI'),
-        min_content_length=max(int(data.get('min_content_length', 100)), 50),
-        content_filters=data.get('content_filters', []),
-        custom_headers=data.get('custom_headers', {}),
-        use_javascript=data.get('method') == 'selenium',
-        metadata={
-            'created_by': 'web_api',
-            'scraping_method': data.get('method', 'requests'),
-            'max_pages': min(int(data.get('max_pages', 50)), 200),
-            'crawl_frequency': data.get('crawl_frequency', 'manual')
+    def get_driver(self):
+        """Crear driver de Selenium"""
+        if not SELENIUM_AVAILABLE:
+            raise Exception(f"Selenium no disponible: {SELENIUM_ERROR}")
+        
+        try:
+            chrome_options = ChromeOptions()
+            chrome_options.add_argument('--headless')
+            chrome_options.add_argument('--no-sandbox')
+            chrome_options.add_argument('--disable-dev-shm-usage')
+            chrome_options.add_argument('--disable-gpu')
+            chrome_options.add_argument('--window-size=1920,1080')
+            
+            if WEBDRIVER_MANAGER_AVAILABLE:
+                service = webdriver.chrome.service.Service(ChromeDriverManager().install())
+            else:
+                service = None
+            
+            driver = webdriver.Chrome(service=service, options=chrome_options)
+            driver.set_page_load_timeout(30)
+            driver.implicitly_wait(10)
+            
+            return driver
+            
+        except Exception as e:
+            raise Exception(f"Error creando driver: {e}")
+
+    def test_url_connectivity(self, url: str) -> Dict[str, Any]:
+        """Test de conectividad"""
+        try:
+            response = self.session.head(url, timeout=10, allow_redirects=True)
+            return {
+                'success': True,
+                'status_code': response.status_code,
+                'accessible': response.status_code < 400
+            }
+        except Exception as e:
+            return {
+                'success': False,
+                'error': str(e),
+                'accessible': False
+            }
+
+    def scrape_with_requests(self, url: str, min_content_length: int = 50) -> Dict[str, Any]:
+        """Scraping con requests"""
+        try:
+            response = self.session.get(url, timeout=15)
+            response.raise_for_status()
+            
+            soup = BeautifulSoup(response.content, 'html.parser')
+            
+            # Limpiar
+            for script in soup(["script", "style", "nav", "footer"]):
+                script.decompose()
+            
+            title = soup.find('title').get_text(strip=True) if soup.find('title') else url
+            content = soup.get_text(separator=' ', strip=True)
+            
+            return {
+                'success': True,
+                'method': 'requests',
+                'title': title,
+                'content': content,
+                'content_length': len(content),
+                'sufficient_content': len(content) >= min_content_length
+            }
+            
+        except Exception as e:
+            return {
+                'success': False,
+                'method': 'requests',
+                'error': str(e),
+                'content_length': 0,
+                'sufficient_content': False
+            }
+
+    def scrape_with_selenium(self, url: str, min_content_length: int = 50) -> Dict[str, Any]:
+        """Scraping con Selenium"""
+        if not self.check_selenium_status():
+            return {
+                'success': False,
+                'method': 'selenium',
+                'error': 'Selenium no disponible',
+                'content_length': 0,
+                'sufficient_content': False
+            }
+        
+        driver = None
+        try:
+            driver = self.get_driver()
+            logger.info(f"Navegando a {url}")
+            
+            driver.get(url)
+            
+            # Esperar carga
+            WebDriverWait(driver, 15).until(
+                lambda d: d.execute_script("return document.readyState") == "complete"
+            )
+            time.sleep(3)
+            
+            title = driver.title or url
+            page_source = driver.page_source
+            soup = BeautifulSoup(page_source, 'html.parser')
+            
+            # Limpiar
+            for element in soup(["script", "style", "nav", "footer"]):
+                element.decompose()
+            
+            content = soup.get_text(separator=' ', strip=True)
+            
+            return {
+                'success': True,
+                'method': 'selenium',
+                'title': title,
+                'content': content,
+                'content_length': len(content),
+                'sufficient_content': len(content) >= min_content_length
+            }
+            
+        except Exception as e:
+            logger.error(f"Error Selenium: {e}")
+            return {
+                'success': False,
+                'method': 'selenium',
+                'error': str(e),
+                'content_length': 0,
+                'sufficient_content': False
+            }
+        finally:
+            if driver:
+                try:
+                    driver.quit()
+                except:
+                    pass
+
+    def scrape_auto(self, url: str, min_content_length: int = 50) -> Dict[str, Any]:
+        """Scraping automático con fallback"""
+        logger.info(f"Scraping automático de {url}")
+        
+        # Primero requests
+        requests_result = self.scrape_with_requests(url, min_content_length)
+        
+        if requests_result['success'] and requests_result['sufficient_content']:
+            logger.info(f"Requests exitoso: {requests_result['content_length']} chars")
+            return requests_result
+        
+        # Fallback a Selenium
+        if self.check_selenium_status():
+            logger.info("Intentando con Selenium...")
+            selenium_result = self.scrape_with_selenium(url, min_content_length)
+            
+            if selenium_result['success'] and selenium_result['sufficient_content']:
+                logger.info(f"Selenium exitoso: {selenium_result['content_length']} chars")
+                return selenium_result
+        
+        # Devolver mejor resultado
+        return requests_result if requests_result.get('content_length', 0) > 0 else {
+            'success': False,
+            'method': 'auto',
+            'error': 'Todos los métodos fallaron',
+            'content_length': 0,
+            'sufficient_content': False
         }
-    )
 
-def websource_to_api_format(source: WebSource) -> Dict[str, Any]:
-    """
-    Convertir WebSource a formato API con información enriquecida
-    
-    Args:
-        source: Objeto WebSource
-        
-    Returns:
-        Dict: Datos formateados para respuesta API
-    """
-    # Usar método to_dict() del modelo
-    base_data = source.to_dict()
-    
-    # Enriquecer con información de estado
-    source_id = source.id
-    enriched_data = {
-        **base_data,
-        'status': 'active' if source_id in active_scraping_tasks else 'inactive',
-        'last_activity': base_data.get('last_sync') or 'Nunca',
-        'pages_found': source.metadata.get('pages_found', 0),
-        'success_rate': source.metadata.get('success_rate', 0.0),
-        'last_error': source.metadata.get('last_error'),
-        'scraping_method': source.metadata.get('scraping_method', 'requests'),
-        'is_active': source_id in active_scraping_tasks
-    }
-    
-    return enriched_data
+# Instancia global
+scraping_service = WebScrapingService()
 
-# =============================================================================
-# RUTAS API - MÉTODOS DE SCRAPING
-# =============================================================================
+# ===== FUNCIONES DE PERSISTENCIA CORREGIDAS =====
 
-@web_sources_api.route('/scraping-methods', methods=['GET'])
-def get_scraping_methods():
-    """
-    GET /api/scraping-methods
+def load_web_sources() -> Dict[str, WebSource]:
+    """Cargar fuentes web desde archivo JSON con migración automática legacy"""
+    if not WEB_SOURCES_FILE.exists():
+        return {}
     
-    Obtener lista completa de métodos de scraping disponibles en el sistema.
-    Incluye detección automática de dependencias y información detallada
-    de cada método (ventajas, limitaciones, casos de uso).
-    
-    Returns:
-        JSON: {
-            "success": bool,
-            "methods": [
-                {
-                    "id": str,
-                    "name": str,
-                    "description": str,
-                    "available": bool,
-                    "pros": [str],
-                    "cons": [str],
-                    "use_cases": [str]
-                }
-            ],
-            "total": int
-        }
-    """
     try:
-        methods = get_available_scraping_methods()
+        with open(WEB_SOURCES_FILE, 'r', encoding='utf-8') as f:
+            data = json.load(f)
         
-        logger.info(f"Métodos de scraping solicitados: {len(methods)} disponibles")
+        sources = {}
+        migrated_any = False
         
-        return jsonify({
-            'success': True,
-            'methods': methods,
-            'total': len(methods),
-            'available_count': len([m for m in methods if m.get('available', False)]),
-            'timestamp': datetime.now().isoformat()
-        })
+        for source_id, source_data in data.items():
+            try:
+                # ✅ DETECCIÓN Y MIGRACIÓN AUTOMÁTICA
+                if 'type' not in source_data or 'config' not in source_data:
+                    logger.info(f"Migrando fuente legacy: {source_id}")
+                    source_data = migrate_legacy_source_data(source_data)
+                    migrated_any = True
+                
+                # ✅ CREAR WebSource USANDO MODELO CORRECTO
+                web_source = WebSource.from_dict(source_data)
+                sources[source_id] = web_source
+                logger.debug(f"Fuente cargada: {web_source.name}")
+                
+            except Exception as e:
+                logger.error(f"Error cargando fuente {source_id}: {e}")
+                continue
+        
+        # ✅ GUARDAR AUTOMÁTICAMENTE SI SE MIGRÓ ALGO
+        if migrated_any:
+            logger.info("Guardando fuentes migradas automáticamente")
+            save_web_sources(sources)
+        
+        logger.info(f"Cargadas {len(sources)} fuentes web")
+        return sources
         
     except Exception as e:
-        logger.error(f"Error obteniendo métodos de scraping: {e}")
-        return jsonify({
-            'success': False,
-            'error': str(e),
-            'methods': []
-        }), 500
+        logger.error(f"Error cargando fuentes web: {e}")
+        return {}
 
-# =============================================================================
-# RUTAS API - GESTIÓN DE FUENTES WEB
-# =============================================================================
+def migrate_legacy_source_data(legacy_data: Dict[str, Any]) -> Dict[str, Any]:
+    """✅ FUNCIÓN DE MIGRACIÓN MEJORADA - Convierte datos legacy al modelo WebSource"""
+    
+    # Obtener base_urls - puede estar en config o en nivel raíz
+    base_urls = []
+    if 'config' in legacy_data and 'base_urls' in legacy_data['config']:
+        base_urls = legacy_data['config']['base_urls']
+    elif 'base_urls' in legacy_data:
+        base_urls = legacy_data['base_urls']
+    elif 'url' in legacy_data:
+        base_urls = [legacy_data['url']]
+    
+    # Migrar metadatos del nivel raíz si existen
+    metadata = legacy_data.get('metadata', {})
+    
+    # ✅ ESTRUCTURA CORRECTA SEGÚN MODELO WebSource
+    migrated = {
+        'id': legacy_data.get('id', ''),
+        'name': legacy_data.get('name', ''),
+        'type': 'web',
+        'status': legacy_data.get('status', 'active'),
+        'config': {
+            # URLs
+            'base_urls': base_urls,
+            
+            # Configuraciones de scraping (migrar desde nivel raíz)
+            'max_depth': legacy_data.get('max_depth', 2),
+            'delay_seconds': legacy_data.get('delay_seconds', 1.0),
+            'follow_links': legacy_data.get('follow_links', True),
+            'respect_robots_txt': legacy_data.get('respect_robots_txt', True),
+            'min_content_length': legacy_data.get('min_content_length', 100),
+            'user_agent': legacy_data.get('user_agent', 'Mozilla/5.0 (Prototipo_chatbot TFM UJI)'),
+            
+            # Configuraciones avanzadas del Enhanced Scraper
+            'scraping_method': metadata.get('scraping_method', 'requests'),
+            'max_pages': metadata.get('max_pages', 50),
+            'crawl_frequency': metadata.get('crawl_frequency', 'manual'),
+            
+            # Selectores por defecto
+            'content_selectors': ['main', 'article', '.content'],
+            'title_selectors': ['h1', 'title'],
+            'exclude_selectors': ['nav', 'footer', '.sidebar'],
+            'exclude_file_extensions': ['.pdf', '.doc', '.jpg'],
+            'include_patterns': [],
+            'exclude_patterns': ['/admin', '/login'],
+            'custom_headers': {},
+            'use_javascript': metadata.get('scraping_method') == 'selenium'
+        },
+        'created_at': legacy_data.get('created_at', datetime.now().isoformat()),
+        'last_sync': legacy_data.get('last_sync'),
+        'metadata': metadata
+    }
+    
+    logger.debug(f"Migración completada para: {migrated['name']}")
+    return migrated
 
-@web_sources_api.route('/web-sources', methods=['GET'])
-def get_web_sources():
-    """
-    GET /api/web-sources
-    
-    Obtener lista completa de fuentes web configuradas en el sistema.
-    Incluye información de estado, estadísticas y metadatos enriquecidos.
-    
-    Query parameters:
-        - status: Filtrar por estado (active, inactive, all)
-        - limit: Número máximo de resultados
-        
-    Returns:
-        JSON: {
-            "success": bool,
-            "sources": [WebSource],
-            "total": int,
-            "active_count": int,
-            "timestamp": str
-        }
-    """
+def save_web_sources(sources: Dict[str, WebSource]):
+    """Guardar fuentes web usando modelo WebSource"""
     try:
-        # Obtener parámetros de query opcionales
-        status_filter = request.args.get('status', 'all')
-        limit = int(request.args.get('limit', 100))
+        # Convertir todas las fuentes a diccionarios usando to_dict()
+        data = {}
+        for source_id, web_source in sources.items():
+            data[source_id] = web_source.to_dict()
         
-        # Convertir fuentes almacenadas a formato API
-        sources = []
-        for source in web_sources_store.values():
-            source_data = websource_to_api_format(source)
+        with open(WEB_SOURCES_FILE, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        
+        logger.info(f"Guardadas {len(sources)} fuentes web")
+        
+    except Exception as e:
+        logger.error(f"Error guardando fuentes web: {e}")
+
+def save_scraped_content(source_id: str, url: str, result: Dict[str, Any]) -> Optional[str]:
+    """Guardar contenido usando modelo ScrapedPage"""
+    if not result.get('success') or not result.get('sufficient_content'):
+        return None
+    
+    try:
+        # Crear ScrapedPage usando el modelo
+        scraped_page = ScrapedPage.from_response(
+            url=url,
+            title=result.get('title', ''),
+            content=result.get('content', ''),
+            links=[],  # TODO: Extraer links en scraping
+            source_id=source_id
+        )
+        
+        # Actualizar estado de procesamiento
+        scraped_page.update_processing_status(ProcessingStatus.COMPLETED)
+        
+        # Crear directorio para la fuente
+        source_dir = SCRAPED_CONTENT_DIR / source_id
+        source_dir.mkdir(exist_ok=True)
+        
+        # Generar nombre de archivo único
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"{timestamp}_{scraped_page.id}.json"
+        content_file = source_dir / filename
+        
+        # Guardar usando to_dict()
+        with open(content_file, 'w', encoding='utf-8') as f:
+            json.dump(scraped_page.to_dict(), f, ensure_ascii=False, indent=2)
+        
+        logger.info(f"Contenido guardado: {content_file}")
+        return str(content_file)
+        
+    except Exception as e:
+        logger.error(f"Error guardando contenido: {e}")
+        return None
+
+# ===== ENDPOINTS DE LA API CORREGIDOS =====
+
+@web_sources_api.route('', methods=['GET'])
+def list_web_sources():
+    """Listar fuentes web con manejo de ambas estructuras"""
+    try:
+        sources = load_web_sources()
+        
+        # Convertir a formato de respuesta con compatibilidad legacy
+        sources_list = []
+        for source_id, web_source in sources.items():
+            source_dict = web_source.to_dict()
             
-            # Aplicar filtro de estado si se especifica
-            if status_filter != 'all':
-                if status_filter == 'active' and source_data['status'] != 'active':
-                    continue
-                elif status_filter == 'inactive' and source_data['status'] == 'active':
-                    continue
+            # ✅ AÑADIR CAMPOS PARA COMPATIBILIDAD CON FRONTEND
+            source_dict['scraping_method'] = web_source.config.get('scraping_method', 'requests')
+            source_dict['pages_found'] = web_source.metadata.get('total_pages_processed', 0)
+            source_dict['success_rate'] = web_source.metadata.get('success_rate', 0.0)
+            source_dict['last_activity'] = web_source.last_sync
+            source_dict['is_active'] = web_source.metadata.get('scraping_active', False)
             
-            sources.append(source_data)
-        
-        # Aplicar límite
-        sources = sources[:limit]
-        
-        # Calcular estadísticas
-        active_count = len([s for s in sources if s['status'] == 'active'])
-        
-        logger.info(f"Listando {len(sources)} fuentes web (filtro: {status_filter})")
+            sources_list.append(source_dict)
         
         return jsonify({
             'success': True,
-            'sources': sources,
+            'sources': sources_list,
             'total': len(sources),
-            'active_count': active_count,
-            'total_in_system': len(web_sources_store),
-            'filter_applied': status_filter,
-            'timestamp': datetime.now().isoformat()
+            'active_count': sum(1 for s in sources_list if s.get('is_active', False))
         })
-        
     except Exception as e:
-        logger.error(f"Error obteniendo fuentes web: {e}")
-        return jsonify({
-            'success': False,
-            'error': str(e),
-            'sources': []
-        }), 500
+        logger.error(f"Error listando fuentes: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
-@web_sources_api.route('/web-sources', methods=['POST'])
-def add_web_source():
-    """
-    POST /api/web-sources
-    
-    Crear nueva fuente web en el sistema con validación completa.
-    Utiliza el modelo WebSource para asegurar consistencia de datos.
-    
-    Expected JSON payload:
-    {
-        "name": "Nombre descriptivo de la fuente",
-        "url": "https://ejemplo.com",
-        "method": "requests|selenium|playwright",
-        "max_depth": 2,
-        "max_pages": 100,
-        "crawl_frequency": "manual|daily|weekly|monthly",
-        "content_filters": ["filtro1", "filtro2"],
-        "delay_seconds": 1.0,
-        "follow_links": true,
-        "respect_robots_txt": true
-    }
-    
-    Returns:
-        JSON: {
-            "success": bool,
-            "source_id": str,
-            "message": str,
-            "source": WebSource
-        }
-    """
+@web_sources_api.route('', methods=['POST'])
+def create_web_source_endpoint():
+    """✅ ENDPOINT CORREGIDO - Recibe estructura WebSource del frontend"""
     try:
         data = request.get_json()
-        
-        # Validación básica de entrada
         if not data:
+            return jsonify({'success': False, 'error': 'No data provided'}), 400
+        
+        logger.info(f"Datos recibidos del frontend: {data}")
+        
+        # ✅ VALIDACIONES MEJORADAS
+        required_fields = ['name', 'type', 'base_urls', 'config']
+        missing_fields = [field for field in required_fields if field not in data]
+        if missing_fields:
             return jsonify({
-                'success': False,
-                'error': 'No se proporcionaron datos JSON válidos'
+                'success': False, 
+                'error': f'Campos requeridos faltantes: {missing_fields}'
             }), 400
         
-        # Verificar límite de fuentes
-        if len(web_sources_store) >= SYSTEM_CONFIG['max_sources_per_user']:
-            return jsonify({
-                'success': False,
-                'error': f'Límite máximo de fuentes alcanzado: {SYSTEM_CONFIG["max_sources_per_user"]}'
-            }), 400
+        if not data['base_urls'] or len(data['base_urls']) == 0:
+            return jsonify({'success': False, 'error': 'base_urls no puede estar vacío'}), 400
         
-        # Validar método de scraping si se especifica
-        if 'method' in data:
-            available_methods = get_available_scraping_methods()
-            available_ids = [m['id'] for m in available_methods if m.get('available', False)]
-            
-            if data['method'] not in available_ids:
-                return jsonify({
-                    'success': False,
-                    'error': f'Método no disponible: {data["method"]}. Métodos válidos: {", ".join(available_ids)}'
-                }), 400
+        if data['type'] != 'web':
+            return jsonify({'success': False, 'error': 'type debe ser "web"'}), 400
         
-        # Crear objeto WebSource usando factory function
+        # ✅ CREAR WebSource DIRECTAMENTE DESDE DATOS ESTRUCTURADOS
         try:
-            web_source = create_websource_from_request(data)
-        except ValueError as ve:
-            return jsonify({
-                'success': False,
-                'error': f'Datos inválidos: {str(ve)}'
-            }), 400
-        except ImportError:
-            return jsonify({
-                'success': False,
-                'error': 'Sistema de modelos de datos no disponible'
-            }), 500
+            web_source = WebSource.from_dict(data)
+            logger.info(f"WebSource creado correctamente: {web_source.name}")
+        except Exception as e:
+            logger.error(f"Error creando WebSource desde datos: {e}")
+            return jsonify({'success': False, 'error': f'Error en estructura de datos: {e}'}), 400
         
-        # Verificar que la URL no exista ya
-        for existing_source in web_sources_store.values():
-            if data['url'] in existing_source.base_urls:
-                return jsonify({
-                    'success': False,
-                    'error': f'La URL ya está configurada en la fuente: {existing_source.name}'
-                }), 409
+        # ✅ ESTABLECER VALORES POR DEFECTO SI NO ESTÁN PRESENTES
+        web_source.status = DataSourceStatus.ACTIVE
         
-        # Almacenar en el store
-        web_sources_store[web_source.id] = web_source
+        if not web_source.created_at:
+            web_source.created_at = datetime.now()
         
-        # Registrar en historial
-        scraping_history.append({
-            'action': 'source_created',
-            'source_id': web_source.id,
-            'source_name': web_source.name,
-            'timestamp': datetime.now().isoformat(),
-            'method': data.get('method', 'requests')
-        })
+        # ✅ CARGAR, AÑADIR Y GUARDAR
+        sources = load_web_sources()
+        sources[web_source.id] = web_source
+        save_web_sources(sources)
         
-        logger.info(f"Nueva fuente web creada: {web_source.name} ({web_source.id})")
+        logger.info(f"Fuente web creada y guardada: {web_source.name} (ID: {web_source.id})")
         
         return jsonify({
             'success': True,
-            'source_id': web_source.id,
-            'message': f'Fuente "{web_source.name}" creada correctamente',
-            'source': websource_to_api_format(web_source)
+            'source': web_source.to_dict(),
+            'message': f'Fuente creada: {web_source.name}',
+            'source_id': web_source.id
         }), 201
         
     except Exception as e:
-        logger.error(f"Error creando fuente web: {e}")
-        return jsonify({
-            'success': False,
-            'error': f'Error interno: {str(e)}'
-        }), 500
+        logger.error(f"Error creando fuente: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
-@web_sources_api.route('/web-sources/<source_id>', methods=['GET'])
-def get_web_source_details(source_id):
-    """
-    GET /api/web-sources/<id>
-    
-    Obtener detalles completos de una fuente web específica.
-    Incluye estadísticas, historial y configuración completa.
-    
-    Returns:
-        JSON: {
-            "success": bool,
-            "source": WebSource,
-            "statistics": IngestionStats,
-            "history": [dict]
-        }
-    """
+@web_sources_api.route('/test-url', methods=['POST'])
+def test_url():
+    """Test de URL"""
     try:
-        if source_id not in web_sources_store:
-            return jsonify({
-                'success': False,
-                'error': 'Fuente no encontrada'
-            }), 404
+        data = request.get_json()
+        if not data or 'url' not in data:
+            return jsonify({'success': False, 'error': 'URL requerida'}), 400
         
-        source = web_sources_store[source_id]
-        source_data = websource_to_api_format(source)
+        url = data['url']
+        method = data.get('method', 'auto')
+        min_content_length = data.get('min_content_length', 50)
         
-        # Obtener historial relacionado
-        source_history = [
-            entry for entry in scraping_history 
-            if entry.get('source_id') == source_id
-        ]
+        logger.info(f"Testing: {url} con {method}")
         
-        # Estadísticas simuladas (en producción vendrían de la base de datos)
-        stats = {
-            'total_pages_scraped': source.metadata.get('pages_found', 0),
-            'success_rate': source.metadata.get('success_rate', 0.0),
-            'last_scraping_duration': source.metadata.get('last_duration', 0),
-            'average_page_size': source.metadata.get('avg_page_size', 0),
-            'total_content_size': source.metadata.get('total_size', 0)
-        }
+        # Test conectividad
+        connectivity = scraping_service.test_url_connectivity(url)
+        
+        # Test scraping
+        if method == 'requests':
+            scraping_result = scraping_service.scrape_with_requests(url, min_content_length)
+        elif method == 'selenium':
+            scraping_result = scraping_service.scrape_with_selenium(url, min_content_length)
+        else:  # auto
+            scraping_result = scraping_service.scrape_auto(url, min_content_length)
         
         return jsonify({
             'success': True,
-            'source': source_data,
-            'statistics': stats,
-            'history': source_history[-10:],  # Últimas 10 entradas
-            'is_active': source_id in active_scraping_tasks
+            'url': url,
+            'connectivity': connectivity,
+            'scraping': scraping_result,
+            'recommendation': scraping_result.get('method', 'auto')
         })
         
     except Exception as e:
-        logger.error(f"Error obteniendo detalles de fuente {source_id}: {e}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-@web_sources_api.route('/web-sources/<source_id>', methods=['DELETE'])
-def delete_web_source(source_id):
-    """
-    DELETE /api/web-sources/<id>
-    
-    Eliminar fuente web del sistema. Si hay un proceso de scraping
-    activo, se cancela automáticamente antes de eliminar.
-    
-    Returns:
-        JSON: {
-            "success": bool,
-            "message": str
-        }
-    """
-    try:
-        if source_id not in web_sources_store:
-            return jsonify({
-                'success': False,
-                'error': 'Fuente no encontrada'
-            }), 404
-        
-        source = web_sources_store[source_id]
-        source_name = source.name
-        
-        # Cancelar scraping activo si existe
-        if source_id in active_scraping_tasks:
-            del active_scraping_tasks[source_id]
-            logger.info(f"Scraping cancelado automáticamente para fuente {source_id}")
-        
-        # Eliminar del store
-        del web_sources_store[source_id]
-        
-        # Registrar en historial
-        scraping_history.append({
-            'action': 'source_deleted',
-            'source_id': source_id,
-            'source_name': source_name,
-            'timestamp': datetime.now().isoformat()
-        })
-        
-        logger.info(f"Fuente web eliminada: {source_name} ({source_id})")
-        
-        return jsonify({
-            'success': True,
-            'message': f'Fuente "{source_name}" eliminada correctamente'
-        })
-        
-    except Exception as e:
-        logger.error(f"Error eliminando fuente {source_id}: {e}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-# =============================================================================
-# RUTAS API - CONTROL DE SCRAPING
-# =============================================================================
+        logger.error(f"Error test URL: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @web_sources_api.route('/scraping/start/<source_id>', methods=['POST'])
-def start_individual_scraping(source_id):
-    """
-    POST /api/scraping/start/<id>
-    
-    Iniciar proceso de scraping para una fuente específica.
-    En modo de desarrollo ejecuta simulación realista.
-    
-    Returns:
-        JSON: {
-            "success": bool,
-            "message": str,
-            "task_id": str,
-            "estimated_duration": str
-        }
-    """
+def start_scraping(source_id: str):
+    """Iniciar scraping usando modelo WebSource"""
     try:
-        if source_id not in web_sources_store:
-            return jsonify({
-                'success': False,
-                'error': 'Fuente no encontrada'
-            }), 404
+        with task_lock:
+            if source_id in active_tasks:
+                return jsonify({
+                    'success': False,
+                    'error': 'Scraping ya en progreso'
+                }), 409
         
-        if source_id in active_scraping_tasks:
-            return jsonify({
-                'success': False,
-                'error': 'Scraping ya en progreso para esta fuente'
-            }), 409
+        # Cargar fuente usando modelo
+        sources = load_web_sources()
+        if source_id not in sources:
+            return jsonify({'success': False, 'error': 'Fuente no encontrada'}), 404
         
-        # Verificar límite de tareas concurrentes
-        if len(active_scraping_tasks) >= SYSTEM_CONFIG['max_concurrent_tasks']:
-            return jsonify({
-                'success': False,
-                'error': f'Límite de tareas concurrentes alcanzado: {SYSTEM_CONFIG["max_concurrent_tasks"]}'
-            }), 429
+        web_source = sources[source_id]
         
-        source = web_sources_store[source_id]
-        timestamp = datetime.now()
+        task_id = f"{source_id}_{int(time.time())}"
         
-        # Crear información de tarea activa
-        task_info = {
-            'started_at': timestamp.isoformat(),
-            'status': 'running',
-            'progress': 0,
-            'pages_processed': 0,
-            'current_url': source.base_urls[0] if source.base_urls else '',
-            'method': source.metadata.get('scraping_method', 'requests'),
-            'estimated_pages': source.metadata.get('max_pages', 50)
-        }
+        with task_lock:
+            active_tasks[source_id] = {
+                'task_id': task_id,
+                'status': 'starting',
+                'started_at': datetime.now().isoformat(),
+                'total_urls': len(web_source.config.get('base_urls', [])),
+                'processed_urls': 0,
+                'successful_pages': 0,
+                'failed_pages': 0
+            }
         
-        active_scraping_tasks[source_id] = task_info
+        def run_scraping():
+            try:
+                with task_lock:
+                    active_tasks[source_id]['status'] = 'running'
+                
+                # Actualizar estado de la fuente
+                web_source.status = DataSourceStatus.PROCESSING
+                web_source.last_sync = datetime.now()
+                web_source.metadata['scraping_active'] = True
+                
+                base_urls = web_source.config.get('base_urls', [])
+                min_content_length = web_source.config.get('min_content_length', 100)
+                delay_seconds = web_source.config.get('delay_seconds', 1.0)
+                use_javascript = web_source.config.get('use_javascript', False)
+                
+                for url in base_urls:
+                    try:
+                        logger.info(f"Scrapeando: {url}")
+                        
+                        # Determinar método según configuración
+                        if use_javascript:
+                            result = scraping_service.scrape_with_selenium(url, min_content_length)
+                        else:
+                            result = scraping_service.scrape_auto(url, min_content_length)
+                        
+                        with task_lock:
+                            active_tasks[source_id]['processed_urls'] += 1
+                            
+                            if result.get('success') and result.get('sufficient_content'):
+                                active_tasks[source_id]['successful_pages'] += 1
+                                save_scraped_content(source_id, url, result)
+                            else:
+                                active_tasks[source_id]['failed_pages'] += 1
+                        
+                        time.sleep(delay_seconds)
+                        
+                    except Exception as e:
+                        logger.error(f"Error scrapeando {url}: {e}")
+                        with task_lock:
+                            active_tasks[source_id]['failed_pages'] += 1
+                
+                # Finalizar y actualizar metadata
+                with task_lock:
+                    task_info = active_tasks[source_id]
+                    task_info['status'] = 'completed'
+                    task_info['completed_at'] = datetime.now().isoformat()
+                
+                # Actualizar metadata de la fuente
+                web_source.metadata.update({
+                    'total_pages_processed': task_info['processed_urls'],
+                    'failed_pages': task_info['failed_pages'],
+                    'success_rate': (task_info['successful_pages'] / max(task_info['processed_urls'], 1)) * 100,
+                    'last_scraping_duration': time.time() - time.mktime(datetime.fromisoformat(task_info['started_at']).timetuple()),
+                    'scraping_active': False
+                })
+                
+                web_source.status = DataSourceStatus.ACTIVE
+                
+                # Guardar cambios
+                sources[source_id] = web_source
+                save_web_sources(sources)
+                
+                logger.info(f"Scraping completado: {source_id}")
+                
+            except Exception as e:
+                logger.error(f"Error en scraping: {e}")
+                with task_lock:
+                    active_tasks[source_id]['status'] = 'failed'
+                    active_tasks[source_id]['error'] = str(e)
+                    
+                # Limpiar estado activo
+                web_source.metadata['scraping_active'] = False
+                sources[source_id] = web_source
+                save_web_sources(sources)
         
-        # Actualizar última sincronización de la fuente
-        source.last_sync = timestamp
-        
-        # Registrar en historial
-        scraping_history.append({
-            'action': 'scraping_started',
-            'source_id': source_id,
-            'source_name': source.name,
-            'timestamp': timestamp.isoformat(),
-            'method': task_info['method']
-        })
-        
-        logger.info(f"Scraping iniciado para: {source.name} ({source_id})")
-        
-        # Iniciar simulación en background (en producción sería scraping real)
-        if SYSTEM_CONFIG['simulation_mode']:
-            start_scraping_simulation(source_id)
+        thread = threading.Thread(target=run_scraping, daemon=True)
+        thread.start()
         
         return jsonify({
             'success': True,
-            'message': f'Scraping iniciado para "{source.name}"',
-            'task_id': source_id,
-            'estimated_duration': '2-5 minutos',
+            'task_id': task_id,
+            'message': 'Scraping iniciado'
+        })
+        
+    except Exception as e:
+        logger.error(f"Error iniciando scraping: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@web_sources_api.route('/scraping/status/<source_id>', methods=['GET'])
+def get_scraping_status(source_id: str):
+    """Estado del scraping"""
+    try:
+        with task_lock:
+            task_info = active_tasks.get(source_id)
+        
+        if not task_info:
+            return jsonify({
+                'success': True,
+                'status': 'not_running'
+            })
+        
+        return jsonify({
+            'success': True,
             'task_info': task_info
         })
         
     except Exception as e:
-        logger.error(f"Error iniciando scraping para {source_id}: {e}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        logger.error(f"Error obteniendo estado: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
-@web_sources_api.route('/scraping/bulk-start', methods=['POST'])
-def start_bulk_scraping():
-    """
-    POST /api/scraping/bulk-start
-    
-    Iniciar scraping masivo para todas las fuentes configuradas.
-    Respeta el límite de tareas concurrentes del sistema.
-    
-    Returns:
-        JSON: {
-            "success": bool,
-            "message": str,
-            "started_tasks": [dict],
-            "skipped_tasks": [dict],
-            "total_started": int,
-            "total_skipped": int
-        }
-    """
+@web_sources_api.route('/<source_id>', methods=['DELETE'])
+def delete_web_source(source_id: str):
+    """Eliminar fuente"""
     try:
-        if not web_sources_store:
-            return jsonify({
-                'success': False,
-                'error': 'No hay fuentes configuradas en el sistema'
-            }), 400
-        
-        started_tasks = []
-        skipped_tasks = []
-        max_concurrent = SYSTEM_CONFIG['max_concurrent_tasks']
-        
-        for source_id, source in web_sources_store.items():
-            # Verificar límite de concurrencia
-            if len(active_scraping_tasks) >= max_concurrent:
-                skipped_tasks.append({
-                    'id': source_id,
-                    'name': source.name,
-                    'reason': 'Límite de concurrencia alcanzado'
-                })
-                continue
-            
-            # Verificar si ya está activo
-            if source_id in active_scraping_tasks:
-                skipped_tasks.append({
-                    'id': source_id,
-                    'name': source.name,
-                    'reason': 'Ya en progreso'
-                })
-                continue
-            
-            # Intentar iniciar scraping
-            try:
-                # Reutilizar función individual para consistencia
-                response = start_individual_scraping(source_id)
-                if response[1] == 200:  # Status code OK
-                    started_tasks.append({
-                        'id': source_id,
-                        'name': source.name,
-                        'method': source.metadata.get('scraping_method', 'requests')
-                    })
-            except Exception as e:
-                skipped_tasks.append({
-                    'id': source_id,
-                    'name': source.name,
-                    'reason': f'Error: {str(e)}'
-                })
-        
-        # Registrar operación masiva
-        scraping_history.append({
-            'action': 'bulk_scraping_started',
-            'timestamp': datetime.now().isoformat(),
-            'started_count': len(started_tasks),
-            'skipped_count': len(skipped_tasks)
-        })
-        
-        logger.info(f"Scraping masivo: {len(started_tasks)} iniciados, {len(skipped_tasks)} omitidos")
+        sources = load_web_sources()
+        if source_id in sources:
+            del sources[source_id]
+            save_web_sources(sources)
         
         return jsonify({
             'success': True,
-            'message': f'Scraping masivo iniciado: {len(started_tasks)} fuentes procesándose',
-            'started_tasks': started_tasks,
-            'skipped_tasks': skipped_tasks,
-            'total_started': len(started_tasks),
-            'total_skipped': len(skipped_tasks),
-            'concurrent_limit': max_concurrent
+            'message': 'Fuente eliminada'
         })
         
     except Exception as e:
-        logger.error(f"Error en scraping masivo: {e}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        logger.error(f"Error eliminando fuente: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
-@web_sources_api.route('/scraping/status', methods=['GET'])
-def get_scraping_status():
-    """
-    GET /api/scraping/status
-    
-    Obtener estado actual de todos los procesos de scraping.
-    Incluye información detallada de progreso y rendimiento.
-    
-    Returns:
-        JSON: {
-            "success": bool,
-            "active_tasks": dict,
-            "total_active": int,
-            "total_sources": int,
-            "system_stats": dict
-        }
-    """
+@web_sources_api.route('/system/status', methods=['GET'])
+def get_system_status():
+    """Estado del sistema"""
     try:
-        # Calcular estadísticas del sistema
-        system_stats = {
-            'total_sources': len(web_sources_store),
-            'total_active_tasks': len(active_scraping_tasks),
-            'max_concurrent_tasks': SYSTEM_CONFIG['max_concurrent_tasks'],
-            'available_slots': SYSTEM_CONFIG['max_concurrent_tasks'] - len(active_scraping_tasks),
-            'simulation_mode': SYSTEM_CONFIG['simulation_mode'],
-            'uptime_seconds': int(time.time() - getattr(get_scraping_status, 'start_time', time.time()))
-        }
-        
-        # Enriquecer información de tareas activas
-        enriched_tasks = {}
-        for source_id, task_info in active_scraping_tasks.items():
-            if source_id in web_sources_store:
-                source = web_sources_store[source_id]
-                enriched_tasks[source_id] = {
-                    **task_info,
-                    'source_name': source.name,
-                    'base_url': source.base_urls[0] if source.base_urls else '',
-                    'elapsed_seconds': (
-                        datetime.now() - datetime.fromisoformat(task_info['started_at'])
-                    ).total_seconds()
-                }
+        sources = load_web_sources()
+        selenium_status = scraping_service.check_selenium_status()
         
         return jsonify({
             'success': True,
-            'active_tasks': enriched_tasks,
-            'total_active': len(enriched_tasks),
-            'system_stats': system_stats,
-            'last_updated': datetime.now().isoformat()
-        })
-        
-    except Exception as e:
-        logger.error(f"Error obteniendo estado de scraping: {e}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-@web_sources_api.route('/scraping/cancel/<source_id>', methods=['POST'])
-def cancel_scraping(source_id):
-    """
-    POST /api/scraping/cancel/<id>
-    
-    Cancelar proceso de scraping activo para una fuente específica.
-    
-    Returns:
-        JSON: {
-            "success": bool,
-            "message": str,
-            "cancelled_task": dict
-        }
-    """
-    try:
-        if source_id not in active_scraping_tasks:
-            return jsonify({
-                'success': False,
-                'error': 'No hay scraping activo para esta fuente'
-            }), 404
-        
-        # Obtener información de la tarea antes de cancelar
-        task_info = active_scraping_tasks[source_id].copy()
-        
-        # Eliminar de tareas activas
-        del active_scraping_tasks[source_id]
-        
-        # Actualizar fuente con información de cancelación
-        if source_id in web_sources_store:
-            source = web_sources_store[source_id]
-            source.metadata['last_error'] = 'Cancelado por usuario'
-            source.last_sync = datetime.now()
-        
-        # Registrar en historial
-        scraping_history.append({
-            'action': 'scraping_cancelled',
-            'source_id': source_id,
-            'source_name': web_sources_store[source_id].name if source_id in web_sources_store else 'Unknown',
-            'timestamp': datetime.now().isoformat(),
-            'pages_processed': task_info.get('pages_processed', 0)
-        })
-        
-        logger.info(f"Scraping cancelado para fuente {source_id}")
-        
-        return jsonify({
-            'success': True,
-            'message': 'Scraping cancelado correctamente',
-            'cancelled_task': task_info
-        })
-        
-    except Exception as e:
-        logger.error(f"Error cancelando scraping para {source_id}: {e}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-# =============================================================================
-# RUTAS API - ESTADÍSTICAS Y MONITOREO
-# =============================================================================
-
-@web_sources_api.route('/stats', methods=['GET'])
-def get_system_stats():
-    """
-    GET /api/stats
-    
-    Obtener estadísticas completas del sistema de web scraping.
-    Incluye métricas de rendimiento, uso de recursos y tendencias.
-    
-    Returns:
-        JSON: {
-            "success": bool,
-            "stats": dict
-        }
-    """
-    try:
-        # Calcular métricas agregadas
-        total_pages = sum(
-            source.metadata.get('pages_found', 0) 
-            for source in web_sources_store.values()
-        )
-        
-        success_rates = [
-            source.metadata.get('success_rate', 0) 
-            for source in web_sources_store.values() 
-            if source.metadata.get('success_rate', 0) > 0
-        ]
-        
-        avg_success_rate = sum(success_rates) / len(success_rates) if success_rates else 0
-        
-        # Estadísticas por método de scraping
-        method_stats = {}
-        for source in web_sources_store.values():
-            method = source.metadata.get('scraping_method', 'requests')
-            if method not in method_stats:
-                method_stats[method] = {'count': 0, 'total_pages': 0}
-            method_stats[method]['count'] += 1
-            method_stats[method]['total_pages'] += source.metadata.get('pages_found', 0)
-        
-        # Actividad reciente
-        recent_activity = [
-            entry for entry in scraping_history[-20:]  # Últimas 20 entradas
-            if (datetime.now() - datetime.fromisoformat(entry['timestamp'])).days < 7
-        ]
-        
-        # Construir respuesta de estadísticas
-        stats = {
-            'overview': {
-                'total_sources': len(web_sources_store),
-                'total_pages_indexed': total_pages,
-                'active_scraping_tasks': len(active_scraping_tasks),
-                'average_success_rate': round(avg_success_rate, 2),
-                'system_status': 'operational'
-            },
-            'performance': {
-                'available_methods': len(get_available_scraping_methods()),
-                'method_distribution': method_stats,
-                'concurrent_capacity': SYSTEM_CONFIG['max_concurrent_tasks'],
-                'utilization_rate': round(
-                    (len(active_scraping_tasks) / SYSTEM_CONFIG['max_concurrent_tasks']) * 100, 1
-                )
-            },
-            'activity': {
-                'recent_operations': len(recent_activity),
-                'total_operations': len(scraping_history),
-                'last_activity': scraping_history[-1]['timestamp'] if scraping_history else None
-            },
-            'system': {
-                'simulation_mode': SYSTEM_CONFIG['simulation_mode'],
-                'data_sources_available': DATA_SOURCES_AVAILABLE,
-                'enhanced_scraper_available': ENHANCED_SCRAPER_AVAILABLE,
-                'last_updated': datetime.now().isoformat()
+            'system_info': {
+                'selenium_available': selenium_status,
+                'selenium_error': SELENIUM_ERROR if not selenium_status else None,
+                'active_tasks': len(active_tasks),
+                'total_sources': len(sources)
             }
-        }
-        
-        return jsonify({
-            'success': True,
-            'stats': stats
         })
-        
     except Exception as e:
-        logger.error(f"Error obteniendo estadísticas del sistema: {e}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-# =============================================================================
-# RUTAS API - DEBUG Y UTILIDADES
-# =============================================================================
-
-@web_sources_api.route('/debug/routes', methods=['GET'])
-def debug_routes():
-    """
-    GET /api/debug/routes
-    
-    Endpoint de debug para mostrar todas las rutas registradas.
-    Útil para diagnosticar problemas de registro de blueprints.
-    
-    Returns:
-        HTML: Lista formateada de todas las rutas
-    """
-    try:
-        output = []
-        output.append("=== RUTAS REGISTRADAS EN LA APLICACIÓN ===")
-        output.append(f"Timestamp: {datetime.now().isoformat()}")
-        output.append("")
-        
-        # Obtener todas las rutas de la aplicación
-        routes_by_blueprint = {}
-        
-        for rule in current_app.url_map.iter_rules():
-            methods = ','.join(sorted(rule.methods - {'HEAD', 'OPTIONS'}))
-            endpoint_parts = rule.endpoint.split('.')
-            blueprint_name = endpoint_parts[0] if len(endpoint_parts) > 1 else 'main'
-            
-            if blueprint_name not in routes_by_blueprint:
-                routes_by_blueprint[blueprint_name] = []
-            
-            routes_by_blueprint[blueprint_name].append({
-                'rule': rule.rule,
-                'endpoint': rule.endpoint,
-                'methods': methods
-            })
-        
-        # Formatear salida por blueprint
-        for blueprint_name, routes in sorted(routes_by_blueprint.items()):
-            output.append(f"Blueprint: {blueprint_name}")
-            output.append("-" * 50)
-            
-            for route in sorted(routes, key=lambda x: x['rule']):
-                output.append(f"  {route['endpoint']}: {route['rule']} [{route['methods']}]")
-            
-            output.append("")
-        
-        output.append(f"Total rutas: {sum(len(routes) for routes in routes_by_blueprint.values())}")
-        output.append(f"Total blueprints: {len(routes_by_blueprint)}")
-        
-        return "<pre>" + "\n".join(output) + "</pre>"
-        
-    except Exception as e:
-        return f"<pre>Error generando debug de rutas: {str(e)}</pre>", 500
-
-# =============================================================================
-# FUNCIONES DE UTILIDAD - SIMULACIÓN DE SCRAPING
-# =============================================================================
-
-def start_scraping_simulation(source_id: str):
-    """
-    Iniciar simulación realista de proceso de scraping
-    
-    En modo de desarrollo simula el scraping real con:
-    - Progreso gradual y realista
-    - Actualizaciones de estado periódicas
-    - Resultados finales con métricas
-    
-    Args:
-        source_id: ID de la fuente a simular
-    """
-    def run_simulation():
-        """Función que ejecuta la simulación en thread separado"""
-        try:
-            if source_id not in active_scraping_tasks:
-                return
-            
-            task = active_scraping_tasks[source_id]
-            source = web_sources_store.get(source_id)
-            
-            if not source:
-                return
-            
-            # Parámetros de simulación
-            total_pages = random.randint(10, 100)
-            processing_time = random.uniform(3, 8)  # 3-8 segundos total
-            update_interval = processing_time / 10  # 10 actualizaciones
-            
-            logger.info(f"Iniciando simulación para {source_id}: {total_pages} páginas estimadas")
-            
-            # Simular progreso gradual
-            for i in range(11):  # 0% a 100% en 10 pasos
-                if source_id not in active_scraping_tasks:
-                    break  # Cancelado
-                
-                progress = i * 10  # 0, 10, 20, ..., 100
-                pages_processed = int((progress / 100) * total_pages)
-                
-                # Actualizar información de tarea
-                active_scraping_tasks[source_id].update({
-                    'progress': progress,
-                    'pages_processed': pages_processed,
-                    'status': 'running' if progress < 100 else 'completing'
-                })
-                
-                time.sleep(update_interval)
-            
-            # Completar simulación si no fue cancelada
-            if source_id in active_scraping_tasks:
-                # Generar resultados finales realistas
-                final_pages = random.randint(max(1, total_pages - 10), total_pages + 5)
-                success_rate = random.uniform(85, 98)
-                avg_page_size = random.randint(2000, 15000)
-                
-                # Actualizar metadatos de la fuente
-                source.metadata.update({
-                    'pages_found': final_pages,
-                    'success_rate': round(success_rate, 1),
-                    'last_duration': round(processing_time, 2),
-                    'avg_page_size': avg_page_size,
-                    'total_size': final_pages * avg_page_size,
-                    'last_error': None
-                })
-                
-                source.last_sync = datetime.now()
-                
-                # Registrar en historial
-                scraping_history.append({
-                    'action': 'scraping_completed',
-                    'source_id': source_id,
-                    'source_name': source.name,
-                    'timestamp': datetime.now().isoformat(),
-                    'pages_found': final_pages,
-                    'duration': round(processing_time, 2),
-                    'success_rate': round(success_rate, 1)
-                })
-                
-                # Remover de tareas activas
-                del active_scraping_tasks[source_id]
-                
-                logger.info(f"Simulación completada para {source_id}: {final_pages} páginas, {success_rate:.1f}% éxito")
-        
-        except Exception as e:
-            logger.error(f"Error en simulación de scraping para {source_id}: {e}")
-            
-            # Manejar error en simulación
-            if source_id in active_scraping_tasks:
-                del active_scraping_tasks[source_id]
-            
-            if source_id in web_sources_store:
-                web_sources_store[source_id].metadata['last_error'] = f"Error en simulación: {str(e)}"
-    
-    # Ejecutar simulación en thread separado
-    thread = threading.Thread(target=run_simulation, daemon=True)
-    thread.start()
-
-# =============================================================================
-# INICIALIZACIÓN Y CONFIGURACIÓN
-# =============================================================================
-
-# Marcar tiempo de inicio para estadísticas de uptime
-get_scraping_status.start_time = time.time()
-
-# Log de inicialización
-logger.info(f"Blueprint web_sources_api inicializado correctamente")
-logger.info(f"Configuración: {SYSTEM_CONFIG}")
-logger.info(f"Modelos de datos disponibles: {DATA_SOURCES_AVAILABLE}")
-logger.info(f"Servicio de scraping avanzado disponible: {ENHANCED_SCRAPER_AVAILABLE}")
-
-# =============================================================================
-# EXPORTACIONES
-# =============================================================================
-
-# Exportar blueprint para registro en la aplicación principal
-__all__ = ['web_sources_api']
+        logger.error(f"Error estado sistema: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
