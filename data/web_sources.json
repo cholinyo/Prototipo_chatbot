@@ -52,13 +52,13 @@
       "use_javascript": false
     },
     "created_at": "2025-08-25T14:20:21.987000+00:00",
-    "last_sync": "2025-08-25T16:20:24.705732",
+    "last_sync": "2025-08-25T21:17:10.266694",
     "metadata": {
       "scraping_active": false,
       "total_pages_processed": 1,
-      "successful_pages": 0,
-      "failed_pages": 1,
-      "success_rate": 0.0
+      "successful_pages": 1,
+      "failed_pages": 0,
+      "success_rate": 100.0
     }
   }
 }
