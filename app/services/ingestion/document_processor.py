@@ -9,6 +9,8 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
 from datetime import datetime
+from app.models.document import DocumentChunk, DocumentMetadata
+
 
 # Imports para procesamiento de documentos
 try:
@@ -31,18 +33,6 @@ except ImportError:
 
 from app.core.logger import get_logger
 from app.core.config import get_rag_config
-
-
-@dataclass
-class DocumentChunk:
-    """Chunk de documento procesado"""
-    id: str
-    content: str
-    metadata: Dict[str, Any]
-    source_file: str
-    chunk_index: int
-    start_char: Optional[int] = None
-    end_char: Optional[int] = None
 
 
 class DocumentProcessor:

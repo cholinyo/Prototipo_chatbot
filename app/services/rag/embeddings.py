@@ -85,3 +85,10 @@ embedding_service = EmbeddingService()
 def get_embedding_service() -> EmbeddingService:
     """Obtener instancia del servicio de embeddings"""
     return embedding_service
+
+def encode_batch(self, texts: List[str], batch_size: int = 32) -> Optional[List[np.ndarray]]:
+    """Generar embeddings en lotes - alias para encode_texts"""
+    embeddings = self.encode_texts(texts)
+    if embeddings is not None:
+        return [emb for emb in embeddings]  # Convertir a lista de arrays
+    return None

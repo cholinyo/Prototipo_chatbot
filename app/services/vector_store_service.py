@@ -1,16 +1,18 @@
 """
-VectorStoreService - Implementación Real
+VectorStoreService - Implementación Real CORREGIDA
 TFM Vicente Caruncho - Sistemas Inteligentes
 
 Servicio unificado que integra FAISS y ChromaDB existentes
+VERSIÓN CORREGIDA: Convierte queries a embeddings antes de pasar a stores
 """
 
 import os
 from typing import List, Dict, Any, Optional
 from enum import Enum
+from datetime import datetime
 
 from app.core.logger import get_logger
-from app.services.ingestion.document_processor import DocumentChunk
+from app.models.document import DocumentChunk
 
 # Importar los stores reales existentes
 from app.services.rag.faiss_store import (
@@ -186,21 +188,36 @@ class VectorStoreService:
             return False
         
         try:
-            # Enriquecer chunks con metadatos de fuente si se proporcionan
-            if source_metadata:
-                for chunk in chunks:
-                    if chunk.metadata:
-                        chunk.metadata.update(source_metadata)
-                    else:
-                        chunk.metadata = source_metadata.copy()
+            # Manejar DocumentMetadata correctamente
+            processed_chunks = []
             
-            # Usar el store activo
-            success = self.active_store.add_documents(chunks)
+            for chunk in chunks:
+                # Crear copia del chunk para no modificar el original
+                processed_chunk = DocumentChunk(
+                    id=chunk.id,
+                    content=chunk.content,
+                    metadata=chunk.metadata,  # Mantener DocumentMetadata original
+                    source_file=chunk.source_file,
+                    chunk_index=chunk.chunk_index,
+                    embedding=chunk.embedding
+                )
+                
+                # Si hay source_metadata, añadirlos como atributos adicionales del objeto
+                if source_metadata:
+                    # Añadir source_metadata como atributos adicionales sin modificar metadata original
+                    for key, value in source_metadata.items():
+                        # Añadir como atributos del chunk (no como metadatos DocumentMetadata)
+                        setattr(processed_chunk, f"source_{key}", value)
+                
+                processed_chunks.append(processed_chunk)
+            
+            # Usar el store activo con chunks procesados correctamente
+            success = self.active_store.add_documents(processed_chunks)
             
             if success:
                 self.logger.info(
-                    f"Agregados {len(chunks)} chunks usando {self.get_active_store_type()}",
-                    chunks_count=len(chunks),
+                    f"Agregados {len(processed_chunks)} chunks usando {self.get_active_store_type()}",
+                    chunks_count=len(processed_chunks),
                     store_type=self.get_active_store_type()
                 )
             else:
@@ -271,7 +288,7 @@ class VectorStoreService:
         Buscar documentos similares en el vector store activo
         
         Args:
-            query: Consulta de búsqueda
+            query: Consulta de búsqueda (texto)
             k: Número máximo de resultados
             filters: Filtros de metadatos (opcional)
             
@@ -283,8 +300,62 @@ class VectorStoreService:
             return []
         
         try:
-            # Búsqueda usando el store activo
-            results = self.active_store.search(query, k=k, filters=filters)
+            # CORRECCIÓN: Convertir query texto a embedding
+            from app.services.rag.embeddings import embedding_service
+            
+            query_embedding = embedding_service.encode_single_text(query)
+            if query_embedding is None:
+                self.logger.error("Error generando embedding para consulta")
+                return []
+            
+            # CORRECCIÓN: Usar diferentes interfaces según el tipo de store
+            if isinstance(self.active_store, ChromaDBVectorStore):
+                # ChromaDB tiene similarity_search que acepta texto
+                results = self.active_store.similarity_search(query, k=k, filters=filters)
+                
+                # Convertir DocumentChunk a dict para compatibilidad
+                results_dict = []
+                for chunk in results:
+                    if hasattr(chunk, 'to_dict'):
+                        result = chunk.to_dict()
+                    else:
+                        result = {
+                            'content': chunk.content,
+                            'metadata': chunk.metadata if hasattr(chunk.metadata, '__dict__') else chunk.metadata,
+                            'id': chunk.id,
+                            'chunk_index': chunk.chunk_index
+                        }
+                    results_dict.append(result)
+                
+                results = results_dict
+                
+            else:
+                # FAISS necesita embedding directo
+                raw_results = self.active_store.search(query_embedding, k=k, filters=filters)
+                
+                # Convertir resultados FAISS a formato estándar
+                results = []
+                for result in raw_results:
+                    if isinstance(result, DocumentChunk):
+                        if hasattr(result, 'to_dict'):
+                            results.append(result.to_dict())
+                        else:
+                            results.append({
+                                'content': result.content,
+                                'metadata': result.metadata,
+                                'id': result.id,
+                                'chunk_index': result.chunk_index
+                            })
+                    elif isinstance(result, dict):
+                        results.append(result)
+                    else:
+                        # Resultado en formato desconocido, intentar extraer info básica
+                        results.append({
+                            'content': str(result),
+                            'metadata': {},
+                            'id': f"unknown_{len(results)}",
+                            'chunk_index': 0
+                        })
             
             self.logger.info(
                 f"Búsqueda completada usando {self.get_active_store_type()}",
@@ -312,13 +383,52 @@ class VectorStoreService:
         if current_type == "faiss" and self.chromadb_available:
             self.logger.warning("Intentando fallback a ChromaDB para búsqueda")
             try:
-                return self.chromadb_store.search(query, k=k, filters=filters)
+                # CORRECCIÓN: Usar similarity_search para ChromaDB con texto
+                results = self.chromadb_store.similarity_search(query, k=k, filters=filters)
+                
+                # Convertir a dict
+                results_dict = []
+                for chunk in results:
+                    if hasattr(chunk, 'to_dict'):
+                        results_dict.append(chunk.to_dict())
+                    else:
+                        results_dict.append({
+                            'content': chunk.content,
+                            'metadata': chunk.metadata,
+                            'id': chunk.id,
+                            'chunk_index': chunk.chunk_index
+                        })
+                
+                return results_dict
+                
             except Exception as e:
                 self.logger.error(f"Fallback a ChromaDB falló: {e}")
+                
         elif current_type == "chromadb" and self.faiss_available:
             self.logger.warning("Intentando fallback a FAISS para búsqueda")
             try:
-                return self.faiss_store.search(query, k=k, filters=filters)
+                # CORRECCIÓN: Convertir texto a embedding para FAISS
+                from app.services.rag.embeddings import embedding_service
+                
+                query_embedding = embedding_service.encode_single_text(query)
+                if query_embedding is not None:
+                    raw_results = self.faiss_store.search(query_embedding, k=k, filters=filters)
+                    
+                    # Convertir a dict
+                    results = []
+                    for result in raw_results:
+                        if hasattr(result, 'to_dict'):
+                            results.append(result.to_dict())
+                        else:
+                            results.append({
+                                'content': str(result),
+                                'metadata': {},
+                                'id': f"fallback_{len(results)}",
+                                'chunk_index': 0
+                            })
+                    
+                    return results
+                    
             except Exception as e:
                 self.logger.error(f"Fallback a FAISS falló: {e}")
         
@@ -379,7 +489,7 @@ class VectorStoreService:
         """
         health = {
             'overall_status': 'healthy' if self.is_available() else 'unhealthy',
-            'timestamp': str(datetime.now().isoformat()),
+            'timestamp': datetime.now().isoformat(),
             'services': {}
         }
         
@@ -446,19 +556,29 @@ class VectorStoreService:
             'comparison_results': {}
         }
         
+        # Importar embedding service para conversión
+        from app.services.rag.embeddings import embedding_service
+        
         # Probar FAISS si está disponible
         if self.faiss_available:
             try:
                 import time
                 start_time = time.time()
-                faiss_results = self.faiss_store.search(test_query, k=5)
+                
+                # CORRECCIÓN: Convertir texto a embedding para FAISS
+                query_embedding = embedding_service.encode_single_text(test_query)
+                if query_embedding is not None:
+                    faiss_results = self.faiss_store.search(query_embedding, k=5)
+                else:
+                    faiss_results = []
+                
                 search_time = time.time() - start_time
                 
                 comparison['stores_tested'].append('faiss')
                 comparison['comparison_results']['faiss'] = {
                     'search_time_ms': search_time * 1000,
                     'results_count': len(faiss_results),
-                    'status': 'success'
+                    'status': 'success' if query_embedding is not None else 'error_embedding'
                 }
             except Exception as e:
                 comparison['comparison_results']['faiss'] = {
@@ -471,7 +591,9 @@ class VectorStoreService:
             try:
                 import time
                 start_time = time.time()
-                chromadb_results = self.chromadb_store.search(test_query, k=5)
+                
+                # CORRECCIÓN: Usar similarity_search para ChromaDB con texto
+                chromadb_results = self.chromadb_store.similarity_search(test_query, k=5)
                 search_time = time.time() - start_time
                 
                 comparison['stores_tested'].append('chromadb')

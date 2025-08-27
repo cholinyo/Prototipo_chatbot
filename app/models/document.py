@@ -8,7 +8,7 @@ PROPÓSITO: Estructura interna de contenido para RAG
 """
 
 from dataclasses import dataclass, field
-from typing import Dict, Any, Optional, List, TYPE_CHECKING
+from typing import Dict, Any, Optional, List, TYPE_CHECKING, Union
 from datetime import datetime
 
 # Import condicional para evitar circular dependency
@@ -50,7 +50,7 @@ class DocumentChunk:
     """
     id: str
     content: str
-    metadata: Dict[str, Any]
+    metadata: Union[Dict[str, Any], DocumentMetadata, Any]
     source_file: str  # Para webs: será la URL
     chunk_index: int
     start_char: Optional[int] = None
@@ -67,8 +67,14 @@ class DocumentChunk:
             import uuid
             self.id = str(uuid.uuid4())
         
-        # Asegurar que metadata sea un dict
-        if not isinstance(self.metadata, dict):
+        # ✅ CORRECCIÓN: Preservar DocumentMetadata, solo convertir None o tipos inválidos
+        if self.metadata is None:
+            self.metadata = {}
+        elif hasattr(self.metadata, '__dict__') and not isinstance(self.metadata, dict):
+            # Si es un objeto tipo DocumentMetadata, mantenerlo como está
+            pass
+        elif not isinstance(self.metadata, (dict, object)):
+            # Solo convertir si no es ni dict ni objeto con atributos
             self.metadata = {}
         
         # Asegurar que chunk_index sea válido

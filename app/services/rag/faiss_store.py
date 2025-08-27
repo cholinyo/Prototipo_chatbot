@@ -493,17 +493,15 @@ class FaissVectorStore:
             checksum=metadata.get('checksum', '')
         )
         
-        # Crear DocumentChunk
+        # Crear DocumentChunk CON PARÁMETROS CORRECTOS
         chunk = DocumentChunk(
             id=metadata.get('chunk_id', ''),
             content=metadata.get('content', ''),
             metadata=doc_metadata,
+            source_file=metadata.get('source_path', ''),
             chunk_index=metadata.get('chunk_index', 0),
-            chunk_size=metadata.get('chunk_size', 0),
             start_char=metadata.get('start_char', 0),
-            end_char=metadata.get('end_char', 0),
-            section_title=metadata.get('section_title'),
-            page_number=metadata.get('page_number')
+            end_char=metadata.get('end_char', 0)
         )
         
         return chunk

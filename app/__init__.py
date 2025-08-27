@@ -118,10 +118,15 @@ def create_app(config=None):
         # Rutas de gestión
         ('app.routes.chat_routes', 'chat_bp', None), 
         ('app.routes.admin', 'admin_bp', '/admin'),
+
+        # Stores management - NUEVO
+        ('app.routes.stores', 'stores_bp', None),
+        ('app.routes.stores_api', 'stores_api_bp', None),
         
         # APIs específicas (si existen)
         ('app.routes.data_sources', 'data_sources_api', '/api/data-sources'),
         ('app.routes.api.comparison', 'comparison_api', '/api/comparison'),
+        
     ]
     
     for module_path, blueprint_name, url_prefix in optional_blueprints:

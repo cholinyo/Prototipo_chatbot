@@ -266,7 +266,7 @@ class ChromaDBVectorStore:
                 
                 # Generar embeddings para todos los documentos
                 texts = [doc.content for doc in documents]
-                embeddings = embedding_service.encode_batch(texts)
+                embeddings = embedding_service.encode_texts(texts)
                 
                 if not embeddings:
                     self.logger.error("Error generando embeddings")

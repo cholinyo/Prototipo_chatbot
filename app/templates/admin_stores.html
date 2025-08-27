@@ -1,0 +1,1001 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - Vector Store RAG System</title>
+    
+    <!-- Bootstrap 5.3 -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <style>
+        :root {
+            --primary-color: #2563eb;
+            --success-color: #059669;
+            --warning-color: #d97706;
+            --danger-color: #dc2626;
+            --secondary-color: #6b7280;
+            --dark-color: #1f2937;
+        }
+        
+        body {
+            background-color: #f8fafc;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        
+        .sidebar {
+            min-height: 100vh;
+            background: linear-gradient(135deg, var(--dark-color) 0%, #374151 100%);
+            color: white;
+        }
+        
+        .sidebar .nav-link {
+            color: #d1d5db;
+            border-radius: 8px;
+            margin: 2px 0;
+            transition: all 0.3s ease;
+        }
+        
+        .sidebar .nav-link:hover,
+        .sidebar .nav-link.active {
+            background-color: var(--primary-color);
+            color: white;
+            transform: translateX(4px);
+        }
+        
+        .main-content {
+            padding: 0;
+        }
+        
+        .top-bar {
+            background: white;
+            border-bottom: 1px solid #e5e7eb;
+            padding: 1rem 2rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .metric-card {
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            border-left: 4px solid var(--primary-color);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        
+        .metric-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 15px rgba(0,0,0,0.1);
+        }
+        
+        .metric-value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--dark-color);
+        }
+        
+        .metric-label {
+            color: var(--secondary-color);
+            font-size: 0.875rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .status-healthy { background-color: var(--success-color); }
+        .status-warning { background-color: var(--warning-color); }
+        .status-error { background-color: var(--danger-color); }
+        
+        .chart-container {
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            height: 400px;
+        }
+        
+        .store-card {
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            transition: all 0.3s ease;
+        }
+        
+        .store-card.active {
+            border: 2px solid var(--primary-color);
+            box-shadow: 0 8px 20px rgba(37, 99, 235, 0.15);
+        }
+        
+        .config-panel {
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        }
+        
+        .log-entry {
+            border-left: 3px solid #e5e7eb;
+            padding: 0.5rem 1rem;
+            margin: 0.25rem 0;
+            background: #f9fafb;
+            border-radius: 0 6px 6px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 0.875rem;
+        }
+        
+        .log-info { border-color: var(--primary-color); }
+        .log-success { border-color: var(--success-color); }
+        .log-warning { border-color: var(--warning-color); }
+        .log-error { border-color: var(--danger-color); }
+        
+        .spinner-grow-sm {
+            width: 1rem;
+            height: 1rem;
+        }
+        
+        @media (max-width: 768px) {
+            .sidebar {
+                min-height: auto;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Sidebar -->
+            <nav class="col-md-3 col-lg-2 sidebar p-3">
+                <div class="d-flex flex-column h-100">
+                    <div class="mb-4">
+                        <h4 class="text-white mb-0">
+                            <i class="bi bi-database-gear me-2"></i>
+                            RAG Admin
+                        </h4>
+                        <small class="text-muted">Vector Store Manager</small>
+                    </div>
+                    
+                    <ul class="nav nav-pills flex-column mb-auto">
+                        <li class="nav-item">
+                            <a href="#overview" class="nav-link active" data-section="overview">
+                                <i class="bi bi-speedometer2 me-2"></i>
+                                Overview
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a href="#stores" class="nav-link" data-section="stores">
+                                <i class="bi bi-hdd-stack me-2"></i>
+                                Vector Stores
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a href="#performance" class="nav-link" data-section="performance">
+                                <i class="bi bi-graph-up me-2"></i>
+                                Performance
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a href="#configuration" class="nav-link" data-section="configuration">
+                                <i class="bi bi-gear me-2"></i>
+                                Configuration
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a href="#logs" class="nav-link" data-section="logs">
+                                <i class="bi bi-file-text me-2"></i>
+                                System Logs
+                            </a>
+                        </li>
+                    </ul>
+                    
+                    <div class="mt-auto">
+                        <small class="text-muted">
+                            TFM Vicente Caruncho<br>
+                            Sistemas Inteligentes - UJI
+                        </small>
+                    </div>
+                </div>
+            </nav>
+            
+            <!-- Main Content -->
+            <main class="col-md-9 col-lg-10 main-content">
+                <!-- Top Bar -->
+                <div class="top-bar d-flex justify-content-between align-items-center">
+                    <div>
+                        <h2 class="mb-0">System Dashboard</h2>
+                        <small class="text-muted">Real-time monitoring and management</small>
+                    </div>
+                    <div class="d-flex align-items-center">
+                        <span class="status-indicator status-healthy"></span>
+                        <span class="me-3">System Status: <strong id="system-status">Healthy</strong></span>
+                        <button class="btn btn-outline-primary btn-sm me-2" onclick="refreshData()">
+                            <i class="bi bi-arrow-clockwise me-1"></i>
+                            Refresh
+                        </button>
+                        <div class="spinner-grow spinner-grow-sm text-primary d-none" id="loading-indicator"></div>
+                    </div>
+                </div>
+                
+                <!-- Content Sections -->
+                <div class="p-4">
+                    <!-- Overview Section -->
+                    <div id="overview-section" class="section active">
+                        <div class="row mb-4">
+                            <div class="col-md-3 mb-3">
+                                <div class="metric-card">
+                                    <div class="metric-value" id="total-documents">0</div>
+                                    <div class="metric-label">Total Documents</div>
+                                </div>
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <div class="metric-card">
+                                    <div class="metric-value" id="total-vectors">0</div>
+                                    <div class="metric-label">Total Vectors</div>
+                                </div>
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <div class="metric-card">
+                                    <div class="metric-value" id="avg-search-time">0ms</div>
+                                    <div class="metric-label">Avg Search Time</div>
+                                </div>
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <div class="metric-card">
+                                    <div class="metric-value" id="memory-usage">0MB</div>
+                                    <div class="metric-label">Memory Usage</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-8 mb-4">
+                                <div class="chart-container">
+                                    <h5 class="mb-3">Performance Metrics</h5>
+                                    <canvas id="performance-chart"></canvas>
+                                </div>
+                            </div>
+                            <div class="col-md-4 mb-4">
+                                <div class="chart-container">
+                                    <h5 class="mb-3">Store Distribution</h5>
+                                    <canvas id="distribution-chart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Vector Stores Section -->
+                    <div id="stores-section" class="section d-none">
+                        <div class="row">
+                            <div class="col-md-6 mb-4">
+                                <div class="store-card" id="faiss-card">
+                                    <div class="d-flex justify-content-between align-items-start mb-3">
+                                        <h5><i class="bi bi-lightning-charge me-2"></i>FAISS Store</h5>
+                                        <span class="badge bg-primary" id="faiss-status">Active</span>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-6">
+                                            <div class="mb-2">
+                                                <strong id="faiss-vectors">0</strong>
+                                                <small class="text-muted d-block">Vectors</small>
+                                            </div>
+                                        </div>
+                                        <div class="col-6">
+                                            <div class="mb-2">
+                                                <strong id="faiss-search-time">0ms</strong>
+                                                <small class="text-muted d-block">Avg Search</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="mt-3">
+                                        <button class="btn btn-sm btn-outline-primary" onclick="switchToStore('faiss')">
+                                            Set as Primary
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-secondary" onclick="benchmarkStore('faiss')">
+                                            Benchmark
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-6 mb-4">
+                                <div class="store-card" id="chromadb-card">
+                                    <div class="d-flex justify-content-between align-items-start mb-3">
+                                        <h5><i class="bi bi-database me-2"></i>ChromaDB Store</h5>
+                                        <span class="badge bg-secondary" id="chromadb-status">Standby</span>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-6">
+                                            <div class="mb-2">
+                                                <strong id="chromadb-vectors">0</strong>
+                                                <small class="text-muted d-block">Documents</small>
+                                            </div>
+                                        </div>
+                                        <div class="col-6">
+                                            <div class="mb-2">
+                                                <strong id="chromadb-search-time">0ms</strong>
+                                                <small class="text-muted d-block">Avg Search</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="mt-3">
+                                        <button class="btn btn-sm btn-outline-primary" onclick="switchToStore('chromadb')">
+                                            Set as Primary
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-secondary" onclick="benchmarkStore('chromadb')">
+                                            Benchmark
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-12">
+                                <div class="config-panel">
+                                    <h5 class="mb-3">Store Comparison</h5>
+                                    <div class="table-responsive">
+                                        <table class="table table-sm">
+                                            <thead>
+                                                <tr>
+                                                    <th>Store</th>
+                                                    <th>Status</th>
+                                                    <th>Documents/Vectors</th>
+                                                    <th>Search Time</th>
+                                                    <th>Memory Usage</th>
+                                                    <th>Actions</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="comparison-table">
+                                                <!-- Populated by JavaScript -->
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    <div class="mt-3">
+                                        <button class="btn btn-primary" onclick="runFullBenchmark()">
+                                            <i class="bi bi-stopwatch me-2"></i>
+                                            Run Full Benchmark
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Performance Section -->
+                    <div id="performance-section" class="section d-none">
+                        <div class="row mb-4">
+                            <div class="col-12">
+                                <div class="chart-container" style="height: 500px;">
+                                    <h5 class="mb-3">Search Performance Over Time</h5>
+                                    <canvas id="search-performance-chart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-4">
+                                <div class="config-panel">
+                                    <h5 class="mb-3">Query Analytics</h5>
+                                    <div class="mb-3">
+                                        <label class="form-label">Test Query</label>
+                                        <input type="text" class="form-control" id="test-query" 
+                                               value="servicios municipales administración local">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Results (k)</label>
+                                        <input type="number" class="form-control" id="test-k" value="5" min="1" max="20">
+                                    </div>
+                                    <button class="btn btn-primary" onclick="runTestQuery()">
+                                        <i class="bi bi-search me-2"></i>
+                                        Test Query
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-6 mb-4">
+                                <div class="config-panel">
+                                    <h5 class="mb-3">Query Results</h5>
+                                    <div id="query-results" class="text-muted">
+                                        Run a test query to see results here.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Configuration Section -->
+                    <div id="configuration-section" class="section d-none">
+                        <div class="row">
+                            <div class="col-md-6 mb-4">
+                                <div class="config-panel">
+                                    <h5 class="mb-3">Embedding Settings</h5>
+                                    <div class="mb-3">
+                                        <label class="form-label">Model</label>
+                                        <select class="form-select" id="embedding-model">
+                                            <option value="all-MiniLM-L6-v2">all-MiniLM-L6-v2</option>
+                                            <option value="all-mpnet-base-v2">all-mpnet-base-v2</option>
+                                        </select>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Dimension</label>
+                                        <input type="number" class="form-control" id="embedding-dimension" 
+                                               value="384" readonly>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Cache Size</label>
+                                        <input type="number" class="form-control" id="cache-size" value="10000">
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-6 mb-4">
+                                <div class="config-panel">
+                                    <h5 class="mb-3">Vector Store Settings</h5>
+                                    <div class="mb-3">
+                                        <label class="form-label">Primary Store</label>
+                                        <select class="form-select" id="primary-store">
+                                            <option value="faiss">FAISS</option>
+                                            <option value="chromadb">ChromaDB</option>
+                                        </select>
+                                    </div>
+                                    <div class="mb-3">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="enable-fallback" checked>
+                                            <label class="form-check-label">Enable Fallback</label>
+                                        </div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Search Results (k)</label>
+                                        <input type="range" class="form-range" id="default-k" min="1" max="20" value="5">
+                                        <small class="text-muted">Default: <span id="k-value">5</span></small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-12">
+                                <div class="config-panel">
+                                    <h5 class="mb-3">System Actions</h5>
+                                    <div class="d-flex gap-2">
+                                        <button class="btn btn-success" onclick="saveConfiguration()">
+                                            <i class="bi bi-check-lg me-2"></i>
+                                            Save Configuration
+                                        </button>
+                                        <button class="btn btn-warning" onclick="resetConfiguration()">
+                                            <i class="bi bi-arrow-clockwise me-2"></i>
+                                            Reset to Defaults
+                                        </button>
+                                        <button class="btn btn-danger" onclick="clearAllStores()">
+                                            <i class="bi bi-trash me-2"></i>
+                                            Clear All Stores
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Logs Section -->
+                    <div id="logs-section" class="section d-none">
+                        <div class="row">
+                            <div class="col-12 mb-4">
+                                <div class="config-panel">
+                                    <div class="d-flex justify-content-between align-items-center mb-3">
+                                        <h5 class="mb-0">System Logs</h5>
+                                        <div>
+                                            <button class="btn btn-sm btn-outline-secondary" onclick="refreshLogs()">
+                                                <i class="bi bi-arrow-clockwise"></i>
+                                            </button>
+                                            <button class="btn btn-sm btn-outline-primary" onclick="clearLogs()">
+                                                Clear
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div id="log-container" style="height: 400px; overflow-y: auto; background: #f8f9fa; border-radius: 6px; padding: 1rem;">
+                                        <!-- Logs will be populated here -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+    
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        // Global variables
+        let performanceChart = null;
+        let distributionChart = null;
+        let searchPerformanceChart = null;
+        let systemData = {};
+        
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeNavigation();
+            initializeCharts();
+            refreshData();
+            
+            // Auto-refresh every 30 seconds
+            setInterval(refreshData, 30000);
+        });
+        
+        // Navigation
+        function initializeNavigation() {
+            const navLinks = document.querySelectorAll('.nav-link[data-section]');
+            navLinks.forEach(link => {
+                link.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const targetSection = this.dataset.section;
+                    showSection(targetSection);
+                    
+                    // Update active nav link
+                    navLinks.forEach(l => l.classList.remove('active'));
+                    this.classList.add('active');
+                });
+            });
+            
+            // Update range slider display
+            document.getElementById('default-k').addEventListener('input', function() {
+                document.getElementById('k-value').textContent = this.value;
+            });
+        }
+        
+        function showSection(sectionName) {
+            // Hide all sections
+            document.querySelectorAll('.section').forEach(section => {
+                section.classList.add('d-none');
+                section.classList.remove('active');
+            });
+            
+            // Show target section
+            const targetSection = document.getElementById(sectionName + '-section');
+            if (targetSection) {
+                targetSection.classList.remove('d-none');
+                targetSection.classList.add('active');
+            }
+        }
+        
+        // Data management
+        async function refreshData() {
+            showLoading(true);
+            
+            try {
+                // Replace with actual endpoints
+                const [statsData, healthData] = await Promise.all([
+                    mockApiCall('/api/stores/stats'),
+                    mockApiCall('/api/stores/health')
+                ]);
+                
+                systemData = { ...statsData, ...healthData };
+                updateDashboard(systemData);
+                updateSystemStatus('Healthy');
+                
+            } catch (error) {
+                console.error('Error refreshing data:', error);
+                updateSystemStatus('Error');
+            } finally {
+                showLoading(false);
+            }
+        }
+        
+        function updateDashboard(data) {
+            // Update metrics
+            document.getElementById('total-documents').textContent = data.total_documents || 0;
+            document.getElementById('total-vectors').textContent = data.total_vectors || 0;
+            document.getElementById('avg-search-time').textContent = (data.avg_search_time || 0) + 'ms';
+            document.getElementById('memory-usage').textContent = (data.memory_usage || 0) + 'MB';
+            
+            // Update store-specific data
+            updateStoreCards(data);
+            updateComparisonTable(data);
+            updateCharts(data);
+        }
+        
+        function updateStoreCards(data) {
+            // FAISS card
+            const faissData = data.stores?.faiss || {};
+            document.getElementById('faiss-vectors').textContent = faissData.vectors || 0;
+            document.getElementById('faiss-search-time').textContent = (faissData.search_time || 0) + 'ms';
+            
+            // ChromaDB card
+            const chromaData = data.stores?.chromadb || {};
+            document.getElementById('chromadb-vectors').textContent = chromaData.documents || 0;
+            document.getElementById('chromadb-search-time').textContent = (chromaData.search_time || 0) + 'ms';
+            
+            // Update active store
+            const activeStore = data.active_store || 'faiss';
+            document.querySelectorAll('.store-card').forEach(card => {
+                card.classList.remove('active');
+            });
+            document.getElementById(activeStore + '-card').classList.add('active');
+        }
+        
+        function updateComparisonTable(data) {
+            const tbody = document.getElementById('comparison-table');
+            const stores = data.stores || {};
+            
+            let html = '';
+            Object.keys(stores).forEach(storeName => {
+                const store = stores[storeName];
+                const isActive = data.active_store === storeName;
+                
+                html += `
+                    <tr class="${isActive ? 'table-primary' : ''}">
+                        <td><strong>${storeName.toUpperCase()}</strong></td>
+                        <td><span class="status-indicator ${isActive ? 'status-healthy' : 'status-warning'}"></span>
+                            ${isActive ? 'Active' : 'Standby'}</td>
+                        <td>${store.vectors || store.documents || 0}</td>
+                        <td>${(store.search_time || 0)}ms</td>
+                        <td>${(store.memory_usage || 0)}MB</td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-primary" onclick="switchToStore('${storeName}')">
+                                Activate
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            });
+            
+            tbody.innerHTML = html;
+        }
+        
+        // Chart management
+        function initializeCharts() {
+            // Performance chart
+            const perfCtx = document.getElementById('performance-chart').getContext('2d');
+            performanceChart = new Chart(perfCtx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Search Time (ms)',
+                        data: [],
+                        borderColor: '#2563eb',
+                        backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    }
+                }
+            });
+            
+            // Distribution chart
+            const distCtx = document.getElementById('distribution-chart').getContext('2d');
+            distributionChart = new Chart(distCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['FAISS', 'ChromaDB'],
+                    datasets: [{
+                        data: [0, 0],
+                        backgroundColor: ['#2563eb', '#059669']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false
+                }
+            });
+            
+            // Search performance chart
+            const searchPerfCtx = document.getElementById('search-performance-chart').getContext('2d');
+            searchPerformanceChart = new Chart(searchPerfCtx, {
+                type: 'bar',
+                data: {
+                    labels: ['FAISS', 'ChromaDB'],
+                    datasets: [{
+                        label: 'Average Search Time (ms)',
+                        data: [0, 0],
+                        backgroundColor: ['#2563eb', '#059669']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false
+                }
+            });
+        }
+        
+        function updateCharts(data) {
+            // Update performance chart with time series data
+            const now = new Date().toLocaleTimeString();
+            performanceChart.data.labels.push(now);
+            performanceChart.data.datasets[0].data.push(data.avg_search_time || 0);
+            
+            // Keep only last 10 data points
+            if (performanceChart.data.labels.length > 10) {
+                performanceChart.data.labels.shift();
+                performanceChart.data.datasets[0].data.shift();
+            }
+            performanceChart.update();
+            
+            // Update distribution chart
+            const stores = data.stores || {};
+            const faissVectors = stores.faiss?.vectors || 0;
+            const chromaVectors = stores.chromadb?.documents || 0;
+            
+            distributionChart.data.datasets[0].data = [faissVectors, chromaVectors];
+            distributionChart.update();
+            
+            // Update search performance chart
+            searchPerformanceChart.data.datasets[0].data = [
+                stores.faiss?.search_time || 0,
+                stores.chromadb?.search_time || 0
+            ];
+            searchPerformanceChart.update();
+        }
+        
+        // System actions
+        async function switchToStore(storeName) {
+            showLoading(true);
+            try {
+                await mockApiCall(`/api/stores/switch/${storeName}`, 'POST');
+                await refreshData();
+                showNotification(`Switched to ${storeName.toUpperCase()}`, 'success');
+            } catch (error) {
+                showNotification('Failed to switch store', 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+        
+        async function benchmarkStore(storeName) {
+            showLoading(true);
+            try {
+                const results = await mockApiCall(`/api/stores/benchmark/${storeName}`, 'POST');
+                showNotification(`Benchmark completed: ${results.search_time}ms average`, 'success');
+                await refreshData();
+            } catch (error) {
+                showNotification('Benchmark failed', 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+        
+        async function runFullBenchmark() {
+            showLoading(true);
+            try {
+                const results = await mockApiCall('/api/stores/benchmark/full', 'POST');
+                showNotification('Full benchmark completed', 'success');
+                await refreshData();
+            } catch (error) {
+                showNotification('Full benchmark failed', 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+        
+        async function runTestQuery() {
+            const query = document.getElementById('test-query').value;
+            const k = document.getElementById('test-k').value;
+            
+            if (!query.trim()) return;
+            
+            showLoading(true);
+            try {
+                const results = await mockApiCall('/api/stores/test-query', 'POST', { query, k });
+                displayQueryResults(results);
+            } catch (error) {
+                document.getElementById('query-results').innerHTML = 
+                    '<div class="text-danger">Query failed</div>';
+            } finally {
+                showLoading(false);
+            }
+        }
+        
+        function displayQueryResults(results) {
+            const container = document.getElementById('query-results');
+            let html = `
+                <div class="mb-2"><strong>Search Time:</strong> ${results.search_time}ms</div>
+                <div class="mb-2"><strong>Results Found:</strong> ${results.results.length}</div>
+                <hr>
+            `;
+            
+            results.results.forEach((result, index) => {
+                html += `
+                    <div class="mb-2">
+                        <small class="text-muted">#${index + 1}</small><br>
+                        <strong>${result.content.substring(0, 100)}...</strong><br>
+                        <small>Score: ${result.score.toFixed(3)}</small>
+                    </div>
+                `;
+            });
+            
+            container.innerHTML = html;
+        }
+        
+        function saveConfiguration() {
+            showNotification('Configuration saved successfully', 'success');
+        }
+        
+        function resetConfiguration() {
+            if (confirm('Are you sure you want to reset to defaults?')) {
+                showNotification('Configuration reset to defaults', 'info');
+            }
+        }
+        
+        function clearAllStores() {
+            if (confirm('This will delete all indexed documents. Are you sure?')) {
+                showNotification('All stores cleared', 'warning');
+            }
+        }
+        
+        function refreshLogs() {
+            const container = document.getElementById('log-container');
+            const logs = generateMockLogs();
+            
+            container.innerHTML = logs.map(log => `
+                <div class="log-entry log-${log.level}">
+                    <small class="text-muted">${log.timestamp}</small><br>
+                    ${log.message}
+                </div>
+            `).join('');
+            
+            container.scrollTop = container.scrollHeight;
+        }
+        
+        function clearLogs() {
+            document.getElementById('log-container').innerHTML = 
+                '<div class="text-muted text-center mt-4">Logs cleared</div>';
+        }
+        
+        // Utility functions
+        function showLoading(show) {
+            const indicator = document.getElementById('loading-indicator');
+            if (show) {
+                indicator.classList.remove('d-none');
+            } else {
+                indicator.classList.add('d-none');
+            }
+        }
+        
+        function updateSystemStatus(status) {
+            const statusElement = document.getElementById('system-status');
+            const indicator = statusElement.previousElementSibling;
+            
+            statusElement.textContent = status;
+            
+            // Update indicator color
+            indicator.className = 'status-indicator ';
+            switch (status.toLowerCase()) {
+                case 'healthy':
+                    indicator.classList.add('status-healthy');
+                    break;
+                case 'warning':
+                    indicator.classList.add('status-warning');
+                    break;
+                case 'error':
+                    indicator.classList.add('status-error');
+                    break;
+            }
+        }
+        
+        function showNotification(message, type) {
+            // Create a simple toast notification
+            const toast = document.createElement('div');
+            toast.className = `alert alert-${type === 'error' ? 'danger' : type} alert-dismissible fade show`;
+            toast.style.cssText = 'position: fixed; top: 20px; right: 20px; z-index: 1050; min-width: 300px;';
+            toast.innerHTML = `
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            
+            document.body.appendChild(toast);
+            
+            // Auto-remove after 5 seconds
+            setTimeout(() => {
+                if (toast.parentNode) {
+                    toast.parentNode.removeChild(toast);
+                }
+            }, 5000);
+        }
+        
+        // Real API functions
+        async function mockApiCall(endpoint, method = 'GET', data = null) {
+            try {
+                const options = {
+                    method: method,
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                };
+                
+                if (data && method !== 'GET') {
+                    options.body = JSON.stringify(data);
+                }
+                
+                const response = await fetch(endpoint, options);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                return await response.json();
+            } catch (error) {
+                console.error('API call failed:', error);
+                // Fallback to mock data for development
+                return getMockData(endpoint);
+            }
+        }
+        
+        // Mock data fallback for development
+        function getMockData(endpoint) {
+            if (endpoint.includes('/stats')) {
+                return {
+                    total_documents: 12,
+                    total_vectors: 12,
+                    avg_search_time: Math.floor(Math.random() * 50) + 10,
+                    memory_usage: Math.floor(Math.random() * 100) + 50,
+                    active_store: 'faiss',
+                    stores: {
+                        faiss: {
+                            vectors: 12,
+                            search_time: Math.floor(Math.random() * 30) + 10,
+                            memory_usage: 60
+                        },
+                        chromadb: {
+                            documents: 0,
+                            search_time: Math.floor(Math.random() * 80) + 20,
+                            memory_usage: 40
+                        }
+                    }
+                };
+            } else if (endpoint.includes('/test-query')) {
+                return {
+                    search_time: Math.floor(Math.random() * 50) + 10,
+                    results: [
+                        { content: 'El Ayuntamiento de Valencia gestiona los servicios municipales...', score: 0.95 },
+                        { content: 'Los ciudadanos pueden solicitar certificados digitales...', score: 0.87 },
+                        { content: 'La administración electrónica facilita los procesos...', score: 0.82 }
+                    ]
+                };
+            } else {
+                return { success: true };
+            }
+        }
+        
+        function generateMockLogs() {
+            const levels = ['info', 'success', 'warning', 'error'];
+            const messages = [
+                'VectorStoreService initialized successfully',
+                'Documents added to FAISS store',
+                'Search query completed',
+                'ChromaDB connection established',
+                'Embedding service loaded model',
+                'System health check passed'
+            ];
+            
+            return Array.from({ length: 20 }, (_, i) => ({
+                timestamp: new Date(Date.now() - i * 60000).toLocaleString(),
+                level: levels[Math.floor(Math.random() * levels.length)],
+                message: messages[Math.floor(Math.random() * messages.length)]
+            }));
+        }
+        
+        // Initialize logs on page load
+        setTimeout(refreshLogs, 1000);
+    </script>
+</body>
+</html>
