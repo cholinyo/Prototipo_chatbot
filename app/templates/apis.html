@@ -1,0 +1,921 @@
+{% extends "base.html" %}
+
+{% block title %}Gestión de APIs REST - {{ app_config.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+.auth-card {
+    border: 2px solid #e9ecef;
+    border-radius: 10px;
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+.auth-card:hover {
+    border-color: #667eea;
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+}
+.auth-card.selected {
+    border-color: #667eea;
+    background: rgba(102, 126, 234, 0.05);
+}
+.auth-card.disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    border-color: #dee2e6;
+}
+.page-header {
+    background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+    color: white;
+    border-radius: 12px;
+    padding: 2rem;
+    margin-bottom: 2rem;
+}
+.api-card {
+    border-radius: 8px;
+    transition: transform 0.2s ease;
+}
+.api-card:hover {
+    transform: translateY(-2px);
+}
+.status-badge {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+}
+.endpoint-item {
+    background: #f8f9fa;
+    border-radius: 6px;
+    padding: 0.5rem;
+    margin: 0.25rem 0;
+    font-family: 'Courier New', monospace;
+    font-size: 0.875rem;
+}
+.connection-test {
+    animation: pulse 2s infinite;
+}
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.5; }
+    100% { opacity: 1; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4">
+    <!-- Header -->
+    <div class="page-header text-center">
+        <h1 class="display-5 fw-bold mb-3">
+            <i class="fas fa-plug me-3"></i>
+            Gestión de APIs REST
+        </h1>
+        <p class="fs-5 mb-0">Conectores inteligentes para APIs institucionales y portales de transparencia</p>
+    </div>
+
+    <!-- Estadísticas -->
+    <div class="row mb-4">
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <i class="fas fa-plug fa-2x text-primary mb-2"></i>
+                    <div class="h3 text-primary" id="totalAPIs">{{ api_stats.total_apis or 0 }}</div>
+                    <p class="text-muted mb-0">APIs Configuradas</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <i class="fas fa-database fa-2x text-success mb-2"></i>
+                    <div class="h3 text-success" id="totalRecords">{{ api_stats.total_records or 0 }}</div>
+                    <p class="text-muted mb-0">Registros Indexados</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <i class="fas fa-sync-alt fa-2x text-warning mb-2"></i>
+                    <div class="h3 text-warning" id="activeSyncs">{{ api_stats.active_syncs or 0 }}</div>
+                    <p class="text-muted mb-0">Sincronizaciones Activas</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <i class="fas fa-clock fa-2x text-info mb-2"></i>
+                    <div class="small text-info" id="lastSync">
+                        {% if api_stats.last_sync %}
+                            {{ api_stats.last_sync.strftime('%d/%m/%Y %H:%M') }}
+                        {% else %}
+                            Sin datos
+                        {% endif %}
+                    </div>
+                    <p class="text-muted mb-0">Última Sincronización</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Configurar Nueva API -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-plus me-2"></i>
+                        Configurar Nueva API REST
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form id="addAPIForm">
+                        <!-- Información básica -->
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="apiName" class="form-label">Nombre de la API</label>
+                                <input type="text" class="form-control" id="apiName" 
+                                       placeholder="Portal de Transparencia Municipal" required>
+                                <div class="form-text">Nombre descriptivo para identificar la API</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="baseUrl" class="form-label">URL base</label>
+                                <input type="url" class="form-control" id="baseUrl" 
+                                       placeholder="https://transparencia.ayuntamiento.es/api/v1" required>
+                                <div class="form-text">URL base de la API REST</div>
+                            </div>
+                        </div>
+
+                        <!-- Selección de autenticación -->
+                        <div class="mb-4">
+                            <label class="form-label fw-bold">Método de Autenticación</label>
+                            <div class="row" id="authMethods">
+                                <div class="col-12 text-center py-3">
+                                    <div class="spinner-border text-primary" role="status">
+                                        <span class="visually-hidden">Cargando métodos...</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Configuración de autenticación -->
+                        <div id="authConfig" style="display: none;">
+                            <div class="row mb-3">
+                                <!-- API Key config -->
+                                <div id="apiKeyConfig" style="display: none;">
+                                    <div class="col-md-6">
+                                        <label for="apiKey" class="form-label">API Key</label>
+                                        <input type="password" class="form-control" id="apiKey">
+                                        <div class="form-text">Clave de acceso proporcionada por la API</div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label for="apiKeyParam" class="form-label">Nombre del parámetro</label>
+                                        <input type="text" class="form-control" id="apiKeyParam" value="api_key">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="form-check mt-4">
+                                            <input class="form-check-input" type="checkbox" id="apiKeyInHeader">
+                                            <label class="form-check-label" for="apiKeyInHeader">
+                                                Enviar en header
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Basic Auth config -->
+                                <div id="basicAuthConfig" style="display: none;">
+                                    <div class="col-md-6">
+                                        <label for="basicUsername" class="form-label">Usuario</label>
+                                        <input type="text" class="form-control" id="basicUsername">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="basicPassword" class="form-label">Contraseña</label>
+                                        <input type="password" class="form-control" id="basicPassword">
+                                    </div>
+                                </div>
+
+                                <!-- OAuth config -->
+                                <div id="oauthConfig" style="display: none;">
+                                    <div class="col-md-12">
+                                        <label for="accessToken" class="form-label">Access Token</label>
+                                        <input type="password" class="form-control" id="accessToken">
+                                        <div class="form-text">Token de acceso OAuth obtenido previamente</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Endpoints -->
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Endpoints</label>
+                            <div id="endpointsContainer">
+                                <div class="card mb-2">
+                                    <div class="card-body">
+                                        <div class="row">
+                                            <div class="col-md-3">
+                                                <label class="form-label">Nombre</label>
+                                                <input type="text" class="form-control" name="endpoint_name" 
+                                                       placeholder="contratos" required>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <label class="form-label">Ruta</label>
+                                                <input type="text" class="form-control" name="endpoint_path" 
+                                                       placeholder="/contratos" required>
+                                            </div>
+                                            <div class="col-md-3">
+                                                <label class="form-label">Campo de datos</label>
+                                                <input type="text" class="form-control" name="data_path" 
+                                                       placeholder="data" value="data">
+                                            </div>
+                                            <div class="col-md-2">
+                                                <label class="form-label">&nbsp;</label>
+                                                <button type="button" class="btn btn-outline-danger w-100" 
+                                                        onclick="removeEndpoint(this)" disabled>
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <button type="button" class="btn btn-sm btn-outline-primary" onclick="addEndpoint()">
+                                <i class="fas fa-plus me-1"></i>
+                                Añadir Endpoint
+                            </button>
+                        </div>
+
+                        <!-- Configuración avanzada -->
+                        <div class="row mb-3">
+                            <div class="col-md-4">
+                                <label for="rateLimit" class="form-label">Rate Limit (req/min)</label>
+                                <input type="number" class="form-control" id="rateLimit" 
+                                       value="60" min="1" max="1000">
+                                <div class="form-text">Límite de requests por minuto</div>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="timeout" class="form-label">Timeout (segundos)</label>
+                                <input type="number" class="form-control" id="timeout" 
+                                       value="30" min="5" max="120">
+                                <div class="form-text">Tiempo máximo de espera</div>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="pageSize" class="form-label">Tamaño de página</label>
+                                <input type="number" class="form-control" id="pageSize" 
+                                       value="100" min="10" max="1000">
+                                <div class="form-text">Registros por página (si aplica)</div>
+                            </div>
+                        </div>
+
+                        <!-- Botones de acción -->
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <button type="button" class="btn btn-outline-secondary me-md-2" 
+                                    onclick="testAPIConnection()">
+                                <i class="fas fa-vial me-2"></i>Probar Conexión
+                            </button>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-plus me-2"></i>Añadir API
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- APIs Configuradas -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-list me-2"></i>
+                        APIs Configuradas
+                    </h5>
+                    <div>
+                        <button type="button" class="btn btn-outline-primary btn-sm me-2" 
+                                onclick="refreshAPIs()">
+                            <i class="fas fa-sync-alt"></i> Actualizar
+                        </button>
+                        <button type="button" class="btn btn-outline-info btn-sm" 
+                                onclick="showSystemStatus()">
+                            <i class="fas fa-info-circle"></i> Estado Sistema
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="row" id="apisList">
+                        <div class="col-12 text-center py-5">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Cargando APIs...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de estado del sistema -->
+<div class="modal fade" id="systemStatusModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Estado del Sistema de APIs</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="systemStatusContent">
+                <div class="text-center py-3">
+                    <div class="spinner-border text-primary" role="status"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Variables globales
+let currentAPIs = [];
+let availableAuthMethods = [];
+let selectedAuthMethod = 'none';
+
+// Función para generar UUID simple
+function generateUUID() {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+    });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadAuthMethods();
+    loadAPIs();
+    setupEventListeners();
+});
+
+function loadAuthMethods() {
+    availableAuthMethods = [
+        {
+            id: 'none',
+            name: 'Sin Autenticación',
+            description: 'API pública sin autenticación requerida',
+            available: true,
+            icon: 'unlock'
+        },
+        {
+            id: 'api_key',
+            name: 'API Key',
+            description: 'Autenticación mediante clave de API',
+            available: true,
+            icon: 'key'
+        },
+        {
+            id: 'basic',
+            name: 'Basic Auth',
+            description: 'Usuario y contraseña en header Authorization',
+            available: true,
+            icon: 'user-lock'
+        },
+        {
+            id: 'oauth',
+            name: 'OAuth Bearer Token',
+            description: 'Token de acceso OAuth en header Authorization',
+            available: true,
+            icon: 'shield-alt'
+        }
+    ];
+    renderAuthMethods();
+}
+
+function renderAuthMethods() {
+    const container = document.getElementById('authMethods');
+    
+    container.innerHTML = availableAuthMethods.map(method => `
+        <div class="col-lg-6 mb-3">
+            <div class="auth-card p-3 ${method.available ? '' : 'disabled'}" 
+                 onclick="${method.available ? `selectAuthMethod('${method.id}')` : 'void(0)'}" 
+                 data-auth="${method.id}">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <h6 class="mb-0">
+                        <i class="fas fa-${method.icon} me-2"></i>
+                        ${method.name}
+                    </h6>
+                    <span class="badge ${method.available ? 'bg-success' : 'bg-secondary'}">
+                        ${method.available ? 'Disponible' : 'No disponible'}
+                    </span>
+                </div>
+                <p class="text-muted small mb-0">${method.description}</p>
+            </div>
+        </div>
+    `).join('');
+    
+    // Seleccionar primer método disponible
+    selectAuthMethod('none');
+}
+
+function selectAuthMethod(methodId) {
+    const method = availableAuthMethods.find(m => m.id === methodId);
+    if (!method || !method.available) return;
+    
+    document.querySelectorAll('.auth-card').forEach(card => {
+        card.classList.remove('selected');
+    });
+    
+    const methodCard = document.querySelector(`[data-auth="${methodId}"]`);
+    if (methodCard) {
+        methodCard.classList.add('selected');
+        selectedAuthMethod = methodId;
+        showAuthConfig(methodId);
+    }
+}
+
+function showAuthConfig(methodId) {
+    // Ocultar todas las configuraciones
+    document.getElementById('authConfig').style.display = 'none';
+    document.getElementById('apiKeyConfig').style.display = 'none';
+    document.getElementById('basicAuthConfig').style.display = 'none';
+    document.getElementById('oauthConfig').style.display = 'none';
+    
+    if (methodId === 'none') return;
+    
+    // Mostrar configuración apropiada
+    document.getElementById('authConfig').style.display = 'block';
+    
+    switch(methodId) {
+        case 'api_key':
+            document.getElementById('apiKeyConfig').style.display = 'block';
+            break;
+        case 'basic':
+            document.getElementById('basicAuthConfig').style.display = 'block';
+            break;
+        case 'oauth':
+            document.getElementById('oauthConfig').style.display = 'block';
+            break;
+    }
+}
+
+function addEndpoint() {
+    const container = document.getElementById('endpointsContainer');
+    const newEndpoint = document.createElement('div');
+    newEndpoint.className = 'card mb-2';
+    newEndpoint.innerHTML = `
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-3">
+                    <label class="form-label">Nombre</label>
+                    <input type="text" class="form-control" name="endpoint_name" 
+                           placeholder="nombre" required>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Ruta</label>
+                    <input type="text" class="form-control" name="endpoint_path" 
+                           placeholder="/ruta" required>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Campo de datos</label>
+                    <input type="text" class="form-control" name="data_path" 
+                           placeholder="data" value="data">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">&nbsp;</label>
+                    <button type="button" class="btn btn-outline-danger w-100" 
+                            onclick="removeEndpoint(this)">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    container.appendChild(newEndpoint);
+    updateRemoveButtons();
+}
+
+function removeEndpoint(button) {
+    button.closest('.card').remove();
+    updateRemoveButtons();
+}
+
+function updateRemoveButtons() {
+    const container = document.getElementById('endpointsContainer');
+    const cards = container.querySelectorAll('.card');
+    cards.forEach((card, index) => {
+        const removeBtn = card.querySelector('.btn-outline-danger');
+        removeBtn.disabled = cards.length === 1;
+    });
+}
+
+async function loadAPIs() {
+    try {
+        const response = await fetch('/api/apis');
+        const data = await response.json();
+        
+        if (data.success) {
+            currentAPIs = data.apis || [];
+            renderAPIs();
+            updateStats(data);
+        } else {
+            console.error('Error loading APIs:', data.error);
+            showEmptyAPIsList();
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showEmptyAPIsList();
+    }
+}
+
+function renderAPIs() {
+    const container = document.getElementById('apisList');
+    
+    if (currentAPIs.length === 0) {
+        showEmptyAPIsList();
+        return;
+    }
+    
+    container.innerHTML = currentAPIs.map(api => `
+        <div class="col-lg-6 col-xl-4 mb-3">
+            <div class="card api-card h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <h6 class="card-title mb-0">${api.name}</h6>
+                        <span class="status-badge badge ${getStatusBadgeClass(api.status)} ${api.is_syncing ? 'connection-test' : ''}">
+                            ${api.is_syncing ? 'Sincronizando' : api.status}
+                        </span>
+                    </div>
+                    
+                    <p class="card-text small text-muted mb-2">${api.base_url}</p>
+                    
+                    <div class="small mb-3">
+                        <div class="d-flex justify-content-between">
+                            <span>Autenticación:</span>
+                            <span class="fw-bold">
+                                <i class="fas fa-${getAuthIcon(api.auth_type)} me-1"></i>
+                                ${getAuthLabel(api.auth_type)}
+                            </span>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <span>Endpoints:</span>
+                            <span class="fw-bold">${api.endpoints?.length || 0}</span>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <span>Registros:</span>
+                            <span class="fw-bold">${api.total_records || 0}</span>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-2">
+                        ${(api.endpoints || []).map(ep => 
+                            `<div class="endpoint-item">${ep.path}</div>`
+                        ).join('')}
+                    </div>
+                    
+                    <div class="d-flex justify-content-between align-items-center">
+                        <small class="text-muted">
+                            ${api.last_sync ? 
+                                `Último: ${new Date(api.last_sync).toLocaleDateString()}` : 
+                                'No sincronizado'
+                            }
+                        </small>
+                        <div class="btn-group" role="group">
+                            <button class="btn btn-outline-primary btn-sm" 
+                                    onclick="testAPI('${api.id}')"
+                                    title="Probar conexión">
+                                <i class="fas fa-vial"></i>
+                            </button>
+                            <button class="btn btn-outline-success btn-sm" 
+                                    onclick="syncAPI('${api.id}')"
+                                    ${api.is_syncing ? 'disabled' : ''}
+                                    title="Sincronizar datos">
+                                <i class="fas fa-sync"></i>
+                            </button>
+                            <button class="btn btn-outline-info btn-sm" 
+                                    onclick="viewAPIDetails('${api.id}')"
+                                    title="Ver detalles">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                            <button class="btn btn-outline-danger btn-sm" 
+                                    onclick="deleteAPI('${api.id}')"
+                                    title="Eliminar">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+function showEmptyAPIsList() {
+    const container = document.getElementById('apisList');
+    container.innerHTML = `
+        <div class="col-12 text-center py-5">
+            <i class="fas fa-plug fa-3x mb-3 text-muted"></i>
+            <h5>No hay APIs configuradas</h5>
+            <p class="text-muted">Configura tu primera API REST usando el formulario anterior</p>
+        </div>
+    `;
+}
+
+function getStatusBadgeClass(status) {
+    const statusClasses = {
+        'active': 'bg-success',
+        'testing': 'bg-warning',
+        'error': 'bg-danger',
+        'inactive': 'bg-secondary',
+        'syncing': 'bg-info'
+    };
+    return statusClasses[status] || 'bg-secondary';
+}
+
+function getAuthIcon(authType) {
+    const icons = {
+        'none': 'unlock',
+        'api_key': 'key',
+        'basic': 'user-lock',
+        'oauth': 'shield-alt'
+    };
+    return icons[authType] || 'question';
+}
+
+function getAuthLabel(authType) {
+    const labels = {
+        'none': 'Ninguna',
+        'api_key': 'API Key',
+        'basic': 'Basic Auth',
+        'oauth': 'OAuth'
+    };
+    return labels[authType] || 'Desconocido';
+}
+
+function updateStats(data) {
+    if (data.total !== undefined) {
+        document.getElementById('totalAPIs').textContent = data.total;
+    }
+    if (data.active_syncs !== undefined) {
+        document.getElementById('activeSyncs').textContent = data.active_syncs;
+    }
+    if (data.total_records !== undefined) {
+        document.getElementById('totalRecords').textContent = data.total_records;
+    }
+}
+
+function setupEventListeners() {
+    const form = document.getElementById('addAPIForm');
+    form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const formData = getAPIFormData();
+        if (!validateAPIData(formData)) return;
+        
+        try {
+            const response = await fetch('/api/apis', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(formData)
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                showAlert('API añadida correctamente', 'success');
+                form.reset();
+                selectAuthMethod('none');
+                loadAPIs();
+            } else {
+                showAlert('Error: ' + data.error, 'danger');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            showAlert('Error de conexión', 'danger');
+        }
+    });
+}
+
+function getAPIFormData() {
+    // Recoger endpoints
+    const endpoints = Array.from(document.querySelectorAll('#endpointsContainer .card')).map(card => {
+        return {
+            name: card.querySelector('input[name="endpoint_name"]').value.trim(),
+            path: card.querySelector('input[name="endpoint_path"]').value.trim(),
+            data_path: card.querySelector('input[name="data_path"]').value.trim() || 'data'
+        };
+    }).filter(ep => ep.name && ep.path);
+    
+    // Configuración de autenticación
+    let auth_config = {};
+    switch(selectedAuthMethod) {
+        case 'api_key':
+            auth_config = {
+                key: document.getElementById('apiKey').value,
+                param_name: document.getElementById('apiKeyParam').value || 'api_key',
+                in_header: document.getElementById('apiKeyInHeader').checked
+            };
+            break;
+        case 'basic':
+            auth_config = {
+                username: document.getElementById('basicUsername').value,
+                password: document.getElementById('basicPassword').value
+            };
+            break;
+        case 'oauth':
+            auth_config = {
+                access_token: document.getElementById('accessToken').value
+            };
+            break;
+    }
+    
+    return {
+        id: generateUUID(),
+        name: document.getElementById('apiName').value.trim(),
+        base_url: document.getElementById('baseUrl').value.trim(),
+        auth_type: selectedAuthMethod,
+        auth_config: auth_config,
+        endpoints: endpoints,
+        rate_limit: parseInt(document.getElementById('rateLimit').value) || 60,
+        timeout: parseInt(document.getElementById('timeout').value) || 30,
+        pagination_config: {
+            page_param: 'page',
+            size_param: 'limit',
+            page_size: parseInt(document.getElementById('pageSize').value) || 100
+        }
+    };
+}
+
+function validateAPIData(data) {
+    if (!data.name) {
+        showAlert('El nombre de la API es requerido', 'warning');
+        return false;
+    }
+    
+    if (!data.base_url) {
+        showAlert('La URL base es requerida', 'warning');
+        return false;
+    }
+    
+    if (data.endpoints.length === 0) {
+        showAlert('Debe configurar al menos un endpoint', 'warning');
+        return false;
+    }
+    
+    // Validar configuración de autenticación
+    if (data.auth_type === 'api_key' && !data.auth_config.key) {
+        showAlert('La API Key es requerida para este tipo de autenticación', 'warning');
+        return false;
+    }
+    
+    if (data.auth_type === 'basic' && (!data.auth_config.username || !data.auth_config.password)) {
+        showAlert('Usuario y contraseña son requeridos para Basic Auth', 'warning');
+        return false;
+    }
+    
+    if (data.auth_type === 'oauth' && !data.auth_config.access_token) {
+        showAlert('El Access Token es requerido para OAuth', 'warning');
+        return false;
+    }
+    
+    return true;
+}
+
+async function testAPIConnection() {
+    const formData = getAPIFormData();
+    if (!validateAPIData(formData)) return;
+    
+    showAlert('Probando conexión con API...', 'info');
+    
+    try {
+        const response = await fetch('/api/apis/test', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(formData)
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            const result = data.test_result;
+            let message = `Conexión: ${result.success ? '✅ Exitosa' : '❌ Falló'}\n`;
+            message += `Tiempo de respuesta: ${result.response_time_ms}ms\n`;
+            message += `Estado HTTP: ${result.status_code || 'N/A'}\n`;
+            message += `Autenticación: ${result.auth_working ? '✅ OK' : '❌ Error'}`;
+            
+            showAlert(message, result.success ? 'success' : 'warning');
+        } else {
+            showAlert('Error en test: ' + data.error, 'danger');
+        }
+    } catch (error) {
+        showAlert('Error de conexión en test', 'danger');
+    }
+}
+
+async function testAPI(apiId) {
+    try {
+        showAlert('Probando API...', 'info');
+        
+        const response = await fetch(`/api/apis/${apiId}/test`, {
+            method: 'POST'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            const result = data.test_result;
+            showAlert(`Test completado: ${result.success ? 'Exitoso' : 'Falló'}`, result.success ? 'success' : 'warning');
+        } else {
+            showAlert('Error: ' + data.error, 'danger');
+        }
+    } catch (error) {
+        showAlert('Error de conexión', 'danger');
+    }
+}
+
+async function syncAPI(apiId) {
+    try {
+        const response = await fetch(`/api/apis/${apiId}/sync`, {
+            method: 'POST'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showAlert('Sincronización iniciada: ' + data.message, 'success');
+            setTimeout(() => loadAPIs(), 2000);
+        } else {
+            showAlert('Error: ' + data.error, 'danger');
+        }
+    } catch (error) {
+        showAlert('Error de conexión', 'danger');
+    }
+}
+
+async function deleteAPI(apiId) {
+    if (!confirm('¿Estás seguro de que quieres eliminar esta API?')) return;
+    
+    try {
+        const response = await fetch(`/api/apis/${apiId}`, {
+            method: 'DELETE'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showAlert('API eliminada: ' + data.message, 'success');
+            loadAPIs();
+        } else {
+            showAlert('Error: ' + data.error, 'danger');
+        }
+    } catch (error) {
+        showAlert('Error de conexión', 'danger');
+    }
+}
+
+function viewAPIDetails(apiId) {
+    const api = currentAPIs.find(a => a.id === apiId);
+    if (api) {
+        let details = `Detalles de ${api.name}:\n\n`;
+        details += `URL Base: ${api.base_url}\n`;
+        details += `Autenticación: ${getAuthLabel(api.auth_type)}\n`;
+        details += `Endpoints: ${api.endpoints?.length || 0}\n`;
+        details += `Rate Limit: ${api.rate_limit || 60} req/min\n`;
+        details += `Registros: ${api.total_records || 0}`;
+        
+        alert(details);
+    }
+}
+
+function refreshAPIs() {
+    loadAPIs();
+    showAlert('Lista actualizada', 'info');
+}
+
+function showSystemStatus() {
+    // Implementar modal de estado del sistema
+    const content = `
+        <div class="mb-3">
+            <h6>Estado de Conectores</h6>
+            <div class="d-flex justify-content-between">
+                <span>APIs activas:</span>
+                <span class="fw-bold">${currentAPIs.filter(api => api.status === 'active').length}</span>
+            </div>
+            <div class="d-flex justify-content-between">
+                <span>En sincronización:</span>
+                <span class="fw-bold">${currentAPIs.filter(api => api.is_syncing).length}</span>
+            </div>
+        </div>
+    `;
+    
+    document.getElementById('systemStatusContent').innerHTML = content;
+    new bootstrap.Modal(document.getElementById('systemStatusModal')).show();
+}
+
+function showAlert(message, type) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+    alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 1060; max-width: 400px;';
+    alertDiv.innerHTML = `
+        ${message.replace(/\n/g, '<br>')}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    document.body.appendChild(alertDiv);
+    setTimeout(() => alertDiv.remove(), 5000);
+}
+</script>
+{% endblock %}

@@ -1,0 +1,1015 @@
+{% extends "base.html" %}
+
+{% block title %}Gestión de Bases de Datos - {{ app_config.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+.db-type-card {
+    border: 2px solid #e9ecef;
+    border-radius: 10px;
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+.db-type-card:hover {
+    border-color: #43e97b;
+    box-shadow: 0 4px 12px rgba(67, 233, 123, 0.15);
+}
+.db-type-card.selected {
+    border-color: #43e97b;
+    background: rgba(67, 233, 123, 0.05);
+}
+.db-type-card.unavailable {
+    opacity: 0.6;
+    cursor: not-allowed;
+    border-color: #dee2e6;
+}
+.page-header {
+    background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+    color: white;
+    border-radius: 12px;
+    padding: 2rem;
+    margin-bottom: 2rem;
+}
+.database-card {
+    border-radius: 8px;
+    transition: transform 0.2s ease;
+}
+.database-card:hover {
+    transform: translateY(-2px);
+}
+.status-badge {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+}
+.query-item {
+    background: #f8f9fa;
+    border-radius: 6px;
+    padding: 0.5rem;
+    margin: 0.25rem 0;
+    font-family: 'Courier New', monospace;
+    font-size: 0.875rem;
+}
+.connection-test {
+    animation: pulse 2s infinite;
+}
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.5; }
+    100% { opacity: 1; }
+}
+.sql-editor {
+    font-family: 'Courier New', monospace;
+    font-size: 0.9rem;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4">
+    <!-- Header -->
+    <div class="page-header text-center">
+        <h1 class="display-5 fw-bold mb-3">
+            <i class="fas fa-database me-3"></i>
+            Gestión de Bases de Datos
+        </h1>
+        <p class="fs-5 mb-0">Conectores SQL para bases de datos institucionales y registros normativos</p>
+    </div>
+
+    <!-- Estadísticas -->
+    <div class="row mb-4">
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <i class="fas fa-server fa-2x text-primary mb-2"></i>
+                    <div class="h3 text-primary" id="totalDatabases">{{ db_stats.total_databases or 0 }}</div>
+                    <p class="text-muted mb-0">Bases de Datos</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <i class="fas fa-table fa-2x text-success mb-2"></i>
+                    <div class="h3 text-success" id="totalRecords">{{ db_stats.total_records or 0 }}</div>
+                    <p class="text-muted mb-0">Registros Indexados</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <i class="fas fa-search fa-2x text-warning mb-2"></i>
+                    <div class="h3 text-warning" id="totalQueries">{{ db_stats.total_queries or 0 }}</div>
+                    <p class="text-muted mb-0">Consultas Configuradas</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <i class="fas fa-clock fa-2x text-info mb-2"></i>
+                    <div class="small text-info" id="lastQuery">
+                        {% if db_stats.last_query %}
+                            {{ db_stats.last_query.strftime('%d/%m/%Y %H:%M') }}
+                        {% else %}
+                            Sin datos
+                        {% endif %}
+                    </div>
+                    <p class="text-muted mb-0">Última Consulta</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Configurar Nueva Base de Datos -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-plus me-2"></i>
+                        Configurar Nueva Base de Datos
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form id="addDatabaseForm">
+                        <!-- Información básica -->
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="dbName" class="form-label">Nombre de la Base de Datos</label>
+                                <input type="text" class="form-control" id="dbName" 
+                                       placeholder="Base de Datos Municipal" required>
+                                <div class="form-text">Nombre descriptivo para identificar la base de datos</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="dbDescription" class="form-label">Descripción</label>
+                                <input type="text" class="form-control" id="dbDescription" 
+                                       placeholder="Registros normativos y expedientes administrativos">
+                                <div class="form-text">Descripción del contenido de la base de datos</div>
+                            </div>
+                        </div>
+
+                        <!-- Selección de tipo de base de datos -->
+                        <div class="mb-4">
+                            <label class="form-label fw-bold">Tipo de Base de Datos</label>
+                            <div class="row" id="dbTypes">
+                                <div class="col-12 text-center py-3">
+                                    <div class="spinner-border text-primary" role="status">
+                                        <span class="visually-hidden">Cargando tipos...</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Configuración de conexión -->
+                        <div id="connectionConfig" style="display: none;">
+                            <h6 class="mb-3">
+                                <i class="fas fa-cog me-2"></i>
+                                Configuración de Conexión
+                            </h6>
+                            
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label for="dbHost" class="form-label">Servidor</label>
+                                    <input type="text" class="form-control" id="dbHost" 
+                                           placeholder="localhost">
+                                    <div class="form-text">Dirección IP o nombre del servidor</div>
+                                </div>
+                                <div class="col-md-3">
+                                    <label for="dbPort" class="form-label">Puerto</label>
+                                    <input type="number" class="form-control" id="dbPort" 
+                                           placeholder="5432">
+                                    <div class="form-text">Puerto de conexión</div>
+                                </div>
+                                <div class="col-md-3">
+                                    <label for="dbName" class="form-label">Nombre BD</label>
+                                    <input type="text" class="form-control" id="dbDatabase" 
+                                           placeholder="municipal_db" required>
+                                </div>
+                            </div>
+
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label for="dbUser" class="form-label">Usuario</label>
+                                    <input type="text" class="form-control" id="dbUser" 
+                                           placeholder="db_user" required>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="dbPassword" class="form-label">Contraseña</label>
+                                    <input type="password" class="form-control" id="dbPassword" 
+                                           placeholder="********" required>
+                                </div>
+                            </div>
+
+                            <!-- Configuración específica para SQLite -->
+                            <div id="sqliteConfig" style="display: none;">
+                                <div class="row mb-3">
+                                    <div class="col-md-12">
+                                        <label for="sqlitePath" class="form-label">Ruta del archivo SQLite</label>
+                                        <input type="text" class="form-control" id="sqlitePath" 
+                                               placeholder="/ruta/a/archivo.db">
+                                        <div class="form-text">Ruta completa al archivo de base de datos SQLite</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Configuración de pool de conexiones -->
+                        <div id="poolConfig" style="display: none;">
+                            <div class="row mb-3">
+                                <div class="col-md-4">
+                                    <label for="poolSize" class="form-label">Tamaño del pool</label>
+                                    <input type="number" class="form-control" id="poolSize" 
+                                           value="5" min="1" max="20">
+                                    <div class="form-text">Conexiones simultáneas</div>
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="maxOverflow" class="form-label">Max overflow</label>
+                                    <input type="number" class="form-control" id="maxOverflow" 
+                                           value="10" min="0" max="50">
+                                    <div class="form-text">Conexiones adicionales</div>
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="connectionTimeout" class="form-label">Timeout (seg)</label>
+                                    <input type="number" class="form-control" id="connectionTimeout" 
+                                           value="30" min="5" max="120">
+                                    <div class="form-text">Tiempo de espera</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Consultas SQL -->
+                        <div class="mb-4">
+                            <label class="form-label fw-bold">Consultas SQL</label>
+                            <div id="queriesContainer">
+                                <div class="card mb-2">
+                                    <div class="card-body">
+                                        <div class="row mb-2">
+                                            <div class="col-md-4">
+                                                <label class="form-label">Nombre de la consulta</label>
+                                                <input type="text" class="form-control" name="query_name" 
+                                                       placeholder="expedientes_activos" required>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label">Descripción</label>
+                                                <input type="text" class="form-control" name="query_description" 
+                                                       placeholder="Expedientes en tramitación">
+                                            </div>
+                                            <div class="col-md-2">
+                                                <label class="form-label">&nbsp;</label>
+                                                <button type="button" class="btn btn-outline-danger w-100" 
+                                                        onclick="removeQuery(this)" disabled>
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div class="mb-2">
+                                            <label class="form-label">Consulta SQL</label>
+                                            <textarea class="form-control sql-editor" name="query_sql" rows="4" 
+                                                     placeholder="SELECT * FROM expedientes WHERE estado = 'activo'" required></textarea>
+                                        </div>
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <label class="form-label">Campos de contenido (separados por coma)</label>
+                                                <input type="text" class="form-control" name="content_fields" 
+                                                       placeholder="titulo, descripcion, contenido">
+                                                <div class="form-text">Campos a usar como contenido principal</div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label">TTL Cache (segundos)</label>
+                                                <input type="number" class="form-control" name="cache_ttl" 
+                                                       value="3600" min="60" max="86400">
+                                                <div class="form-text">Tiempo de vida del cache</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <button type="button" class="btn btn-sm btn-outline-primary" onclick="addQuery()">
+                                <i class="fas fa-plus me-1"></i>
+                                Añadir Consulta
+                            </button>
+                        </div>
+
+                        <!-- Botones de acción -->
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <button type="button" class="btn btn-outline-secondary me-md-2" 
+                                    onclick="testDatabaseConnection()">
+                                <i class="fas fa-vial me-2"></i>Probar Conexión
+                            </button>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-plus me-2"></i>Añadir Base de Datos
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bases de Datos Configuradas -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-list me-2"></i>
+                        Bases de Datos Configuradas
+                    </h5>
+                    <div>
+                        <button type="button" class="btn btn-outline-primary btn-sm me-2" 
+                                onclick="refreshDatabases()">
+                            <i class="fas fa-sync-alt"></i> Actualizar
+                        </button>
+                        <button type="button" class="btn btn-outline-info btn-sm" 
+                                onclick="showSystemStatus()">
+                            <i class="fas fa-info-circle"></i> Estado Sistema
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="row" id="databasesList">
+                        <div class="col-12 text-center py-5">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Cargando bases de datos...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de estado del sistema -->
+<div class="modal fade" id="systemStatusModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Estado del Sistema de Bases de Datos</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="systemStatusContent">
+                <div class="text-center py-3">
+                    <div class="spinner-border text-primary" role="status"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de detalles de consulta -->
+<div class="modal fade" id="queryDetailsModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Detalles de Consulta</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="queryDetailsContent">
+                <!-- Contenido dinámico -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                <button type="button" class="btn btn-primary" id="executeQueryBtn">
+                    <i class="fas fa-play me-1"></i>Ejecutar Consulta
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Variables globales
+let currentDatabases = [];
+let availableDbTypes = [];
+let selectedDbType = null;
+
+// Función para generar UUID simple
+function generateUUID() {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+    });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadDbTypes();
+    loadDatabases();
+    setupEventListeners();
+});
+
+function loadDbTypes() {
+    // Tipos de BD soportados con información de disponibilidad
+    availableDbTypes = [
+        {
+            id: 'postgresql',
+            name: 'PostgreSQL',
+            description: 'Base de datos relacional avanzada con soporte completo SQL',
+            icon: 'database',
+            available: true,
+            default_port: 5432,
+            connection_string_example: 'postgresql://user:pass@host:5432/dbname'
+        },
+        {
+            id: 'mysql',
+            name: 'MySQL',
+            description: 'Base de datos relacional popular y ampliamente usada',
+            icon: 'database',
+            available: true,
+            default_port: 3306,
+            connection_string_example: 'mysql://user:pass@host:3306/dbname'
+        },
+        {
+            id: 'sqlite',
+            name: 'SQLite',
+            description: 'Base de datos ligera basada en archivos',
+            icon: 'file-archive',
+            available: true,
+            default_port: null,
+            connection_string_example: 'sqlite:///path/to/database.db'
+        },
+        {
+            id: 'mssql',
+            name: 'SQL Server',
+            description: 'Microsoft SQL Server para entornos empresariales',
+            icon: 'server',
+            available: true,
+            default_port: 1433,
+            connection_string_example: 'mssql://user:pass@host:1433/dbname'
+        }
+    ];
+    renderDbTypes();
+}
+
+function renderDbTypes() {
+    const container = document.getElementById('dbTypes');
+    
+    container.innerHTML = availableDbTypes.map(dbType => `
+        <div class="col-lg-6 mb-3">
+            <div class="db-type-card p-3 ${dbType.available ? '' : 'unavailable'}" 
+                 onclick="${dbType.available ? `selectDbType('${dbType.id}')` : 'void(0)'}" 
+                 data-db-type="${dbType.id}">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <h6 class="mb-0">
+                        <i class="fas fa-${dbType.icon} me-2"></i>
+                        ${dbType.name}
+                    </h6>
+                    <span class="badge ${dbType.available ? 'bg-success' : 'bg-secondary'}">
+                        ${dbType.available ? 'Disponible' : 'No disponible'}
+                    </span>
+                </div>
+                <p class="text-muted small mb-2">${dbType.description}</p>
+                <div class="small text-info">
+                    ${dbType.default_port ? `Puerto por defecto: ${dbType.default_port}` : 'Basada en archivos'}
+                </div>
+            </div>
+        </div>
+    `).join('');
+    
+    // Seleccionar primer tipo disponible
+    selectDbType('postgresql');
+}
+
+function selectDbType(dbTypeId) {
+    const dbType = availableDbTypes.find(t => t.id === dbTypeId);
+    if (!dbType || !dbType.available) return;
+    
+    document.querySelectorAll('.db-type-card').forEach(card => {
+        card.classList.remove('selected');
+    });
+    
+    const dbTypeCard = document.querySelector(`[data-db-type="${dbTypeId}"]`);
+    if (dbTypeCard) {
+        dbTypeCard.classList.add('selected');
+        selectedDbType = dbTypeId;
+        showConnectionConfig(dbTypeId, dbType);
+    }
+}
+
+function showConnectionConfig(dbTypeId, dbType) {
+    const connectionConfig = document.getElementById('connectionConfig');
+    const sqliteConfig = document.getElementById('sqliteConfig');
+    const poolConfig = document.getElementById('poolConfig');
+    
+    connectionConfig.style.display = 'block';
+    
+    if (dbTypeId === 'sqlite') {
+        // Para SQLite, mostrar configuración de archivo
+        sqliteConfig.style.display = 'block';
+        poolConfig.style.display = 'none';
+        
+        // Ocultar campos de servidor para SQLite
+        document.getElementById('dbHost').closest('.row').style.display = 'none';
+    } else {
+        // Para bases de datos de servidor
+        sqliteConfig.style.display = 'none';
+        poolConfig.style.display = 'block';
+        
+        // Mostrar campos de servidor
+        document.getElementById('dbHost').closest('.row').style.display = 'block';
+        
+        // Establecer puerto por defecto
+        if (dbType.default_port) {
+            document.getElementById('dbPort').value = dbType.default_port;
+        }
+    }
+}
+
+function addQuery() {
+    const container = document.getElementById('queriesContainer');
+    const newQuery = document.createElement('div');
+    newQuery.className = 'card mb-2';
+    newQuery.innerHTML = `
+        <div class="card-body">
+            <div class="row mb-2">
+                <div class="col-md-4">
+                    <label class="form-label">Nombre de la consulta</label>
+                    <input type="text" class="form-control" name="query_name" 
+                           placeholder="nombre_consulta" required>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Descripción</label>
+                    <input type="text" class="form-control" name="query_description" 
+                           placeholder="Descripción de la consulta">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">&nbsp;</label>
+                    <button type="button" class="btn btn-outline-danger w-100" 
+                            onclick="removeQuery(this)">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="mb-2">
+                <label class="form-label">Consulta SQL</label>
+                <textarea class="form-control sql-editor" name="query_sql" rows="4" 
+                         placeholder="SELECT * FROM tabla WHERE condicion" required></textarea>
+            </div>
+            <div class="row">
+                <div class="col-md-6">
+                    <label class="form-label">Campos de contenido</label>
+                    <input type="text" class="form-control" name="content_fields" 
+                           placeholder="campo1, campo2, campo3">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">TTL Cache (segundos)</label>
+                    <input type="number" class="form-control" name="cache_ttl" 
+                           value="3600" min="60" max="86400">
+                </div>
+            </div>
+        </div>
+    `;
+    container.appendChild(newQuery);
+    updateRemoveQueryButtons();
+}
+
+function removeQuery(button) {
+    button.closest('.card').remove();
+    updateRemoveQueryButtons();
+}
+
+function updateRemoveQueryButtons() {
+    const container = document.getElementById('queriesContainer');
+    const cards = container.querySelectorAll('.card');
+    cards.forEach((card, index) => {
+        const removeBtn = card.querySelector('.btn-outline-danger');
+        removeBtn.disabled = cards.length === 1;
+    });
+}
+
+async function loadDatabases() {
+    try {
+        const response = await fetch('/api/databases');
+        const data = await response.json();
+        
+        if (data.success) {
+            currentDatabases = data.databases || [];
+            renderDatabases();
+            updateStats(data);
+        } else {
+            console.error('Error loading databases:', data.error);
+            showEmptyDatabasesList();
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showEmptyDatabasesList();
+    }
+}
+
+function renderDatabases() {
+    const container = document.getElementById('databasesList');
+    
+    if (currentDatabases.length === 0) {
+        showEmptyDatabasesList();
+        return;
+    }
+    
+    container.innerHTML = currentDatabases.map(db => `
+        <div class="col-lg-6 col-xl-4 mb-3">
+            <div class="card database-card h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <h6 class="card-title mb-0">
+                            <i class="fas fa-${getDbIcon(db.db_type)} me-2"></i>
+                            ${db.name}
+                        </h6>
+                        <span class="status-badge badge ${getStatusBadgeClass(db.status)} ${db.is_querying ? 'connection-test' : ''}">
+                            ${db.is_querying ? 'Consultando' : db.status}
+                        </span>
+                    </div>
+                    
+                    <p class="card-text small text-muted mb-2">${db.description || 'Sin descripción'}</p>
+                    
+                    <div class="small mb-3">
+                        <div class="d-flex justify-content-between">
+                            <span>Tipo:</span>
+                            <span class="fw-bold">${getDbTypeLabel(db.db_type)}</span>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <span>Servidor:</span>
+                            <span class="fw-bold">
+                                ${db.db_type === 'sqlite' ? 
+                                    'Archivo local' : 
+                                    `${db.connection_config.host}:${db.connection_config.port || 'default'}`
+                                }
+                            </span>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <span>Consultas:</span>
+                            <span class="fw-bold">${db.queries?.length || 0}</span>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <span>Registros:</span>
+                            <span class="fw-bold">${db.total_records || 0}</span>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-2">
+                        ${(db.queries || []).slice(0, 3).map(query => 
+                            `<div class="query-item">${query.name}</div>`
+                        ).join('')}
+                        ${db.queries && db.queries.length > 3 ? 
+                            `<div class="small text-muted">+ ${db.queries.length - 3} más...</div>` : 
+                            ''
+                        }
+                    </div>
+                    
+                    <div class="d-flex justify-content-between align-items-center">
+                        <small class="text-muted">
+                            ${db.last_query ? 
+                                `Último: ${new Date(db.last_query).toLocaleDateString()}` : 
+                                'No consultado'
+                            }
+                        </small>
+                        <div class="btn-group" role="group">
+                            <button class="btn btn-outline-primary btn-sm" 
+                                    onclick="testDatabase('${db.id}')"
+                                    title="Probar conexión">
+                                <i class="fas fa-vial"></i>
+                            </button>
+                            <button class="btn btn-outline-success btn-sm" 
+                                    onclick="runDatabaseQueries('${db.id}')"
+                                    ${db.is_querying ? 'disabled' : ''}
+                                    title="Ejecutar consultas">
+                                <i class="fas fa-play"></i>
+                            </button>
+                            <button class="btn btn-outline-info btn-sm" 
+                                    onclick="viewDatabaseDetails('${db.id}')"
+                                    title="Ver detalles">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                            <button class="btn btn-outline-danger btn-sm" 
+                                    onclick="deleteDatabase('${db.id}')"
+                                    title="Eliminar">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+function showEmptyDatabasesList() {
+    const container = document.getElementById('databasesList');
+    container.innerHTML = `
+        <div class="col-12 text-center py-5">
+            <i class="fas fa-database fa-3x mb-3 text-muted"></i>
+            <h5>No hay bases de datos configuradas</h5>
+            <p class="text-muted">Configura tu primera base de datos usando el formulario anterior</p>
+        </div>
+    `;
+}
+
+function getDbIcon(dbType) {
+    const icons = {
+        'postgresql': 'database',
+        'mysql': 'database',
+        'sqlite': 'file-archive',
+        'mssql': 'server'
+    };
+    return icons[dbType] || 'database';
+}
+
+function getDbTypeLabel(dbType) {
+    const labels = {
+        'postgresql': 'PostgreSQL',
+        'mysql': 'MySQL',
+        'sqlite': 'SQLite',
+        'mssql': 'SQL Server'
+    };
+    return labels[dbType] || 'Desconocido';
+}
+
+function getStatusBadgeClass(status) {
+    const statusClasses = {
+        'active': 'bg-success',
+        'testing': 'bg-warning',
+        'error': 'bg-danger',
+        'inactive': 'bg-secondary',
+        'querying': 'bg-info'
+    };
+    return statusClasses[status] || 'bg-secondary';
+}
+
+function updateStats(data) {
+    if (data.total !== undefined) {
+        document.getElementById('totalDatabases').textContent = data.total;
+    }
+    if (data.total_records !== undefined) {
+        document.getElementById('totalRecords').textContent = data.total_records;
+    }
+    if (data.total_queries !== undefined) {
+        document.getElementById('totalQueries').textContent = data.total_queries;
+    }
+}
+
+function setupEventListeners() {
+    const form = document.getElementById('addDatabaseForm');
+    form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const formData = getDatabaseFormData();
+        if (!validateDatabaseData(formData)) return;
+        
+        try {
+            const response = await fetch('/api/databases', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(formData)
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                showAlert('Base de datos añadida correctamente', 'success');
+                form.reset();
+                selectDbType('postgresql');
+                loadDatabases();
+            } else {
+                showAlert('Error: ' + data.error, 'danger');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            showAlert('Error de conexión', 'danger');
+        }
+    });
+}
+
+function getDatabaseFormData() {
+    // Recoger consultas
+    const queries = Array.from(document.querySelectorAll('#queriesContainer .card')).map(card => {
+        const contentFields = card.querySelector('input[name="content_fields"]').value.trim();
+        return {
+            name: card.querySelector('input[name="query_name"]').value.trim(),
+            sql: card.querySelector('textarea[name="query_sql"]').value.trim(),
+            description: card.querySelector('input[name="query_description"]').value.trim(),
+            content_fields: contentFields ? contentFields.split(',').map(f => f.trim()) : [],
+            cache_ttl: parseInt(card.querySelector('input[name="cache_ttl"]').value) || 3600
+        };
+    }).filter(query => query.name && query.sql);
+    
+    // Configuración de conexión según tipo
+    let connection_config = {};
+    
+    if (selectedDbType === 'sqlite') {
+        connection_config = {
+            database: document.getElementById('sqlitePath').value.trim()
+        };
+    } else {
+        connection_config = {
+            host: document.getElementById('dbHost').value.trim() || 'localhost',
+            port: parseInt(document.getElementById('dbPort').value) || null,
+            database: document.getElementById('dbDatabase').value.trim(),
+            user: document.getElementById('dbUser').value.trim(),
+            password: document.getElementById('dbPassword').value.trim()
+        };
+    }
+    
+    return {
+        id: generateUUID(),
+        name: document.getElementById('dbName').value.trim(),
+        description: document.getElementById('dbDescription').value.trim(),
+        db_type: selectedDbType,
+        connection_config: connection_config,
+        queries: queries,
+        pool_size: parseInt(document.getElementById('poolSize').value) || 5,
+        max_overflow: parseInt(document.getElementById('maxOverflow').value) || 10,
+        timeout: parseInt(document.getElementById('connectionTimeout').value) || 30
+    };
+}
+
+function validateDatabaseData(data) {
+    if (!data.name) {
+        showAlert('El nombre de la base de datos es requerido', 'warning');
+        return false;
+    }
+    
+    if (!selectedDbType) {
+        showAlert('Debe seleccionar un tipo de base de datos', 'warning');
+        return false;
+    }
+    
+    if (selectedDbType === 'sqlite') {
+        if (!data.connection_config.database) {
+            showAlert('La ruta del archivo SQLite es requerida', 'warning');
+            return false;
+        }
+    } else {
+        if (!data.connection_config.database || !data.connection_config.user || !data.connection_config.password) {
+            showAlert('Nombre de BD, usuario y contraseña son requeridos', 'warning');
+            return false;
+        }
+    }
+    
+    if (data.queries.length === 0) {
+        showAlert('Debe configurar al menos una consulta SQL', 'warning');
+        return false;
+    }
+    
+    return true;
+}
+
+async function testDatabaseConnection() {
+    const formData = getDatabaseFormData();
+    if (!validateDatabaseData(formData)) return;
+    
+    showAlert('Probando conexión con base de datos...', 'info');
+    
+    try {
+        const response = await fetch('/api/databases/test', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(formData)
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            const result = data.test_result;
+            let message = `Conexión: ${result.success ? '✅ Exitosa' : '❌ Falló'}\n`;
+            message += `Tiempo de respuesta: ${result.response_time_ms}ms\n`;
+            message += `Versión BD: ${result.db_version || 'N/A'}\n`;
+            message += `Pool de conexiones: ${result.connection_pool_size || 0} conexiones`;
+            
+            showAlert(message, result.success ? 'success' : 'warning');
+        } else {
+            showAlert('Error en test: ' + data.error, 'danger');
+        }
+    } catch (error) {
+        showAlert('Error de conexión en test', 'danger');
+    }
+}
+
+async function testDatabase(dbId) {
+    try {
+        showAlert('Probando base de datos...', 'info');
+        
+        const response = await fetch(`/api/databases/${dbId}/test`, {
+            method: 'POST'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            const result = data.test_result;
+            showAlert(`Test completado: ${result.success ? 'Exitoso' : 'Falló'}`, result.success ? 'success' : 'warning');
+        } else {
+            showAlert('Error: ' + data.error, 'danger');
+        }
+    } catch (error) {
+        showAlert('Error de conexión', 'danger');
+    }
+}
+
+async function runDatabaseQueries(dbId) {
+    try {
+        const response = await fetch(`/api/databases/${dbId}/execute`, {
+            method: 'POST'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showAlert('Consultas ejecutadas: ' + data.message, 'success');
+            setTimeout(() => loadDatabases(), 2000);
+        } else {
+            showAlert('Error: ' + data.error, 'danger');
+        }
+    } catch (error) {
+        showAlert('Error de conexión', 'danger');
+    }
+}
+
+async function deleteDatabase(dbId) {
+    if (!confirm('¿Estás seguro de que quieres eliminar esta base de datos?')) return;
+    
+    try {
+        const response = await fetch(`/api/databases/${dbId}`, {
+            method: 'DELETE'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showAlert('Base de datos eliminada: ' + data.message, 'success');
+            loadDatabases();
+        } else {
+            showAlert('Error: ' + data.error, 'danger');
+        }
+    } catch (error) {
+        showAlert('Error de conexión', 'danger');
+    }
+}
+
+function viewDatabaseDetails(dbId) {
+    const db = currentDatabases.find(d => d.id === dbId);
+    if (db) {
+        let details = `Detalles de ${db.name}:\n\n`;
+        details += `Tipo: ${getDbTypeLabel(db.db_type)}\n`;
+        details += `Servidor: ${db.db_type === 'sqlite' ? 'Archivo local' : db.connection_config.host}\n`;
+        details += `Base de datos: ${db.connection_config.database}\n`;
+        details += `Consultas configuradas: ${db.queries?.length || 0}\n`;
+        details += `Registros indexados: ${db.total_records || 0}`;
+        
+        alert(details);
+    }
+}
+
+function refreshDatabases() {
+    loadDatabases();
+    showAlert('Lista actualizada', 'info');
+}
+
+function showSystemStatus() {
+    const activeConnections = currentDatabases.filter(db => db.status === 'active').length;
+    const totalQueries = currentDatabases.reduce((sum, db) => sum + (db.queries?.length || 0), 0);
+    
+    const content = `
+        <div class="row">
+            <div class="col-md-6">
+                <h6>Estado de Conexiones</h6>
+                <div class="d-flex justify-content-between">
+                    <span>Bases de datos activas:</span>
+                    <span class="fw-bold">${activeConnections}</span>
+                </div>
+                <div class="d-flex justify-content-between">
+                    <span>Total configuradas:</span>
+                    <span class="fw-bold">${currentDatabases.length}</span>
+                </div>
+                <div class="d-flex justify-content-between">
+                    <span>Consultas configuradas:</span>
+                    <span class="fw-bold">${totalQueries}</span>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <h6>Tipos de BD Soportados</h6>
+                ${availableDbTypes.map(type => `
+                    <div class="d-flex justify-content-between">
+                        <span>${type.name}:</span>
+                        <span class="badge ${type.available ? 'bg-success' : 'bg-secondary'}">${type.available ? 'Disponible' : 'No disponible'}</span>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+    `;
+    
+    document.getElementById('systemStatusContent').innerHTML = content;
+    new bootstrap.Modal(document.getElementById('systemStatusModal')).show();
+}
+
+function showAlert(message, type) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+    alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 1060; max-width: 400px;';
+    alertDiv.innerHTML = `
+        ${message.replace(/\n/g, '<br>')}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    document.body.appendChild(alertDiv);
+    setTimeout(() => alertDiv.remove(), 5000);
+}
+</script>
+{% endblock %}

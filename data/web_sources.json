@@ -122,5 +122,61 @@
       "failed_pages": 1,
       "success_rate": 0.0
     }
+  },
+  "adc47b40-770f-4f5f-95b4-56bd8e6a16c9": {
+    "id": "adc47b40-770f-4f5f-95b4-56bd8e6a16c9",
+    "name": "Portal de transparencia",
+    "type": "web",
+    "status": "active",
+    "config": {
+      "base_urls": [
+        "https://transparencia.onda.es"
+      ],
+      "allowed_domains": [
+        "transparencia.onda.es"
+      ],
+      "max_depth": 2,
+      "follow_links": true,
+      "respect_robots_txt": true,
+      "delay_seconds": 1,
+      "user_agent": "Mozilla/5.0 (Prototipo_chatbot TFM UJI)",
+      "content_selectors": [
+        "main",
+        "article",
+        ".content",
+        "#content"
+      ],
+      "title_selectors": [
+        "h1",
+        "title",
+        ".page-title"
+      ],
+      "exclude_selectors": [
+        "nav",
+        "footer",
+        ".sidebar",
+        "#sidebar",
+        ".menu"
+      ],
+      "min_content_length": 100,
+      "exclude_file_extensions": [
+        ".pdf",
+        ".doc",
+        ".jpg",
+        ".png",
+        ".zip"
+      ],
+      "include_patterns": [],
+      "exclude_patterns": [
+        "/admin",
+        "/login",
+        "/api/"
+      ],
+      "custom_headers": {},
+      "use_javascript": false
+    },
+    "created_at": "2025-08-27T07:07:12.834000+00:00",
+    "last_sync": null,
+    "metadata": {}
   }
 }
