@@ -11,8 +11,8 @@ PROPÓSITO: Gestión de fuentes de datos y monitoreo de archivos/páginas
 Este módulo define las clases base y específicas para diferentes tipos de fuentes de datos:
 - DocumentSource: Para archivos locales (PDF, DOCX, etc.)
 - WebSource: Para sitios web (web scraping)
-- APISource: Para APIs REST (futuro)
-- DatabaseSource: Para bases de datos (futuro)
+- APISource: Para APIs REST ✅ IMPLEMENTADA
+- DatabaseSource: Para bases de datos ✅ IMPLEMENTADA
 """
 
 from datetime import datetime
@@ -420,13 +420,13 @@ class WebSource(DataSource):
     
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'WebSource':
-        """Crear WebSource desde diccionario - Reconstruye desde config - CORREGIDO"""
+        """Crear WebSource desde diccionario - Reconstruye desde config"""
         config = data.get('config', {})
         base_urls = data.get('base_urls', config.get('base_urls', []))
         return cls(
             id=data['id'],
             name=data['name'],
-            type=DataSourceType.WEB,  # CRÍTICO: Campo requerido que faltaba
+            type=DataSourceType.WEB,
             status=DataSourceStatus(data.get('status', 'active')),
             created_at=datetime.fromisoformat(data['created_at']) if data.get('created_at') else datetime.now(),
             last_sync=datetime.fromisoformat(data['last_sync']) if data.get('last_sync') else None,
@@ -482,6 +482,268 @@ class WebSource(DataSource):
             return any(pattern in url for pattern in self.include_patterns)
         
         return True
+
+
+# =============================================================================
+# FUENTES ESPECÍFICAS - APISource ✅ NUEVA IMPLEMENTACIÓN
+# =============================================================================
+
+@dataclass
+class APISource(DataSource):
+    """
+    Fuente de datos específica para APIs REST
+    
+    Maneja la ingesta de datos desde APIs REST con autenticación,
+    paginación y transformación de responses JSON a DocumentChunks.
+    """
+    # Configuración de conexión
+    base_url: str = ""
+    auth_type: str = "none"  # none, bearer, api_key, basic
+    auth_credentials: Dict[str, str] = field(default_factory=dict)  # {token/key/user/pass}
+    
+    # Configuración de endpoints
+    endpoints: List[Dict[str, Any]] = field(default_factory=list)  # [{name, path, method, params}]
+    default_headers: Dict[str, str] = field(default_factory=dict)
+    timeout_seconds: int = 30
+    
+    # Transformación de datos
+    content_fields: List[str] = field(default_factory=list)  # Campos a usar como contenido
+    metadata_fields: List[str] = field(default_factory=list)  # Campos adicionales para metadatos
+    pagination_config: Dict[str, Any] = field(default_factory=dict)  # {type, key, limit}
+    
+    # Filtros de respuesta
+    min_content_length: int = 50
+    exclude_keys: List[str] = field(default_factory=list)  # Keys a excluir del procesamiento
+    
+    def __post_init__(self):
+        """Validación específica para fuentes API"""
+        if self.type != DataSourceType.API:
+            self.type = DataSourceType.API
+        
+        # Validar URL base
+        if not self.base_url:
+            raise ValueError("Se debe proporcionar una URL base para la API")
+        
+        # Validar tipo de autenticación
+        valid_auth_types = ["none", "bearer", "api_key", "basic", "oauth2"]
+        if self.auth_type not in valid_auth_types:
+            raise ValueError(f"Tipo de auth no válido: {self.auth_type}")
+        
+        # Sincronizar con config
+        self.config.update({
+            'base_url': self.base_url,
+            'auth_type': self.auth_type,
+            'auth_credentials': self.auth_credentials,
+            'endpoints': self.endpoints,
+            'default_headers': self.default_headers,
+            'timeout_seconds': self.timeout_seconds,
+            'content_fields': self.content_fields,
+            'metadata_fields': self.metadata_fields,
+            'pagination_config': self.pagination_config,
+            'min_content_length': self.min_content_length,
+            'exclude_keys': self.exclude_keys
+        })
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'APISource':
+        """Crear APISource desde diccionario"""
+        config = data.get('config', {})
+        
+        return cls(
+            id=data['id'],
+            name=data['name'],
+            type=DataSourceType.API,
+            status=DataSourceStatus(data.get('status', 'pending')),
+            created_at=datetime.fromisoformat(data['created_at']) if data.get('created_at') else datetime.now(),
+            last_sync=datetime.fromisoformat(data['last_sync']) if data.get('last_sync') else None,
+            metadata=data.get('metadata', {}),
+            # Campos específicos de APISource
+            base_url=config.get('base_url', ''),
+            auth_type=config.get('auth_type', 'none'),
+            auth_credentials=config.get('auth_credentials', {}),
+            endpoints=config.get('endpoints', []),
+            default_headers=config.get('default_headers', {}),
+            timeout_seconds=config.get('timeout_seconds', 30),
+            content_fields=config.get('content_fields', []),
+            metadata_fields=config.get('metadata_fields', []),
+            pagination_config=config.get('pagination_config', {}),
+            min_content_length=config.get('min_content_length', 50),
+            exclude_keys=config.get('exclude_keys', [])
+        )
+    
+    def get_auth_headers(self) -> Dict[str, str]:
+        """Generar headers de autenticación según configuración"""
+        headers = self.default_headers.copy()
+        
+        if self.auth_type == "bearer" and "token" in self.auth_credentials:
+            headers["Authorization"] = f"Bearer {self.auth_credentials['token']}"
+        elif self.auth_type == "api_key":
+            key_name = self.auth_credentials.get("key_name", "X-API-Key")
+            headers[key_name] = self.auth_credentials.get("key_value", "")
+        elif self.auth_type == "basic":
+            import base64
+            user = self.auth_credentials.get("username", "")
+            password = self.auth_credentials.get("password", "")
+            credentials = base64.b64encode(f"{user}:{password}".encode()).decode()
+            headers["Authorization"] = f"Basic {credentials}"
+        
+        return headers
+    
+    def is_response_valid(self, response_data: Any) -> bool:
+        """Validar si una respuesta de API es procesable"""
+        if not response_data:
+            return False
+        
+        # Si es texto, verificar longitud mínima
+        if isinstance(response_data, str):
+            return len(response_data.strip()) >= self.min_content_length
+        
+        # Si es dict/list, verificar que tenga contenido útil
+        if isinstance(response_data, (dict, list)):
+            content_str = json.dumps(response_data)
+            return len(content_str) >= self.min_content_length
+        
+        return True
+
+
+# =============================================================================
+# FUENTES ESPECÍFICAS - DatabaseSource ✅ NUEVA IMPLEMENTACIÓN
+# =============================================================================
+
+@dataclass
+class DatabaseSource(DataSource):
+    """
+    Fuente de datos específica para bases de datos SQL
+    
+    Maneja la ingesta de datos desde bases de datos relacionales
+    con soporte para múltiples SGBD, consultas parametrizadas y transformación a chunks.
+    """
+    # Configuración de conexión
+    db_type: str = ""  # postgresql, mysql, sqlite, mssql
+    connection_config: Dict[str, Any] = field(default_factory=dict)  # host, port, database, user, pass
+    
+    # Pool de conexiones
+    pool_size: int = 5
+    max_overflow: int = 10
+    timeout_seconds: int = 30
+    
+    # Consultas SQL
+    queries: List[Dict[str, Any]] = field(default_factory=list)  # [{name, sql, description, params}]
+    default_parameters: Dict[str, Any] = field(default_factory=dict)
+    
+    # Transformación de datos
+    content_fields: List[str] = field(default_factory=list)  # Columnas a usar como contenido
+    metadata_fields: List[str] = field(default_factory=list)  # Columnas adicionales para metadatos
+    
+    # Configuración de procesamiento
+    batch_size: int = 1000  # Registros por lote
+    min_content_length: int = 50
+    cache_ttl: int = 3600  # TTL del cache en segundos
+    
+    def __post_init__(self):
+        """Validación específica para fuentes de base de datos"""
+        if self.type != DataSourceType.DATABASE:
+            self.type = DataSourceType.DATABASE
+        
+        # Validar tipo de BD
+        valid_db_types = ["postgresql", "mysql", "sqlite", "mssql"]
+        if self.db_type not in valid_db_types:
+            raise ValueError(f"Tipo de BD no soportado: {self.db_type}")
+        
+        # Validar configuración de conexión básica
+        required_fields = {
+            'postgresql': ['host', 'port', 'database', 'user', 'password'],
+            'mysql': ['host', 'port', 'database', 'user', 'password'],
+            'sqlite': ['database'],
+            'mssql': ['host', 'port', 'database', 'user', 'password']
+        }
+        
+        for field in required_fields.get(self.db_type, []):
+            if field not in self.connection_config:
+                raise ValueError(f"Campo requerido faltante para {self.db_type}: {field}")
+        
+        # Sincronizar con config
+        self.config.update({
+            'db_type': self.db_type,
+            'connection_config': self.connection_config,
+            'pool_size': self.pool_size,
+            'max_overflow': self.max_overflow,
+            'timeout_seconds': self.timeout_seconds,
+            'queries': self.queries,
+            'default_parameters': self.default_parameters,
+            'content_fields': self.content_fields,
+            'metadata_fields': self.metadata_fields,
+            'batch_size': self.batch_size,
+            'min_content_length': self.min_content_length,
+            'cache_ttl': self.cache_ttl
+        })
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'DatabaseSource':
+        """Crear DatabaseSource desde diccionario"""
+        config = data.get('config', {})
+        
+        return cls(
+            id=data['id'],
+            name=data['name'],
+            type=DataSourceType.DATABASE,
+            status=DataSourceStatus(data.get('status', 'pending')),
+            created_at=datetime.fromisoformat(data['created_at']) if data.get('created_at') else datetime.now(),
+            last_sync=datetime.fromisoformat(data['last_sync']) if data.get('last_sync') else None,
+            metadata=data.get('metadata', {}),
+            # Campos específicos de DatabaseSource
+            db_type=config.get('db_type', ''),
+            connection_config=config.get('connection_config', {}),
+            pool_size=config.get('pool_size', 5),
+            max_overflow=config.get('max_overflow', 10),
+            timeout_seconds=config.get('timeout_seconds', 30),
+            queries=config.get('queries', []),
+            default_parameters=config.get('default_parameters', {}),
+            content_fields=config.get('content_fields', []),
+            metadata_fields=config.get('metadata_fields', []),
+            batch_size=config.get('batch_size', 1000),
+            min_content_length=config.get('min_content_length', 50),
+            cache_ttl=config.get('cache_ttl', 3600)
+        )
+    
+    def get_connection_string(self) -> str:
+        """Generar cadena de conexión según el tipo de BD"""
+        config = self.connection_config
+        
+        if self.db_type == "postgresql":
+            return (f"postgresql://{config['user']}:{config['password']}@"
+                   f"{config['host']}:{config['port']}/{config['database']}")
+        
+        elif self.db_type == "mysql":
+            return (f"mysql://{config['user']}:{config['password']}@"
+                   f"{config['host']}:{config['port']}/{config['database']}")
+        
+        elif self.db_type == "sqlite":
+            return f"sqlite:///{config['database']}"
+        
+        elif self.db_type == "mssql":
+            return (f"mssql://{config['user']}:{config['password']}@"
+                   f"{config['host']}:{config['port']}/{config['database']}")
+        
+        raise ValueError(f"Tipo de BD no soportado: {self.db_type}")
+    
+    def is_record_valid(self, record: Dict[str, Any]) -> bool:
+        """Validar si un registro de BD es procesable"""
+        if not record:
+            return False
+        
+        # Si hay campos de contenido específicos, verificar que existan
+        if self.content_fields:
+            for field in self.content_fields:
+                if field in record and record[field]:
+                    value = str(record[field]).strip()
+                    if len(value) >= self.min_content_length:
+                        return True
+            return False
+        
+        # Si no hay campos específicos, verificar contenido general
+        total_content = ' '.join(str(v) for v in record.values() if v is not None)
+        return len(total_content.strip()) >= self.min_content_length
 
 
 # =============================================================================
@@ -777,6 +1039,93 @@ def create_web_source(
     )
 
 
+def create_api_source(
+    name: str,
+    base_url: str,
+    source_id: Optional[str] = None,
+    **kwargs
+) -> APISource:
+    """
+    Factory function para crear fuentes API ✅ NUEVA
+    
+    Args:
+        name: Nombre descriptivo de la fuente
+        base_url: URL base de la API
+        source_id: ID específico (se genera automáticamente si es None)
+        **kwargs: Parámetros adicionales (auth_type, endpoints, etc.)
+        
+    Returns:
+        Nueva instancia de APISource configurada
+    """
+    import uuid
+    
+    if source_id is None:
+        source_id = str(uuid.uuid4())
+    
+    return APISource(
+        id=source_id,
+        name=name,
+        type=DataSourceType.API,
+        base_url=base_url,
+        auth_type=kwargs.get('auth_type', 'none'),
+        auth_credentials=kwargs.get('auth_credentials', {}),
+        endpoints=kwargs.get('endpoints', []),
+        default_headers=kwargs.get('default_headers', {}),
+        timeout_seconds=kwargs.get('timeout_seconds', 30),
+        content_fields=kwargs.get('content_fields', []),
+        metadata_fields=kwargs.get('metadata_fields', []),
+        pagination_config=kwargs.get('pagination_config', {}),
+        min_content_length=kwargs.get('min_content_length', 50),
+        exclude_keys=kwargs.get('exclude_keys', []),
+        metadata=kwargs.get('metadata', {})
+    )
+
+
+def create_database_source(
+    name: str,
+    db_type: str,
+    connection_config: Dict[str, Any],
+    source_id: Optional[str] = None,
+    **kwargs
+) -> DatabaseSource:
+    """
+    Factory function para crear fuentes de base de datos ✅ NUEVA
+    
+    Args:
+        name: Nombre descriptivo de la fuente
+        db_type: Tipo de base de datos (postgresql, mysql, sqlite, mssql)
+        connection_config: Configuración de conexión (host, port, database, etc.)
+        source_id: ID específico (se genera automáticamente si es None)
+        **kwargs: Parámetros adicionales (queries, content_fields, etc.)
+        
+    Returns:
+        Nueva instancia de DatabaseSource configurada
+    """
+    import uuid
+    
+    if source_id is None:
+        source_id = str(uuid.uuid4())
+    
+    return DatabaseSource(
+        id=source_id,
+        name=name,
+        type=DataSourceType.DATABASE,
+        db_type=db_type,
+        connection_config=connection_config,
+        pool_size=kwargs.get('pool_size', 5),
+        max_overflow=kwargs.get('max_overflow', 10),
+        timeout_seconds=kwargs.get('timeout_seconds', 30),
+        queries=kwargs.get('queries', []),
+        default_parameters=kwargs.get('default_parameters', {}),
+        content_fields=kwargs.get('content_fields', []),
+        metadata_fields=kwargs.get('metadata_fields', []),
+        batch_size=kwargs.get('batch_size', 1000),
+        min_content_length=kwargs.get('min_content_length', 50),
+        cache_ttl=kwargs.get('cache_ttl', 3600),
+        metadata=kwargs.get('metadata', {})
+    )
+
+
 # =============================================================================
 # EXPORTACIONES - API pública del módulo
 # =============================================================================
@@ -800,6 +1149,8 @@ __all__ = [
     # Fuentes específicas
     'DocumentSource', 
     'WebSource',
+    'APISource',      # ✅ NUEVA
+    'DatabaseSource', # ✅ NUEVA
     
     # Páginas web scrapeadas
     'ScrapedPage',
@@ -807,6 +1158,8 @@ __all__ = [
     # Factory functions
     'create_document_source', 
     'create_web_source',
+    'create_api_source',     # ✅ NUEVA
+    'create_database_source', # ✅ NUEVA
     
     # Configuraciones por defecto
     'DEFAULT_DOCUMENT_EXTENSIONS',

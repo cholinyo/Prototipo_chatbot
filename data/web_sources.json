@@ -52,7 +52,7 @@
       "use_javascript": false
     },
     "created_at": "2025-08-25T14:20:21.987000+00:00",
-    "last_sync": "2025-08-26T08:55:00.290935",
+    "last_sync": "2025-08-27T13:57:10.002312",
     "metadata": {
       "scraping_active": false,
       "total_pages_processed": 1,
@@ -176,7 +176,13 @@
       "use_javascript": false
     },
     "created_at": "2025-08-27T07:07:12.834000+00:00",
-    "last_sync": null,
-    "metadata": {}
+    "last_sync": "2025-08-27T13:57:13.336267",
+    "metadata": {
+      "scraping_active": false,
+      "total_pages_processed": 1,
+      "successful_pages": 0,
+      "failed_pages": 1,
+      "success_rate": 0.0
+    }
   }
 }
